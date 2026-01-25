@@ -6,7 +6,7 @@ const api = axios.create({
 
 // Добавляем токен к каждому запросу
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access_token');
+  const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -50,12 +50,12 @@ export const blockUser = (userId: string) =>
 export const unblockUser = (userId: string) =>
   api.post(`/admin/users/${userId}/unblock`);
 
-// Admin - Requests
-export const getRequests = (page = 1, limit = 50, status?: string) =>
-  api.get('/admin/requests', { params: { page, limit, status } });
+// Requests
+export const getRequests = (page = 1, limit = 20) =>
+  api.get(`/admin/requests?page=${page}&limit=${limit}`);
 
-export const getRequestDetail = (requestId: string) =>
-  api.get(`/admin/requests/${requestId}`);
+export const getRequest = (id: string) =>
+  api.get(`/admin/requests/${id}`);
 
 // Admin - Adapters
 export const getAdapters = () => api.get('/admin/adapters');

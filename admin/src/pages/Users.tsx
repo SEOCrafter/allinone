@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getUsers, updateUserRole, updateUserPassword, blockUser } from '../api/client';
+import { getUsers, setUserRole, setUserPassword, blockUser, unblockUser } from '../api/client';
 import { MoreVertical, RefreshCw } from 'lucide-react';
 
 interface User {
