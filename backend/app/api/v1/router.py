@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1 import auth, users, chat, images, tasks, files, payments
+from app.api.v1 import auth, users, chat, images, tasks, files, payments, providers
 
 api_router = APIRouter()
 
@@ -10,3 +10,4 @@ api_router.include_router(images.router, prefix="/images", tags=["Images"])
 api_router.include_router(tasks.router, prefix="/tasks", tags=["Tasks"])
 api_router.include_router(files.router, prefix="/files", tags=["Files"])
 api_router.include_router(payments.router, prefix="/payments", tags=["Payments"])
+api_router.include_router(providers.router, prefix="/providers", tags=["Providers"])
