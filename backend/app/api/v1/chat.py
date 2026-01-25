@@ -1,10 +1,14 @@
 import uuid
+from decimal import Decimal
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
+from app.api.deps import get_current_user
+from app.models.user import User
 from app.services.generation import generation_service
+from app.services.billing import billing_service
 
 router = APIRouter()
 
@@ -12,7 +16,7 @@ class ChatRequest(BaseModel):
     message: str
     conversation_id: Optional[str] = None
     system_prompt: Optional[str] = None
-    provider: Optional[str] = None  # openai, anthropic
+    provider: Optional[str] = None
     model: Optional[str] = None
 
 class CreditsInfo(BaseModel):
@@ -29,20 +33,21 @@ class ChatResponse(BaseModel):
     tokens: dict
     credits: CreditsInfo
 
-class ErrorResponse(BaseModel):
-    ok: bool = False
-    error: dict
-
-@router.post("")
-async def chat(data: ChatRequest, db: AsyncSession = Depends(get_db)):
+@router.post("", response_model=ChatResponse)
+async def chat(
+    data: ChatRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """
-    Текстовый чат с AI.
+    Текстовый чат с AI. Требует авторизации.
+    """
+    # Проверяем баланс (минимум 0.01 кредита)
+    min_required = Decimal("0.01")
+    if not await billing_service.check_balance(db, current_user.id, min_required):
+        raise HTTPException(status_code=402, detail="Insufficient credits")
     
-    - **message**: Текст запроса
-    - **system_prompt**: Системный промпт (опционально)
-    - **provider**: openai, anthropic (по умолчанию openai)
-    - **model**: Конкретная модель (опционально)
-    """
+    # Генерация
     result = await generation_service.chat(
         message=data.message,
         system_prompt=data.system_prompt,
@@ -53,15 +58,12 @@ async def chat(data: ChatRequest, db: AsyncSession = Depends(get_db)):
     if not result.success:
         raise HTTPException(
             status_code=502,
-            detail={
-                "code": result.error_code,
-                "message": result.error_message,
-            }
+            detail={"code": result.error_code, "message": result.error_message}
         )
     
-    credits_spent = float(generation_service.calculate_credits(result))
-    
-    # TODO: Сохранить в БД, списать кредиты
+    # Списываем кредиты
+    credits_spent = generation_service.calculate_credits(result)
+    new_balance = await billing_service.deduct_credits(db, current_user.id, credits_spent)
     
     return ChatResponse(
         request_id=str(uuid.uuid4()),
@@ -74,7 +76,7 @@ async def chat(data: ChatRequest, db: AsyncSession = Depends(get_db)):
             "output": result.tokens_output,
         },
         credits=CreditsInfo(
-            spent=credits_spent,
-            remaining=100.0,  # TODO: из БД
+            spent=float(credits_spent),
+            remaining=float(new_balance),
         ),
     )
