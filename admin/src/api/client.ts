@@ -69,3 +69,10 @@ export const testAdapter = (name: string, message: string, model?: string) =>
 
 export const healthCheckAdapter = (name: string) =>
   api.post(`/admin/adapters/${name}/health`);
+
+// Балансы провайдеров
+export const setProviderBalance = (provider: string, balance_usd: number) =>
+  api.post(`/admin/adapters/balances/${provider}/set`, { balance_usd });
+
+export const depositProviderBalance = (provider: string, amount_usd: number) =>
+  api.post(`/admin/adapters/balances/${provider}/deposit`, { amount_usd });

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { getAdapters, getAdaptersStatus, getAdaptersBalances, testAdapter, healthCheckAdapter } from '../api/client';
-import { Send, RefreshCw, Loader2 } from 'lucide-react';
+import { getAdapters, getAdaptersStatus, getAdaptersBalances, testAdapter, healthCheckAdapter, setProviderBalance } from '../api/client';
+import { Send, RefreshCw, Loader2, Save } from 'lucide-react';
 
 interface Adapter {
   name: string;
@@ -27,20 +27,23 @@ interface AdapterBalance {
   provider: string;
   status: string;
   balance_usd: number | null;
-  total_granted_usd?: number;
-  total_used_usd?: number;
-  plan?: string;
-  note?: string;
-  error?: string;
+  total_deposited_usd?: number;
+  total_spent_usd?: number;
+  updated_at?: string;
 }
 
 interface TestResult {
   ok: boolean;
-  frontend_request: any;
-  provider_request: any;
-  provider_response_raw: any;
-  parsed?: any;
-  error?: any;
+  frontend_request: Record<string, unknown>;
+  provider_request: Record<string, unknown> | null;
+  provider_response_raw: Record<string, unknown> | null;
+  parsed?: {
+    content: string;
+    tokens_input: number;
+    tokens_output: number;
+    provider_cost_usd: number;
+  };
+  error?: Record<string, unknown>;
 }
 
 export default function Adapters() {
@@ -49,8 +52,9 @@ export default function Adapters() {
   const [balances, setBalances] = useState<AdapterBalance[]>([]);
   const [loading, setLoading] = useState(true);
   const [healthCheckLoading, setHealthCheckLoading] = useState<Record<string, boolean>>({});
+  const [balanceInputs, setBalanceInputs] = useState<Record<string, string>>({});
+  const [balanceSaving, setBalanceSaving] = useState<Record<string, boolean>>({});
 
-  // Test form
   const [selectedType, setSelectedType] = useState<string>('text');
   const [selectedAdapter, setSelectedAdapter] = useState<string>('');
   const [selectedModel, setSelectedModel] = useState<string>('');
@@ -74,20 +78,47 @@ export default function Adapters() {
       setStatuses(statusRes.data.adapters);
       setBalances(balancesRes.data.balances);
 
+      // Инициализируем инпуты балансов
+      const inputs: Record<string, string> = {};
+      balancesRes.data.balances.forEach((b: AdapterBalance) => {
+        inputs[b.provider] = b.balance_usd?.toString() || '0';
+      });
+      setBalanceInputs(inputs);
+
       if (adaptersRes.data.adapters.length > 0) {
         setSelectedAdapter(adaptersRes.data.adapters[0].name);
-        if (adaptersRes.data.adapters[0].models?.length > 0) {
-          setSelectedModel(adaptersRes.data.adapters[0].models[0].id);
+        const firstAdapter = adaptersRes.data.adapters[0];
+        if (firstAdapter.models && firstAdapter.models.length > 0) {
+          setSelectedModel(firstAdapter.models[0].id);
         }
       }
     } catch (err) {
-      console.error('Ошибка загрузки адаптеров:', err);
+      console.error('Ошибка загрузки:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  // Фильтруем адаптеры по типу
+  const handleSaveBalance = async (provider: string) => {
+    const value = parseFloat(balanceInputs[provider] || '0');
+    if (isNaN(value) || value < 0) return;
+
+    setBalanceSaving(prev => ({ ...prev, [provider]: true }));
+    try {
+      await setProviderBalance(provider, value);
+      // Обновляем локально
+      setBalances(prev => prev.map(b => 
+        b.provider === provider 
+          ? { ...b, balance_usd: value, total_deposited_usd: value, total_spent_usd: 0 }
+          : b
+      ));
+    } catch (err) {
+      console.error('Ошибка сохранения:', err);
+    } finally {
+      setBalanceSaving(prev => ({ ...prev, [provider]: false }));
+    }
+  };
+
   const filteredAdapters = adapters.filter(a => a.type === selectedType);
 
   const handleTypeChange = (type: string) => {
@@ -95,7 +126,7 @@ export default function Adapters() {
     const filtered = adapters.filter(a => a.type === type);
     if (filtered.length > 0) {
       setSelectedAdapter(filtered[0].name);
-      if (filtered[0].models?.length > 0) {
+      if (filtered[0].models && filtered[0].models.length > 0) {
         setSelectedModel(filtered[0].models[0].id);
       } else {
         setSelectedModel('');
@@ -110,7 +141,7 @@ export default function Adapters() {
   const handleAdapterChange = (name: string) => {
     setSelectedAdapter(name);
     const adapter = adapters.find((a) => a.name === name);
-    if (adapter?.models?.length > 0) {
+    if (adapter && adapter.models && adapter.models.length > 0) {
       setSelectedModel(adapter.models[0].id);
     } else {
       setSelectedModel('');
@@ -122,22 +153,16 @@ export default function Adapters() {
     setHealthCheckLoading(prev => ({ ...prev, [name]: true }));
     try {
       const response = await healthCheckAdapter(name);
-      // Обновляем статус в массиве без перезагрузки
       setStatuses(prev => prev.map(s => 
         s.name === name 
-          ? { 
-              ...s, 
-              status: response.data.status, 
-              latency_ms: response.data.latency_ms,
-              error: response.data.error 
-            }
+          ? { ...s, status: response.data.status, latency_ms: response.data.latency_ms, error: response.data.error }
           : s
       ));
-    } catch (err: any) {
-      // Обновляем статус с ошибкой
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { detail?: string } }; message?: string };
       setStatuses(prev => prev.map(s => 
         s.name === name 
-          ? { ...s, status: 'error', error: err.response?.data?.detail || err.message }
+          ? { ...s, status: 'error', error: error.response?.data?.detail || error.message || 'Unknown error' }
           : s
       ));
     } finally {
@@ -154,18 +179,14 @@ export default function Adapters() {
         const response = await healthCheckAdapter(name);
         setStatuses(prev => prev.map(s => 
           s.name === name 
-            ? { 
-                ...s, 
-                status: response.data.status, 
-                latency_ms: response.data.latency_ms,
-                error: response.data.error 
-              }
+            ? { ...s, status: response.data.status, latency_ms: response.data.latency_ms, error: response.data.error }
             : s
         ));
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const error = err as { response?: { data?: { detail?: string } }; message?: string };
         setStatuses(prev => prev.map(s => 
           s.name === name 
-            ? { ...s, status: 'error', error: err.response?.data?.detail || err.message }
+            ? { ...s, status: 'error', error: error.response?.data?.detail || error.message || 'Unknown error' }
             : s
         ));
       } finally {
@@ -181,13 +202,22 @@ export default function Adapters() {
     try {
       const response = await testAdapter(selectedAdapter, testMessage, selectedModel || undefined);
       setTestResult(response.data);
-    } catch (err: any) {
+      // Обновляем балансы после теста
+      const balancesRes = await getAdaptersBalances();
+      setBalances(balancesRes.data.balances);
+      const inputs: Record<string, string> = {};
+      balancesRes.data.balances.forEach((b: AdapterBalance) => {
+        inputs[b.provider] = b.balance_usd?.toString() || '0';
+      });
+      setBalanceInputs(inputs);
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: unknown }; message?: string };
       setTestResult({
         ok: false,
         frontend_request: { message: testMessage, model: selectedModel },
         provider_request: null,
         provider_response_raw: null,
-        error: err.response?.data || err.message,
+        error: (error.response?.data as Record<string, unknown>) || { message: error.message },
       });
     } finally {
       setTestLoading(false);
@@ -200,6 +230,7 @@ export default function Adapters() {
       case 'active':
         return 'bg-green-600';
       case 'degraded':
+      case 'low':
         return 'bg-yellow-600';
       case 'unhealthy':
       case 'error':
@@ -217,6 +248,8 @@ export default function Adapters() {
         return 'АКТИВЕН';
       case 'degraded':
         return 'ДЕГРАДАЦИЯ';
+      case 'low':
+        return 'МАЛО';
       case 'unhealthy':
         return 'НЕДОСТУПЕН';
       case 'error':
@@ -227,8 +260,6 @@ export default function Adapters() {
   };
 
   const currentAdapter = adapters.find((a) => a.name === selectedAdapter);
-
-  // Получаем уникальные типы
   const types = [...new Set(adapters.map(a => a.type))];
 
   if (loading) {
@@ -248,9 +279,8 @@ export default function Adapters() {
         </button>
       </div>
 
-      {/* Статус и Балансы */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        {/* Статус */}
+        {/* Статус провайдеров */}
         <div className="bg-[#2f2f2f] rounded-lg p-4">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold text-white">Статус провайдеров</h2>
@@ -270,32 +300,21 @@ export default function Adapters() {
                     {getStatusText(s.status)}
                   </span>
                   <span className="text-white">{s.name}</span>
-                  {s.latency_ms && (
-                    <span className="text-gray-500 text-sm">{s.latency_ms}мс</span>
-                  )}
-                  {s.error && (
-                    <span className="text-red-400 text-xs truncate max-w-[150px]" title={s.error}>
-                      {s.error}
-                    </span>
-                  )}
+                  {s.latency_ms && <span className="text-gray-500 text-sm">{s.latency_ms}мс</span>}
                 </div>
                 <button
                   onClick={() => handleHealthCheck(s.name)}
                   disabled={healthCheckLoading[s.name]}
                   className="px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white text-sm rounded flex items-center gap-1"
                 >
-                  {healthCheckLoading[s.name] ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    'Проверить'
-                  )}
+                  {healthCheckLoading[s.name] ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Проверить'}
                 </button>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Балансы */}
+        {/* Балансы аккаунтов */}
         <div className="bg-[#2f2f2f] rounded-lg p-4">
           <h2 className="text-lg font-semibold text-white mb-4">Балансы аккаунтов</h2>
           <div className="space-y-3">
@@ -307,31 +326,56 @@ export default function Adapters() {
                     {getStatusText(b.status)}
                   </span>
                 </div>
-                {b.balance_usd !== null ? (
-                  <div className="space-y-1">
-                    <div className="text-2xl font-bold text-green-400">${b.balance_usd.toFixed(2)}</div>
-                    {b.total_granted_usd && (
-                      <div className="text-xs text-gray-400">
-                        Получено: ${b.total_granted_usd.toFixed(2)} | Использовано: ${b.total_used_usd?.toFixed(2)}
+                
+                {/* Ввод баланса */}
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-gray-400">$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={balanceInputs[b.provider] || ''}
+                    onChange={(e) => setBalanceInputs(prev => ({ ...prev, [b.provider]: e.target.value }))}
+                    className="flex-1 px-3 py-2 bg-[#3f3f3f] border border-gray-600 rounded text-white text-lg font-bold"
+                  />
+                  <button
+                    onClick={() => handleSaveBalance(b.provider)}
+                    disabled={balanceSaving[b.provider]}
+                    className="px-3 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white rounded flex items-center gap-1"
+                  >
+                    {balanceSaving[b.provider] ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  </button>
+                </div>
+
+                {/* Статистика */}
+                {b.total_deposited_usd !== undefined && (
+                  <div className="text-xs text-gray-400 space-y-1">
+                    <div className="flex justify-between">
+                      <span>Внесено:</span>
+                      <span className="text-green-400">${b.total_deposited_usd?.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Потрачено:</span>
+                      <span className="text-red-400">${b.total_spent_usd?.toFixed(6)}</span>
+                    </div>
+                    {b.updated_at && (
+                      <div className="flex justify-between">
+                        <span>Обновлено:</span>
+                        <span>{new Date(b.updated_at).toLocaleString('ru')}</span>
                       </div>
                     )}
                   </div>
-                ) : (
-                  <div className="text-sm text-gray-400">{b.note || b.error}</div>
                 )}
-                {b.plan && <div className="text-xs text-gray-500 mt-1">Тариф: {b.plan}</div>}
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Форма тестирования */}
+      {/* Тестирование */}
       <div className="bg-[#2f2f2f] rounded-lg p-4 mb-6">
         <h2 className="text-lg font-semibold text-white mb-4">Тестирование адаптера</h2>
-
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-          {/* Тип */}
           <div>
             <label className="block text-gray-400 mb-2">Тип</label>
             <select
@@ -344,8 +388,6 @@ export default function Adapters() {
               )) : <option value="text">Текст</option>}
             </select>
           </div>
-
-          {/* Провайдер */}
           <div>
             <label className="block text-gray-400 mb-2">Провайдер</label>
             <select
@@ -354,14 +396,10 @@ export default function Adapters() {
               className="w-full px-4 py-2 bg-[#3f3f3f] border border-gray-600 rounded-lg text-white"
             >
               {filteredAdapters.map((a) => (
-                <option key={a.name} value={a.name}>
-                  {a.display_name}
-                </option>
+                <option key={a.name} value={a.name}>{a.display_name}</option>
               ))}
             </select>
           </div>
-
-          {/* Модель */}
           <div>
             <label className="block text-gray-400 mb-2">Модель</label>
             <select
@@ -370,14 +408,10 @@ export default function Adapters() {
               className="w-full px-4 py-2 bg-[#3f3f3f] border border-gray-600 rounded-lg text-white"
             >
               {currentAdapter?.models?.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.id}
-                </option>
+                <option key={m.id} value={m.id}>{m.id}</option>
               ))}
             </select>
           </div>
-
-          {/* Сообщение */}
           <div>
             <label className="block text-gray-400 mb-2">Сообщение</label>
             <div className="flex gap-2">
@@ -385,7 +419,7 @@ export default function Adapters() {
                 type="text"
                 value={testMessage}
                 onChange={(e) => setTestMessage(e.target.value)}
-                placeholder="Введите тестовое сообщение..."
+                placeholder="Введите сообщение..."
                 className="flex-1 px-4 py-2 bg-[#3f3f3f] border border-gray-600 rounded-lg text-white"
                 onKeyDown={(e) => e.key === 'Enter' && handleTest()}
               />
@@ -400,33 +434,22 @@ export default function Adapters() {
           </div>
         </div>
 
-        {/* Результаты теста - 4 окна */}
         {testResult && (
           <div className="grid grid-cols-2 gap-4 mt-4">
-            {/* 1. Frontend Request */}
             <div className="bg-[#252525] rounded-lg p-4">
               <h3 className="text-sm font-semibold text-blue-400 mb-2">1. ЗАПРОС ОТ ФРОНТЕНДА</h3>
-              <p className="text-xs text-gray-500 mb-2">Запрос к нашему API</p>
               <pre className="text-gray-300 text-xs whitespace-pre-wrap break-words overflow-auto max-h-48">
                 {JSON.stringify(testResult.frontend_request, null, 2)}
               </pre>
             </div>
-
-            {/* 2. Provider Request */}
             <div className="bg-[#252525] rounded-lg p-4">
               <h3 className="text-sm font-semibold text-yellow-400 mb-2">2. ЗАПРОС К ПРОВАЙДЕРУ</h3>
-              <p className="text-xs text-gray-500 mb-2">Запрос к OpenAI/Anthropic</p>
               <pre className="text-gray-300 text-xs whitespace-pre-wrap break-words overflow-auto max-h-48">
-                {testResult.provider_request 
-                  ? JSON.stringify(testResult.provider_request, null, 2)
-                  : 'Н/Д'}
+                {testResult.provider_request ? JSON.stringify(testResult.provider_request, null, 2) : 'Н/Д'}
               </pre>
             </div>
-
-            {/* 3. Provider Response Raw */}
             <div className="bg-[#252525] rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-orange-400 mb-2">3. СЫРОЙ ОТВЕТ ПРОВАЙДЕРА</h3>
-              <p className="text-xs text-gray-500 mb-2">Оригинальный ответ API</p>
+              <h3 className="text-sm font-semibold text-orange-400 mb-2">3. СЫРОЙ ОТВЕТ</h3>
               <pre className="text-gray-300 text-xs whitespace-pre-wrap break-words overflow-auto max-h-48">
                 {testResult.provider_response_raw
                   ? JSON.stringify(testResult.provider_response_raw, null, 2)
@@ -435,30 +458,15 @@ export default function Adapters() {
                     : 'Н/Д'}
               </pre>
             </div>
-
-            {/* 4. Parsed Response */}
             <div className="bg-[#252525] rounded-lg p-4">
               <h3 className="text-sm font-semibold text-green-400 mb-2">4. РАСПАРСЕННЫЙ ОТВЕТ</h3>
-              <p className="text-xs text-gray-500 mb-2">Обработанные данные</p>
               {testResult.parsed ? (
                 <div className="text-gray-300 text-sm space-y-2">
-                  <div className="break-words">
-                    <span className="text-gray-500">Контент:</span>
-                    <p className="mt-1 bg-[#1a1a1a] p-2 rounded">{testResult.parsed.content}</p>
-                  </div>
+                  <p className="bg-[#1a1a1a] p-2 rounded">{testResult.parsed.content}</p>
                   <div className="grid grid-cols-3 gap-2 text-xs">
-                    <div className="bg-[#1a1a1a] p-2 rounded">
-                      <span className="text-gray-500">Токены вход:</span>
-                      <span className="ml-1">{testResult.parsed.tokens_input}</span>
-                    </div>
-                    <div className="bg-[#1a1a1a] p-2 rounded">
-                      <span className="text-gray-500">Токены выход:</span>
-                      <span className="ml-1">{testResult.parsed.tokens_output}</span>
-                    </div>
-                    <div className="bg-[#1a1a1a] p-2 rounded">
-                      <span className="text-gray-500">Стоимость:</span>
-                      <span className="ml-1">${testResult.parsed.provider_cost_usd?.toFixed(6)}</span>
-                    </div>
+                    <div className="bg-[#1a1a1a] p-2 rounded">Вход: {testResult.parsed.tokens_input}</div>
+                    <div className="bg-[#1a1a1a] p-2 rounded">Выход: {testResult.parsed.tokens_output}</div>
+                    <div className="bg-[#1a1a1a] p-2 rounded">Цена: ${testResult.parsed.provider_cost_usd?.toFixed(6)}</div>
                   </div>
                 </div>
               ) : (

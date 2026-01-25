@@ -1,10 +1,13 @@
 from typing import Optional
+from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from app.database import get_db
 from app.api.deps import get_admin_user
 from app.models.user import User
+from app.models.provider_balance import ProviderBalance
 from app.adapters import AdapterRegistry
 from app.config import settings
 import httpx
@@ -16,6 +19,14 @@ class TestChatRequest(BaseModel):
     message: str
     model: Optional[str] = None
     system_prompt: Optional[str] = None
+
+
+class SetBalanceRequest(BaseModel):
+    balance_usd: float
+
+
+class DepositRequest(BaseModel):
+    amount_usd: float
 
 
 @router.get("")
@@ -93,69 +104,89 @@ async def adapters_status(
 @router.get("/balances")
 async def adapters_balances(
     admin: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    """Балансы аккаунтов провайдеров."""
-    balances = []
+    """Балансы аккаунтов провайдеров из БД."""
+    result = await db.execute(select(ProviderBalance))
+    balances = result.scalars().all()
     
-    # OpenAI balance (неофициальный эндпоинт)
-    if settings.OPENAI_API_KEY:
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(
-                    "https://api.openai.com/v1/dashboard/billing/credit_grants",
-                    headers={"Authorization": f"Bearer {settings.OPENAI_API_KEY}"}
-                )
-                if response.status_code == 200:
-                    data = response.json()
-                    total_granted = data.get("total_granted", 0)
-                    total_used = data.get("total_used", 0)
-                    balance = total_granted - total_used
-                    balances.append({
-                        "provider": "openai",
-                        "status": "active",
-                        "balance_usd": round(balance, 2),
-                        "total_granted_usd": round(total_granted, 2),
-                        "total_used_usd": round(total_used, 2),
-                    })
-                else:
-                    # Пробуем subscription endpoint
-                    resp2 = await client.get(
-                        "https://api.openai.com/v1/dashboard/billing/subscription",
-                        headers={"Authorization": f"Bearer {settings.OPENAI_API_KEY}"}
-                    )
-                    if resp2.status_code == 200:
-                        sub_data = resp2.json()
-                        balances.append({
-                            "provider": "openai",
-                            "status": "active",
-                            "balance_usd": None,
-                            "plan": sub_data.get("plan", {}).get("title", "Unknown"),
-                            "note": "Баланс: platform.openai.com/settings/organization/billing"
-                        })
-                    else:
-                        balances.append({
-                            "provider": "openai",
-                            "status": "active",
-                            "balance_usd": None,
-                            "note": "Баланс: platform.openai.com/settings/organization/billing"
-                        })
-        except Exception as e:
-            balances.append({
-                "provider": "openai",
-                "status": "error",
-                "error": str(e)
-            })
+    return {
+        "ok": True,
+        "balances": [
+            {
+                "provider": b.provider,
+                "status": "active" if float(b.balance_usd) > 0 else "low",
+                "balance_usd": float(b.balance_usd),
+                "total_deposited_usd": float(b.total_deposited_usd),
+                "total_spent_usd": float(b.total_spent_usd),
+                "updated_at": b.updated_at.isoformat() if b.updated_at else None,
+            }
+            for b in balances
+        ]
+    }
+
+
+@router.post("/balances/{provider}/set")
+async def set_balance(
+    provider: str,
+    data: SetBalanceRequest,
+    admin: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Установить баланс провайдера (перезаписывает)."""
+    result = await db.execute(
+        select(ProviderBalance).where(ProviderBalance.provider == provider)
+    )
+    balance = result.scalar_one_or_none()
     
-    # Anthropic balance (API не предоставляет)
-    if settings.ANTHROPIC_API_KEY:
-        balances.append({
-            "provider": "anthropic",
-            "status": "active",
-            "balance_usd": None,
-            "note": "API не предоставляет баланс. Проверьте: console.anthropic.com/settings/billing"
-        })
+    if not balance:
+        raise HTTPException(status_code=404, detail=f"Провайдер {provider} не найден")
     
-    return {"ok": True, "balances": balances}
+    balance.balance_usd = Decimal(str(data.balance_usd))
+    balance.total_deposited_usd = Decimal(str(data.balance_usd))
+    balance.total_spent_usd = Decimal("0")
+    
+    await db.commit()
+    await db.refresh(balance)
+    
+    return {
+        "ok": True,
+        "provider": provider,
+        "balance_usd": float(balance.balance_usd),
+        "total_deposited_usd": float(balance.total_deposited_usd),
+        "total_spent_usd": float(balance.total_spent_usd),
+    }
+
+
+@router.post("/balances/{provider}/deposit")
+async def deposit_balance(
+    provider: str,
+    data: DepositRequest,
+    admin: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Пополнить баланс провайдера."""
+    result = await db.execute(
+        select(ProviderBalance).where(ProviderBalance.provider == provider)
+    )
+    balance = result.scalar_one_or_none()
+    
+    if not balance:
+        raise HTTPException(status_code=404, detail=f"Провайдер {provider} не найден")
+    
+    balance.balance_usd = balance.balance_usd + Decimal(str(data.amount_usd))
+    balance.total_deposited_usd = balance.total_deposited_usd + Decimal(str(data.amount_usd))
+    
+    await db.commit()
+    await db.refresh(balance)
+    
+    return {
+        "ok": True,
+        "provider": provider,
+        "deposited": data.amount_usd,
+        "balance_usd": float(balance.balance_usd),
+        "total_deposited_usd": float(balance.total_deposited_usd),
+    }
 
 
 @router.post("/{adapter_name}/health")
@@ -164,7 +195,6 @@ async def adapter_health(
     admin: User = Depends(get_admin_user),
 ):
     """Health check конкретного адаптера."""
-    # Используем фиксированные модели для health check
     health_models = {
         "openai": "gpt-4o-mini",
         "anthropic": "claude-haiku-4-5-20251001",
@@ -183,7 +213,6 @@ async def adapter_health(
     if not adapter:
         raise HTTPException(status_code=404, detail=f"Адаптер {adapter_name} не найден")
     
-    # Используем стабильную модель для health check
     import time
     start = time.time()
     result = await adapter.generate("Hi", model=health_models.get(adapter_name), max_tokens=5)
@@ -212,8 +241,9 @@ async def test_adapter(
     adapter_name: str,
     data: TestChatRequest,
     admin: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    """Тестовый запрос к адаптеру с полным логом (4 окна)."""
+    """Тестовый запрос к адаптеру с полным логом и списанием баланса."""
     api_keys = {
         "openai": settings.OPENAI_API_KEY,
         "anthropic": settings.ANTHROPIC_API_KEY,
@@ -227,7 +257,7 @@ async def test_adapter(
     if not adapter:
         raise HTTPException(status_code=404, detail=f"Адаптер {adapter_name} не найден")
     
-    # 1. Frontend request (как фронтенд обращается к нашему API)
+    # 1. Frontend request
     frontend_request = {
         "endpoint": "/api/v1/chat",
         "method": "POST",
@@ -239,7 +269,6 @@ async def test_adapter(
         }
     }
     
-    # Формируем params для генерации
     params = {}
     if data.model:
         params["model"] = data.model
@@ -249,16 +278,24 @@ async def test_adapter(
     # Выполняем запрос
     result = await adapter.generate(data.message, **params)
     
-    # 2. Provider request (запрос к провайдеру)
+    # Списываем баланс при успехе
+    if result.success and result.provider_cost > 0:
+        balance_result = await db.execute(
+            select(ProviderBalance).where(ProviderBalance.provider == adapter_name)
+        )
+        balance = balance_result.scalar_one_or_none()
+        if balance:
+            balance.balance_usd = balance.balance_usd - Decimal(str(result.provider_cost))
+            balance.total_spent_usd = balance.total_spent_usd + Decimal(str(result.provider_cost))
+            await db.commit()
+    
     provider_request = None
-    # 3. Provider response raw
     provider_response_raw = None
     
     if result.raw_response:
         provider_request = result.raw_response.get("request")
         provider_response_raw = result.raw_response.get("response")
     
-    # 4. Parsed response
     if result.success:
         return {
             "ok": True,
