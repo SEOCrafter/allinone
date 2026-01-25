@@ -37,6 +37,7 @@ async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
         user={
             "id": str(user.id),
             "email": user.email,
+            "role": user.role,
             "credits_balance": float(user.credits_balance),
         }
     )
