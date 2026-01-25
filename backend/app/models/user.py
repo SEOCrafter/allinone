@@ -15,7 +15,7 @@ class User(Base, UUIDMixin, TimestampMixin):
     telegram_id: Mapped[Optional[int]] = mapped_column(BigInteger, unique=True, nullable=True)
     phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     
-    credits_balance: Mapped[Decimal] = mapped_column(DECIMAL(12, 2), default=0)
+    credits_balance: Mapped[Decimal] = mapped_column(DECIMAL(12, 6), default=0)
     language: Mapped[str] = mapped_column(String(5), default="ru")
     timezone: Mapped[str] = mapped_column(String(50), default="Europe/Moscow")
     
