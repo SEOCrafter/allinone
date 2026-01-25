@@ -32,23 +32,62 @@ async def adapters_status(
     admin: User = Depends(get_admin_user),
 ):
     """Health check всех адаптеров."""
-    api_keys = {
-        "openai": settings.OPENAI_API_KEY,
-        "anthropic": settings.ANTHROPIC_API_KEY,
-    }
+    results = []
     
-    status = await AdapterRegistry.health_check_all(api_keys)
+    # OpenAI health check
+    if settings.OPENAI_API_KEY:
+        try:
+            import time
+            start = time.time()
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": "gpt-4o-mini",
+                        "messages": [{"role": "user", "content": "Hi"}],
+                        "max_tokens": 5,
+                    },
+                )
+                latency = int((time.time() - start) * 1000)
+                if response.status_code == 200:
+                    results.append({"name": "openai", "status": "healthy", "latency_ms": latency, "error": None})
+                else:
+                    results.append({"name": "openai", "status": "degraded", "latency_ms": latency, "error": response.text})
+        except Exception as e:
+            results.append({"name": "openai", "status": "unhealthy", "latency_ms": None, "error": str(e)})
     
-    result = []
-    for name, health in status.items():
-        result.append({
-            "name": name,
-            "status": health.status if hasattr(health, 'status') else "unknown",
-            "latency_ms": getattr(health, 'latency_ms', None),
-            "error": getattr(health, 'error', None),
-        })
+    # Anthropic health check
+    if settings.ANTHROPIC_API_KEY:
+        try:
+            import time
+            start = time.time()
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers={
+                        "x-api-key": settings.ANTHROPIC_API_KEY,
+                        "Content-Type": "application/json",
+                        "anthropic-version": "2023-06-01",
+                    },
+                    json={
+                        "model": "claude-haiku-4-5-20251001",
+                        "messages": [{"role": "user", "content": "Hi"}],
+                        "max_tokens": 5,
+                    },
+                )
+                latency = int((time.time() - start) * 1000)
+                if response.status_code == 200:
+                    results.append({"name": "anthropic", "status": "healthy", "latency_ms": latency, "error": None})
+                else:
+                    results.append({"name": "anthropic", "status": "degraded", "latency_ms": latency, "error": response.text})
+        except Exception as e:
+            results.append({"name": "anthropic", "status": "unhealthy", "latency_ms": None, "error": str(e)})
     
-    return {"ok": True, "adapters": result}
+    return {"ok": True, "adapters": results}
 
 
 @router.get("/balances")
@@ -58,20 +97,48 @@ async def adapters_balances(
     """Балансы аккаунтов провайдеров."""
     balances = []
     
-    # OpenAI balance
+    # OpenAI balance (неофициальный эндпоинт)
     if settings.OPENAI_API_KEY:
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.get(
-                    "https://api.openai.com/v1/models",
+                    "https://api.openai.com/v1/dashboard/billing/credit_grants",
                     headers={"Authorization": f"Bearer {settings.OPENAI_API_KEY}"}
                 )
-                balances.append({
-                    "provider": "openai",
-                    "status": "active" if response.status_code == 200 else "error",
-                    "balance": None,
-                    "note": "Balance check via dashboard: platform.openai.com"
-                })
+                if response.status_code == 200:
+                    data = response.json()
+                    total_granted = data.get("total_granted", 0)
+                    total_used = data.get("total_used", 0)
+                    balance = total_granted - total_used
+                    balances.append({
+                        "provider": "openai",
+                        "status": "active",
+                        "balance_usd": round(balance, 2),
+                        "total_granted_usd": round(total_granted, 2),
+                        "total_used_usd": round(total_used, 2),
+                    })
+                else:
+                    # Пробуем subscription endpoint
+                    resp2 = await client.get(
+                        "https://api.openai.com/v1/dashboard/billing/subscription",
+                        headers={"Authorization": f"Bearer {settings.OPENAI_API_KEY}"}
+                    )
+                    if resp2.status_code == 200:
+                        sub_data = resp2.json()
+                        balances.append({
+                            "provider": "openai",
+                            "status": "active",
+                            "balance_usd": None,
+                            "plan": sub_data.get("plan", {}).get("title", "Unknown"),
+                            "note": "Баланс: platform.openai.com/settings/organization/billing"
+                        })
+                    else:
+                        balances.append({
+                            "provider": "openai",
+                            "status": "active",
+                            "balance_usd": None,
+                            "note": "Баланс: platform.openai.com/settings/organization/billing"
+                        })
         except Exception as e:
             balances.append({
                 "provider": "openai",
@@ -79,29 +146,14 @@ async def adapters_balances(
                 "error": str(e)
             })
     
-    # Anthropic balance
+    # Anthropic balance (API не предоставляет)
     if settings.ANTHROPIC_API_KEY:
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(
-                    "https://api.anthropic.com/v1/messages",
-                    headers={
-                        "x-api-key": settings.ANTHROPIC_API_KEY,
-                        "anthropic-version": "2023-06-01"
-                    }
-                )
-                balances.append({
-                    "provider": "anthropic",
-                    "status": "active" if response.status_code in (200, 405) else "error",
-                    "balance": None,
-                    "note": "Balance check via dashboard: console.anthropic.com"
-                })
-        except Exception as e:
-            balances.append({
-                "provider": "anthropic",
-                "status": "error",
-                "error": str(e)
-            })
+        balances.append({
+            "provider": "anthropic",
+            "status": "active",
+            "balance_usd": None,
+            "note": "API не предоставляет баланс. Проверьте: console.anthropic.com/settings/billing"
+        })
     
     return {"ok": True, "balances": balances}
 
@@ -112,6 +164,12 @@ async def adapter_health(
     admin: User = Depends(get_admin_user),
 ):
     """Health check конкретного адаптера."""
+    # Используем фиксированные модели для health check
+    health_models = {
+        "openai": "gpt-4o-mini",
+        "anthropic": "claude-haiku-4-5-20251001",
+    }
+    
     api_keys = {
         "openai": settings.OPENAI_API_KEY,
         "anthropic": settings.ANTHROPIC_API_KEY,
@@ -119,21 +177,34 @@ async def adapter_health(
     
     api_key = api_keys.get(adapter_name)
     if not api_key:
-        raise HTTPException(status_code=400, detail=f"No API key for {adapter_name}")
+        raise HTTPException(status_code=400, detail=f"Нет API ключа для {adapter_name}")
     
     adapter = AdapterRegistry.get_adapter(adapter_name, api_key)
     if not adapter:
-        raise HTTPException(status_code=404, detail=f"Adapter {adapter_name} not found")
+        raise HTTPException(status_code=404, detail=f"Адаптер {adapter_name} не найден")
     
-    health = await adapter.health_check()
+    # Используем стабильную модель для health check
+    import time
+    start = time.time()
+    result = await adapter.generate("Hi", model=health_models.get(adapter_name), max_tokens=5)
+    latency = int((time.time() - start) * 1000)
     
-    return {
-        "ok": True,
-        "adapter": adapter_name,
-        "status": health.status,
-        "latency_ms": health.latency_ms,
-        "error": health.error,
-    }
+    if result.success:
+        return {
+            "ok": True,
+            "adapter": adapter_name,
+            "status": "healthy",
+            "latency_ms": latency,
+            "error": None,
+        }
+    else:
+        return {
+            "ok": False,
+            "adapter": adapter_name,
+            "status": "degraded",
+            "latency_ms": latency,
+            "error": result.error_message,
+        }
 
 
 @router.post("/{adapter_name}/test")
@@ -150,11 +221,11 @@ async def test_adapter(
     
     api_key = api_keys.get(adapter_name)
     if not api_key:
-        raise HTTPException(status_code=400, detail=f"No API key for {adapter_name}")
+        raise HTTPException(status_code=400, detail=f"Нет API ключа для {adapter_name}")
     
     adapter = AdapterRegistry.get_adapter(adapter_name, api_key)
     if not adapter:
-        raise HTTPException(status_code=404, detail=f"Adapter {adapter_name} not found")
+        raise HTTPException(status_code=404, detail=f"Адаптер {adapter_name} не найден")
     
     # 1. Frontend request (как фронтенд обращается к нашему API)
     frontend_request = {
