@@ -1,0 +1,41 @@
+from functools import lru_cache
+from typing import List
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
+    
+    # App
+    APP_ENV: str = "development"
+    APP_DEBUG: bool = True
+    APP_SECRET_KEY: str = "change-me-in-production"
+    
+    # Database
+    DATABASE_URL: str = "postgresql+asyncpg://ai_user:devpassword@localhost:5432/ai_aggregator"
+    
+    # Redis
+    REDIS_URL: str = "redis://localhost:6379/0"
+    
+    # Storage (S3/MinIO)
+    S3_ENDPOINT: str = "http://localhost:9000"
+    S3_BUCKET: str = "ai-aggregator"
+    S3_ACCESS_KEY: str = "minioadmin"
+    S3_SECRET_KEY: str = "minioadmin"
+    
+    # CORS
+    CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8080"]
+    
+    # JWT
+    JWT_ALGORITHM: str = "HS256"
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
+    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 30
+    
+    # AI Providers
+    OPENAI_API_KEY: str = ""
+    ANTHROPIC_API_KEY: str = ""
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
+
+settings = get_settings()
