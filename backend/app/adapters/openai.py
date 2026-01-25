@@ -2,6 +2,7 @@ from typing import AsyncIterator, Optional
 import httpx
 from app.adapters.base import BaseAdapter, GenerationResult, ProviderType
 
+
 class OpenAIAdapter(BaseAdapter):
     name = "openai"
     display_name = "OpenAI"
@@ -9,10 +10,28 @@ class OpenAIAdapter(BaseAdapter):
     
     BASE_URL = "https://api.openai.com/v1"
     
-    # Цены за 1K токенов (USD)
+    # Актуальные модели на январь 2026 (цены за 1K токенов USD)
     PRICING = {
+        # GPT-5.x series
+        "gpt-5.2": {"input": 0.00175, "output": 0.014},
+        "gpt-5.2-chat-latest": {"input": 0.00175, "output": 0.014},
+        "gpt-5.2-pro": {"input": 0.015, "output": 0.06},
+        "gpt-5.1": {"input": 0.002, "output": 0.008},
+        "gpt-5": {"input": 0.003, "output": 0.012},
+        "gpt-5-mini": {"input": 0.0003, "output": 0.0012},
+        "gpt-5-nano": {"input": 0.0001, "output": 0.0004},
+        # GPT-4.1 series
+        "gpt-4.1": {"input": 0.002, "output": 0.008},
+        "gpt-4.1-mini": {"input": 0.0004, "output": 0.0016},
+        "gpt-4.1-nano": {"input": 0.0001, "output": 0.0004},
+        # GPT-4o series
         "gpt-4o": {"input": 0.0025, "output": 0.01},
         "gpt-4o-mini": {"input": 0.00015, "output": 0.0006},
+        # Reasoning (o-series)
+        "o3": {"input": 0.01, "output": 0.04},
+        "o3-mini": {"input": 0.001, "output": 0.004},
+        "o4-mini": {"input": 0.001, "output": 0.004},
+        # Legacy
         "gpt-4-turbo": {"input": 0.01, "output": 0.03},
         "gpt-3.5-turbo": {"input": 0.0005, "output": 0.0015},
     }
@@ -28,6 +47,14 @@ class OpenAIAdapter(BaseAdapter):
         if params.get("system_prompt"):
             messages.insert(0, {"role": "system", "content": params["system_prompt"]})
         
+        # Формируем тело запроса
+        request_body = {
+            "model": model,
+            "messages": messages,
+            "max_tokens": params.get("max_tokens", 2048),
+            "temperature": params.get("temperature", 0.7),
+        }
+        
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
                 response = await client.post(
@@ -36,12 +63,7 @@ class OpenAIAdapter(BaseAdapter):
                         "Authorization": f"Bearer {self.api_key}",
                         "Content-Type": "application/json",
                     },
-                    json={
-                        "model": model,
-                        "messages": messages,
-                        "max_tokens": params.get("max_tokens", 2048),
-                        "temperature": params.get("temperature", 0.7),
-                    },
+                    json=request_body,
                 )
                 
                 if response.status_code != 200:
@@ -50,6 +72,7 @@ class OpenAIAdapter(BaseAdapter):
                         success=False,
                         error_code=f"HTTP_{response.status_code}",
                         error_message=error_data.get("error", {}).get("message", "Unknown error"),
+                        raw_response={"request": request_body, "response": error_data},
                     )
                 
                 data = response.json()
@@ -63,12 +86,22 @@ class OpenAIAdapter(BaseAdapter):
                     tokens_input=tokens_in,
                     tokens_output=tokens_out,
                     provider_cost=self.calculate_cost(tokens_in, tokens_out, model=model),
-                    raw_response=data,
+                    raw_response={"request": request_body, "response": data},
                 )
         except httpx.TimeoutException:
-            return GenerationResult(success=False, error_code="TIMEOUT", error_message="Request timed out")
+            return GenerationResult(
+                success=False, 
+                error_code="TIMEOUT", 
+                error_message="Request timed out",
+                raw_response={"request": request_body},
+            )
         except Exception as e:
-            return GenerationResult(success=False, error_code="EXCEPTION", error_message=str(e))
+            return GenerationResult(
+                success=False, 
+                error_code="EXCEPTION", 
+                error_message=str(e),
+                raw_response={"request": request_body},
+            )
     
     async def generate_stream(self, prompt: str, **params) -> AsyncIterator[str]:
         model = params.get("model", self.default_model)

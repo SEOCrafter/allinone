@@ -15,6 +15,7 @@ router = APIRouter()
 class TestChatRequest(BaseModel):
     message: str
     model: Optional[str] = None
+    system_prompt: Optional[str] = None
 
 
 @router.get("")
@@ -57,11 +58,10 @@ async def adapters_balances(
     """Балансы аккаунтов провайдеров."""
     balances = []
     
-    # OpenAI balance (нет прямого API, но можно через usage)
+    # OpenAI balance
     if settings.OPENAI_API_KEY:
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
-                # OpenAI не даёт баланс напрямую, показываем статус
                 response = await client.get(
                     "https://api.openai.com/v1/models",
                     headers={"Authorization": f"Bearer {settings.OPENAI_API_KEY}"}
@@ -69,7 +69,7 @@ async def adapters_balances(
                 balances.append({
                     "provider": "openai",
                     "status": "active" if response.status_code == 200 else "error",
-                    "balance": None,  # OpenAI не предоставляет через API
+                    "balance": None,
                     "note": "Balance check via dashboard: platform.openai.com"
                 })
         except Exception as e:
@@ -90,7 +90,6 @@ async def adapters_balances(
                         "anthropic-version": "2023-06-01"
                     }
                 )
-                # 405 Method Not Allowed = ключ рабочий (GET не поддерживается)
                 balances.append({
                     "provider": "anthropic",
                     "status": "active" if response.status_code in (200, 405) else "error",
@@ -143,7 +142,7 @@ async def test_adapter(
     data: TestChatRequest,
     admin: User = Depends(get_admin_user),
 ):
-    """Тестовый запрос к адаптеру с полным логом."""
+    """Тестовый запрос к адаптеру с полным логом (4 окна)."""
     api_keys = {
         "openai": settings.OPENAI_API_KEY,
         "anthropic": settings.ANTHROPIC_API_KEY,
@@ -157,42 +156,59 @@ async def test_adapter(
     if not adapter:
         raise HTTPException(status_code=404, detail=f"Adapter {adapter_name} not found")
     
-    # Формируем input
+    # 1. Frontend request (как фронтенд обращается к нашему API)
+    frontend_request = {
+        "endpoint": "/api/v1/chat",
+        "method": "POST",
+        "body": {
+            "message": data.message,
+            "provider": adapter_name,
+            "model": data.model or adapter.default_model,
+            "system_prompt": data.system_prompt,
+        }
+    }
+    
+    # Формируем params для генерации
     params = {}
     if data.model:
         params["model"] = data.model
-    
-    request_body = {
-        "prompt": data.message,
-        "params": params,
-    }
+    if data.system_prompt:
+        params["system_prompt"] = data.system_prompt
     
     # Выполняем запрос
     result = await adapter.generate(data.message, **params)
     
-    # Формируем response
+    # 2. Provider request (запрос к провайдеру)
+    provider_request = None
+    # 3. Provider response raw
+    provider_response_raw = None
+    
+    if result.raw_response:
+        provider_request = result.raw_response.get("request")
+        provider_response_raw = result.raw_response.get("response")
+    
+    # 4. Parsed response
     if result.success:
         return {
             "ok": True,
-            "request": request_body,
-            "response_raw": result.raw_response,
-            "response_parsed": {
+            "frontend_request": frontend_request,
+            "provider_request": provider_request,
+            "provider_response_raw": provider_response_raw,
+            "parsed": {
                 "content": result.content,
                 "tokens_input": result.tokens_input,
                 "tokens_output": result.tokens_output,
-                "provider_cost": result.provider_cost,
+                "provider_cost_usd": result.provider_cost,
             }
         }
     else:
         return {
             "ok": False,
-            "request": request_body,
-            "response_raw": None,
+            "frontend_request": frontend_request,
+            "provider_request": provider_request,
+            "provider_response_raw": provider_response_raw,
             "error": {
                 "code": result.error_code,
                 "message": result.error_message,
             }
         }
-    
-
-    

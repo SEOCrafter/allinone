@@ -34,7 +34,7 @@ class AnthropicAdapter(BaseAdapter):
         system = params.get("system_prompt", "")
         
         # Формируем тело запроса
-        json_data = {
+        request_body = {
             "model": model,
             "messages": messages,
             "max_tokens": params.get("max_tokens", 2048),
@@ -42,7 +42,7 @@ class AnthropicAdapter(BaseAdapter):
         
         # Добавляем system только если не пустой
         if system:
-            json_data["system"] = system
+            request_body["system"] = system
 
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
@@ -53,7 +53,7 @@ class AnthropicAdapter(BaseAdapter):
                         "Content-Type": "application/json",
                         "anthropic-version": "2023-06-01",
                     },
-                    json=json_data,
+                    json=request_body,
                 )
 
                 if response.status_code != 200:
@@ -62,6 +62,7 @@ class AnthropicAdapter(BaseAdapter):
                         success=False,
                         error_code=f"HTTP_{response.status_code}",
                         error_message=error_data.get("error", {}).get("message", "Unknown error"),
+                        raw_response={"request": request_body, "response": error_data},
                     )
 
                 data = response.json()
@@ -74,13 +75,23 @@ class AnthropicAdapter(BaseAdapter):
                     tokens_input=tokens_in,
                     tokens_output=tokens_out,
                     provider_cost=self.calculate_cost(tokens_in, tokens_out, model=model),
-                    raw_response=data,
+                    raw_response={"request": request_body, "response": data},
                 )
 
         except httpx.TimeoutException:
-            return GenerationResult(success=False, error_code="TIMEOUT", error_message="Request timed out")
+            return GenerationResult(
+                success=False, 
+                error_code="TIMEOUT", 
+                error_message="Request timed out",
+                raw_response={"request": request_body},
+            )
         except Exception as e:
-            return GenerationResult(success=False, error_code="EXCEPTION", error_message=str(e))
+            return GenerationResult(
+                success=False, 
+                error_code="EXCEPTION", 
+                error_message=str(e),
+                raw_response={"request": request_body},
+            )
 
     def calculate_cost(self, tokens_input: int, tokens_output: int, **params) -> float:
         model = params.get("model", self.default_model)

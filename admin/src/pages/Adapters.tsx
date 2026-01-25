@@ -33,9 +33,10 @@ interface AdapterBalance {
 
 interface TestResult {
   ok: boolean;
-  request: any;
-  response_raw: any;
-  response_parsed?: any;
+  frontend_request: any;
+  provider_request: any;
+  provider_response_raw: any;
+  parsed?: any;
   error?: any;
 }
 
@@ -46,6 +47,7 @@ export default function Adapters() {
   const [loading, setLoading] = useState(true);
 
   // Test form
+  const [selectedType, setSelectedType] = useState<string>('text');
   const [selectedAdapter, setSelectedAdapter] = useState<string>('');
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [testMessage, setTestMessage] = useState('');
@@ -81,6 +83,26 @@ export default function Adapters() {
     }
   };
 
+  // Фильтруем адаптеры по типу
+  const filteredAdapters = adapters.filter(a => a.type === selectedType);
+
+  const handleTypeChange = (type: string) => {
+    setSelectedType(type);
+    const filtered = adapters.filter(a => a.type === type);
+    if (filtered.length > 0) {
+      setSelectedAdapter(filtered[0].name);
+      if (filtered[0].models?.length > 0) {
+        setSelectedModel(filtered[0].models[0].id);
+      } else {
+        setSelectedModel('');
+      }
+    } else {
+      setSelectedAdapter('');
+      setSelectedModel('');
+    }
+    setTestResult(null);
+  };
+
   const handleAdapterChange = (name: string) => {
     setSelectedAdapter(name);
     const adapter = adapters.find((a) => a.name === name);
@@ -112,8 +134,9 @@ export default function Adapters() {
     } catch (err: any) {
       setTestResult({
         ok: false,
-        request: { message: testMessage, model: selectedModel },
-        response_raw: null,
+        frontend_request: { message: testMessage, model: selectedModel },
+        provider_request: null,
+        provider_response_raw: null,
         error: err.response?.data || err.message,
       });
     } finally {
@@ -152,6 +175,9 @@ export default function Adapters() {
   };
 
   const currentAdapter = adapters.find((a) => a.name === selectedAdapter);
+
+  // Получаем уникальные типы
+  const types = [...new Set(adapters.map(a => a.type))];
 
   if (loading) {
     return <div className="p-6 text-gray-400">Loading...</div>;
@@ -219,15 +245,30 @@ export default function Adapters() {
       <div className="bg-[#2f2f2f] rounded-lg p-4 mb-6">
         <h2 className="text-lg font-semibold text-white mb-4">Test Adapter</h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+          {/* Type */}
           <div>
-            <label className="block text-gray-400 mb-2">Adapter</label>
+            <label className="block text-gray-400 mb-2">Type</label>
+            <select
+              value={selectedType}
+              onChange={(e) => handleTypeChange(e.target.value)}
+              className="w-full px-4 py-2 bg-[#3f3f3f] border border-gray-600 rounded-lg text-white"
+            >
+              {types.length > 0 ? types.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              )) : <option value="text">text</option>}
+            </select>
+          </div>
+
+          {/* Adapter */}
+          <div>
+            <label className="block text-gray-400 mb-2">Provider</label>
             <select
               value={selectedAdapter}
               onChange={(e) => handleAdapterChange(e.target.value)}
               className="w-full px-4 py-2 bg-[#3f3f3f] border border-gray-600 rounded-lg text-white"
             >
-              {adapters.map((a) => (
+              {filteredAdapters.map((a) => (
                 <option key={a.name} value={a.name}>
                   {a.display_name}
                 </option>
@@ -235,6 +276,7 @@ export default function Adapters() {
             </select>
           </div>
 
+          {/* Model */}
           <div>
             <label className="block text-gray-400 mb-2">Model</label>
             <select
@@ -250,6 +292,7 @@ export default function Adapters() {
             </select>
           </div>
 
+          {/* Message */}
           <div>
             <label className="block text-gray-400 mb-2">Message</label>
             <div className="flex gap-2">
@@ -259,6 +302,7 @@ export default function Adapters() {
                 onChange={(e) => setTestMessage(e.target.value)}
                 placeholder="Enter test message..."
                 className="flex-1 px-4 py-2 bg-[#3f3f3f] border border-gray-600 rounded-lg text-white"
+                onKeyDown={(e) => e.key === 'Enter' && handleTest()}
               />
               <button
                 onClick={handleTest}
@@ -271,36 +315,66 @@ export default function Adapters() {
           </div>
         </div>
 
-        {/* Test Results */}
+        {/* Test Results - 4 Windows */}
         {testResult && (
-          <div className="grid grid-cols-3 gap-4 mt-4">
+          <div className="grid grid-cols-2 gap-4 mt-4">
+            {/* 1. Frontend Request */}
             <div className="bg-[#252525] rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-gray-400 mb-2">REQUEST</h3>
-              <pre className="text-gray-300 text-xs whitespace-pre-wrap break-words overflow-auto max-h-64">
-                {JSON.stringify(testResult.request, null, 2)}
+              <h3 className="text-sm font-semibold text-blue-400 mb-2">1. FRONTEND REQUEST</h3>
+              <p className="text-xs text-gray-500 mb-2">Запрос от фронтенда к нашему API</p>
+              <pre className="text-gray-300 text-xs whitespace-pre-wrap break-words overflow-auto max-h-48">
+                {JSON.stringify(testResult.frontend_request, null, 2)}
               </pre>
             </div>
 
+            {/* 2. Provider Request */}
             <div className="bg-[#252525] rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-gray-400 mb-2">RESPONSE RAW</h3>
-              <pre className="text-gray-300 text-xs whitespace-pre-wrap break-words overflow-auto max-h-64">
-                {testResult.error
-                  ? JSON.stringify(testResult.error, null, 2)
-                  : JSON.stringify(testResult.response_raw, null, 2)}
+              <h3 className="text-sm font-semibold text-yellow-400 mb-2">2. PROVIDER REQUEST</h3>
+              <p className="text-xs text-gray-500 mb-2">Запрос к провайдеру (OpenAI/Anthropic)</p>
+              <pre className="text-gray-300 text-xs whitespace-pre-wrap break-words overflow-auto max-h-48">
+                {testResult.provider_request 
+                  ? JSON.stringify(testResult.provider_request, null, 2)
+                  : 'N/A'}
               </pre>
             </div>
 
+            {/* 3. Provider Response Raw */}
             <div className="bg-[#252525] rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-gray-400 mb-2">PARSED</h3>
-              {testResult.response_parsed ? (
+              <h3 className="text-sm font-semibold text-orange-400 mb-2">3. PROVIDER RESPONSE RAW</h3>
+              <p className="text-xs text-gray-500 mb-2">Сырой ответ от провайдера</p>
+              <pre className="text-gray-300 text-xs whitespace-pre-wrap break-words overflow-auto max-h-48">
+                {testResult.provider_response_raw
+                  ? JSON.stringify(testResult.provider_response_raw, null, 2)
+                  : testResult.error 
+                    ? JSON.stringify(testResult.error, null, 2)
+                    : 'N/A'}
+              </pre>
+            </div>
+
+            {/* 4. Parsed Response */}
+            <div className="bg-[#252525] rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-green-400 mb-2">4. PARSED RESPONSE</h3>
+              <p className="text-xs text-gray-500 mb-2">Распарсенный ответ</p>
+              {testResult.parsed ? (
                 <div className="text-gray-300 text-sm space-y-2">
                   <div className="break-words">
                     <span className="text-gray-500">Content:</span>
-                    <p className="mt-1">{testResult.response_parsed.content}</p>
+                    <p className="mt-1 bg-[#1a1a1a] p-2 rounded">{testResult.parsed.content}</p>
                   </div>
-                  <div>Tokens In: {testResult.response_parsed.tokens_input}</div>
-                  <div>Tokens Out: {testResult.response_parsed.tokens_output}</div>
-                  <div>Cost: ${testResult.response_parsed.provider_cost?.toFixed(6)}</div>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div className="bg-[#1a1a1a] p-2 rounded">
+                      <span className="text-gray-500">Tokens In:</span>
+                      <span className="ml-1">{testResult.parsed.tokens_input}</span>
+                    </div>
+                    <div className="bg-[#1a1a1a] p-2 rounded">
+                      <span className="text-gray-500">Tokens Out:</span>
+                      <span className="ml-1">{testResult.parsed.tokens_output}</span>
+                    </div>
+                    <div className="bg-[#1a1a1a] p-2 rounded">
+                      <span className="text-gray-500">Cost:</span>
+                      <span className="ml-1">${testResult.parsed.provider_cost_usd?.toFixed(6)}</span>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="text-red-400">Error</div>
