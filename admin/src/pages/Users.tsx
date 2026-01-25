@@ -1,26 +1,20 @@
 import { useEffect, useState } from 'react';
-import { getUsers, setUserRole, setUserPassword, blockUser, unblockUser } from '../api/client';
-import { MoreVertical, X } from 'lucide-react';
+import { getUsers, updateUserRole, updateUserPassword, blockUser } from '../api/client';
+import { MoreVertical, RefreshCw } from 'lucide-react';
 
 interface User {
   id: string;
   email: string;
   role: string;
   credits_balance: number;
-  is_active: boolean;
   is_blocked: boolean;
-  language: string;
   created_at: string;
 }
 
 export default function Users() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [showModal, setShowModal] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
-  const [newRole, setNewRole] = useState('');
-  const [actionLoading, setActionLoading] = useState(false);
+  const [menuOpen, setMenuOpen] = useState<string | null>(null);
 
   useEffect(() => {
     loadUsers();
@@ -30,209 +24,155 @@ export default function Users() {
     setLoading(true);
     try {
       const response = await getUsers(1, 100);
-      setUsers(response.data.data);
+      setUsers(response.data.users);
     } catch (err) {
-      console.error('Failed to load users:', err);
+      console.error('Ошибка загрузки пользователей:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const openUserModal = (user: User) => {
-    setSelectedUser(user);
-    setNewRole(user.role);
-    setNewPassword('');
-    setShowModal(true);
-  };
-
-  const handleSetPassword = async () => {
-    if (!selectedUser || !newPassword) return;
-    setActionLoading(true);
+  const handleRoleChange = async (userId: string, newRole: string) => {
     try {
-      await setUserPassword(selectedUser.id, newPassword);
-      alert('Password updated');
-      setNewPassword('');
+      await updateUserRole(userId, newRole);
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
+      setMenuOpen(null);
     } catch (err) {
-      alert('Failed to update password');
-    } finally {
-      setActionLoading(false);
+      console.error('Ошибка изменения роли:', err);
     }
   };
 
-  const handleSetRole = async () => {
-    if (!selectedUser) return;
-    setActionLoading(true);
+  const handlePasswordReset = async (userId: string) => {
+    const newPassword = prompt('Введите новый пароль:');
+    if (!newPassword) return;
+    
     try {
-      await setUserRole(selectedUser.id, newRole);
-      await loadUsers();
-      alert('Role updated');
+      await updateUserPassword(userId, newPassword);
+      alert('Пароль изменён');
+      setMenuOpen(null);
     } catch (err) {
-      alert('Failed to update role');
-    } finally {
-      setActionLoading(false);
+      console.error('Ошибка изменения пароля:', err);
+      alert('Ошибка изменения пароля');
     }
   };
 
-  const handleToggleBlock = async () => {
-    if (!selectedUser) return;
-    setActionLoading(true);
+  const handleBlockToggle = async (userId: string, currentBlocked: boolean) => {
     try {
-      if (selectedUser.is_blocked) {
-        await unblockUser(selectedUser.id);
-      } else {
-        await blockUser(selectedUser.id);
-      }
-      await loadUsers();
-      setShowModal(false);
+      await blockUser(userId, !currentBlocked);
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_blocked: !currentBlocked } : u));
+      setMenuOpen(null);
     } catch (err) {
-      alert('Failed to toggle block status');
-    } finally {
-      setActionLoading(false);
+      console.error('Ошибка блокировки:', err);
     }
   };
 
-  const getRoleBadgeColor = (role: string) => {
+  const getRoleBadge = (role: string) => {
     switch (role) {
       case 'superadmin':
-        return 'bg-red-600';
-      case 'developer':
-        return 'bg-blue-600';
+        return <span className="px-2 py-1 bg-red-600 text-white text-xs rounded">superadmin</span>;
+      case 'admin':
+        return <span className="px-2 py-1 bg-orange-600 text-white text-xs rounded">admin</span>;
+      case 'dev':
+        return <span className="px-2 py-1 bg-blue-600 text-white text-xs rounded">dev</span>;
       default:
-        return 'bg-gray-600';
+        return <span className="px-2 py-1 bg-gray-600 text-white text-xs rounded">user</span>;
     }
   };
+
+  if (loading) {
+    return <div className="p-6 text-gray-400">Загрузка...</div>;
+  }
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold text-white mb-6">Users</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-white">Пользователи</h1>
+        <button
+          onClick={loadUsers}
+          className="flex items-center gap-2 px-4 py-2 bg-[#3f3f3f] hover:bg-[#4f4f4f] text-white rounded-lg"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Обновить
+        </button>
+      </div>
 
-      {loading ? (
-        <div className="text-gray-400">Loading...</div>
-      ) : (
-        <div className="bg-[#2f2f2f] rounded-lg overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="text-gray-400 text-left bg-[#252525]">
-                <th className="p-3">Email</th>
-                <th className="p-3">Role</th>
-                <th className="p-3">Credits</th>
-                <th className="p-3">Status</th>
-                <th className="p-3">Created</th>
-                <th className="p-3"></th>
+      <div className="bg-[#2f2f2f] rounded-lg overflow-hidden">
+        <table className="w-full">
+          <thead>
+            <tr className="text-gray-400 text-left bg-[#252525]">
+              <th className="p-4">Email</th>
+              <th className="p-4">Роль</th>
+              <th className="p-4">Кредиты</th>
+              <th className="p-4">Статус</th>
+              <th className="p-4">Создан</th>
+              <th className="p-4 w-10"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((u) => (
+              <tr key={u.id} className="border-t border-gray-700">
+                <td className="p-4 text-white">{u.email}</td>
+                <td className="p-4">{getRoleBadge(u.role)}</td>
+                <td className="p-4 text-gray-300">{parseFloat(String(u.credits_balance)).toFixed(2)}</td>
+                <td className="p-4">
+                  {u.is_blocked ? (
+                    <span className="text-red-400">Заблокирован</span>
+                  ) : (
+                    <span className="text-green-400">Активен</span>
+                  )}
+                </td>
+                <td className="p-4 text-gray-500">
+                  {new Date(u.created_at).toLocaleDateString('ru')}
+                </td>
+                <td className="p-4 relative">
+                  <button
+                    onClick={() => setMenuOpen(menuOpen === u.id ? null : u.id)}
+                    className="p-1 hover:bg-[#3f3f3f] rounded"
+                  >
+                    <MoreVertical className="w-5 h-5 text-gray-400" />
+                  </button>
+
+                  {menuOpen === u.id && (
+                    <div className="absolute right-4 top-12 bg-[#3f3f3f] rounded-lg shadow-lg z-10 py-1 min-w-[160px]">
+                      <button
+                        onClick={() => handleRoleChange(u.id, 'user')}
+                        className="w-full px-4 py-2 text-left text-white hover:bg-[#4f4f4f]"
+                      >
+                        Роль: user
+                      </button>
+                      <button
+                        onClick={() => handleRoleChange(u.id, 'dev')}
+                        className="w-full px-4 py-2 text-left text-white hover:bg-[#4f4f4f]"
+                      >
+                        Роль: dev
+                      </button>
+                      <button
+                        onClick={() => handleRoleChange(u.id, 'admin')}
+                        className="w-full px-4 py-2 text-left text-white hover:bg-[#4f4f4f]"
+                      >
+                        Роль: admin
+                      </button>
+                      <hr className="border-gray-600 my-1" />
+                      <button
+                        onClick={() => handlePasswordReset(u.id)}
+                        className="w-full px-4 py-2 text-left text-white hover:bg-[#4f4f4f]"
+                      >
+                        Сменить пароль
+                      </button>
+                      <button
+                        onClick={() => handleBlockToggle(u.id, u.is_blocked)}
+                        className="w-full px-4 py-2 text-left text-white hover:bg-[#4f4f4f]"
+                      >
+                        {u.is_blocked ? 'Разблокировать' : 'Заблокировать'}
+                      </button>
+                    </div>
+                  )}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {users.map((user) => (
-                <tr key={user.id} className="border-t border-gray-700 hover:bg-[#353535]">
-                  <td className="p-3 text-white">{user.email}</td>
-                  <td className="p-3">
-                    <span className={`px-2 py-1 rounded text-xs font-bold ${getRoleBadgeColor(user.role)}`}>
-                      {user.role}
-                    </span>
-                  </td>
-                  <td className="p-3 text-gray-300">{user.credits_balance.toFixed(2)}</td>
-                  <td className="p-3">
-                    {user.is_blocked ? (
-                      <span className="text-red-400">Blocked</span>
-                    ) : (
-                      <span className="text-green-400">Active</span>
-                    )}
-                  </td>
-                  <td className="p-3 text-gray-500 text-sm">
-                    {new Date(user.created_at).toLocaleDateString()}
-                  </td>
-                  <td className="p-3">
-                    <button
-                      onClick={() => openUserModal(user)}
-                      className="text-gray-400 hover:text-white"
-                    >
-                      <MoreVertical className="w-5 h-5" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* User Modal */}
-      {showModal && selectedUser && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-[#2f2f2f] rounded-lg w-full max-w-md">
-            <div className="flex justify-between items-center p-4 border-b border-gray-700">
-              <h2 className="text-lg font-bold text-white">{selectedUser.email}</h2>
-              <button
-                onClick={() => setShowModal(false)}
-                className="text-gray-400 hover:text-white"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            <div className="p-4 space-y-4">
-              {/* Set Role */}
-              <div>
-                <label className="block text-gray-400 mb-2">Role</label>
-                <div className="flex gap-2">
-                  <select
-                    value={newRole}
-                    onChange={(e) => setNewRole(e.target.value)}
-                    className="flex-1 px-4 py-2 bg-[#3f3f3f] border border-gray-600 rounded-lg text-white"
-                  >
-                    <option value="user">user</option>
-                    <option value="developer">developer</option>
-                    <option value="superadmin">superadmin</option>
-                  </select>
-                  <button
-                    onClick={handleSetRole}
-                    disabled={actionLoading}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded-lg"
-                  >
-                    Save
-                  </button>
-                </div>
-              </div>
-
-              {/* Set Password */}
-              <div>
-                <label className="block text-gray-400 mb-2">New Password</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Enter new password"
-                    className="flex-1 px-4 py-2 bg-[#3f3f3f] border border-gray-600 rounded-lg text-white"
-                  />
-                  <button
-                    onClick={handleSetPassword}
-                    disabled={actionLoading || !newPassword}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded-lg"
-                  >
-                    Set
-                  </button>
-                </div>
-              </div>
-
-              {/* Block/Unblock */}
-              <div className="pt-4 border-t border-gray-700">
-                <button
-                  onClick={handleToggleBlock}
-                  disabled={actionLoading}
-                  className={`w-full py-2 rounded-lg ${
-                    selectedUser.is_blocked
-                      ? 'bg-green-600 hover:bg-green-700'
-                      : 'bg-red-600 hover:bg-red-700'
-                  } text-white`}
-                >
-                  {selectedUser.is_blocked ? 'Unblock User' : 'Block User'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
