@@ -7,13 +7,13 @@ from app.database import engine
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print(f"��� Starting AI Aggregator API [{settings.APP_ENV}]")
+    print(f"Starting AI Aggregator API [{settings.APP_ENV}]")
     yield
     await engine.dispose()
 
 app = FastAPI(
     title="AI Aggregator API",
-    description="Все нейросети внутри",
+    description="Vse neiroset'i vnutri",
     version="1.0.0",
     docs_url="/docs" if settings.APP_DEBUG else None,
     lifespan=lifespan,
