@@ -17,6 +17,9 @@ export default function Login() {
     try {
       const response = await login(email, password);
       const { access_token, user } = response.data;
+      console.log('USER:', user);
+      console.log('ROLE:', user.role);
+      console.log('CHECK:', user.role !== 'admin' && user.role !== 'superadmin');
 
       if (user.role !== 'admin' && user.role !== 'superadmin') {
         setError('Доступ запрещён. Только для администраторов.');
