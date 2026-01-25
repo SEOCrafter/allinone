@@ -3,7 +3,7 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.services.auth_service import AuthService
+from app.services.auth import AuthService
 
 router = APIRouter()
 auth_service = AuthService()
