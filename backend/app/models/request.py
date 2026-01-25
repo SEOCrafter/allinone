@@ -57,7 +57,7 @@ class RequestFile(Base, UUIDMixin):
     public_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     mime_type: Mapped[str] = mapped_column(String(100))
     size_bytes: Mapped[int] = mapped_column()
-    metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    file_metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default="now()")
     
     request: Mapped["Request"] = relationship(back_populates="files")
@@ -72,7 +72,7 @@ class Result(Base, UUIDMixin):
     public_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     mime_type: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     size_bytes: Mapped[Optional[int]] = mapped_column(nullable=True)
-    metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    file_metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default="now()")
     

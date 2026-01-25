@@ -22,7 +22,7 @@ class Transaction(Base, UUIDMixin):
     external_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     
     status: Mapped[str] = mapped_column(String(20), default="pending")
-    metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    extra_data: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default="now()")
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
