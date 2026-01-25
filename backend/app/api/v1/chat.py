@@ -64,6 +64,7 @@ async def chat(
     # Списываем кредиты
     credits_spent = generation_service.calculate_credits(result)
     new_balance = await billing_service.deduct_credits(db, current_user.id, credits_spent)
+    await db.commit()
     
     return ChatResponse(
         request_id=str(uuid.uuid4()),
