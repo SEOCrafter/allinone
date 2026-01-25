@@ -119,7 +119,7 @@ async def adapters_balances(
                 "balance_usd": float(b.balance_usd),
                 "total_deposited_usd": float(b.total_deposited_usd),
                 "total_spent_usd": float(b.total_spent_usd),
-                "updated_at": b.updated_at.isoformat() if b.updated_at else None,
+                "updated_at": (b.updated_at.isoformat() + "Z") if b.updated_at else None,
             }
             for b in balances
         ]
