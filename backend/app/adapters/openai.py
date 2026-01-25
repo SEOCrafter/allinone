@@ -36,6 +36,9 @@ class OpenAIAdapter(BaseAdapter):
         "gpt-3.5-turbo": {"input": 0.0005, "output": 0.0015},
     }
     
+    # Модели, которые используют max_completion_tokens вместо max_tokens
+    NEW_API_MODELS = {"gpt-5.2", "gpt-5.2-chat-latest", "gpt-5.2-pro", "gpt-5.1", "gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "o3", "o3-mini", "o4-mini"}
+    
     def __init__(self, api_key: str, default_model: str = "gpt-4o-mini", **kwargs):
         super().__init__(api_key, **kwargs)
         self.default_model = default_model
@@ -51,9 +54,15 @@ class OpenAIAdapter(BaseAdapter):
         request_body = {
             "model": model,
             "messages": messages,
-            "max_tokens": params.get("max_tokens", 2048),
-            "temperature": params.get("temperature", 0.7),
         }
+        
+        # Новые модели используют max_completion_tokens
+        max_tokens = params.get("max_tokens", 2048)
+        if model in self.NEW_API_MODELS:
+            request_body["max_completion_tokens"] = max_tokens
+        else:
+            request_body["max_tokens"] = max_tokens
+            request_body["temperature"] = params.get("temperature", 0.7)
         
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
@@ -107,6 +116,19 @@ class OpenAIAdapter(BaseAdapter):
         model = params.get("model", self.default_model)
         messages = params.get("messages") or [{"role": "user", "content": prompt}]
         
+        request_body = {
+            "model": model,
+            "messages": messages,
+            "stream": True,
+        }
+        
+        max_tokens = params.get("max_tokens", 2048)
+        if model in self.NEW_API_MODELS:
+            request_body["max_completion_tokens"] = max_tokens
+        else:
+            request_body["max_tokens"] = max_tokens
+            request_body["temperature"] = params.get("temperature", 0.7)
+        
         async with httpx.AsyncClient(timeout=120.0) as client:
             async with client.stream(
                 "POST",
@@ -115,13 +137,7 @@ class OpenAIAdapter(BaseAdapter):
                     "Authorization": f"Bearer {self.api_key}",
                     "Content-Type": "application/json",
                 },
-                json={
-                    "model": model,
-                    "messages": messages,
-                    "max_tokens": params.get("max_tokens", 2048),
-                    "temperature": params.get("temperature", 0.7),
-                    "stream": True,
-                },
+                json=request_body,
             ) as response:
                 async for line in response.aiter_lines():
                     if line.startswith("data: ") and line != "data: [DONE]":
