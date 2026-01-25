@@ -193,3 +193,6 @@ async def test_adapter(
                 "message": result.error_message,
             }
         }
+    
+
+    

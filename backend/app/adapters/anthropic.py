@@ -10,16 +10,21 @@ class AnthropicAdapter(BaseAdapter):
     
     BASE_URL = "https://api.anthropic.com/v1"
     
+    # Актуальные модели на январь 2026
     PRICING = {
-        "claude-3-5-sonnet-20241022": {"input": 0.003, "output": 0.015},
-        "claude-3-5-sonnet-latest": {"input": 0.003, "output": 0.015},
-        "claude-3-5-haiku-20241022": {"input": 0.0008, "output": 0.004},
-        "claude-3-5-haiku-latest": {"input": 0.0008, "output": 0.004},
-        "claude-3-opus-20240229": {"input": 0.015, "output": 0.075},
-        "claude-3-opus-latest": {"input": 0.015, "output": 0.075},
+        # Claude 4.5
+        "claude-opus-4-5-20251101": {"input": 0.005, "output": 0.025},
+        "claude-sonnet-4-5-20250929": {"input": 0.003, "output": 0.015},
+        "claude-haiku-4-5-20251001": {"input": 0.001, "output": 0.005},
+        # Claude 4.x
+        "claude-opus-4-1-20250805": {"input": 0.015, "output": 0.075},
+        "claude-sonnet-4-20250514": {"input": 0.003, "output": 0.015},
+        # Aliases
+        "claude-sonnet-4-5-latest": {"input": 0.003, "output": 0.015},
+        "claude-haiku-4-5-latest": {"input": 0.001, "output": 0.005},
     }
 
-    def __init__(self, api_key: str, default_model: str = "claude-3-5-sonnet-20241022", **kwargs):
+    def __init__(self, api_key: str, default_model: str = "claude-sonnet-4-5-20250929", **kwargs):
         super().__init__(api_key, **kwargs)
         self.default_model = default_model
 
@@ -79,7 +84,7 @@ class AnthropicAdapter(BaseAdapter):
 
     def calculate_cost(self, tokens_input: int, tokens_output: int, **params) -> float:
         model = params.get("model", self.default_model)
-        pricing = self.PRICING.get(model, self.PRICING["claude-3-5-sonnet-20241022"])
+        pricing = self.PRICING.get(model, self.PRICING["claude-sonnet-4-5-20250929"])
         return (tokens_input / 1000 * pricing["input"]) + (tokens_output / 1000 * pricing["output"])
 
     def get_capabilities(self) -> dict:
