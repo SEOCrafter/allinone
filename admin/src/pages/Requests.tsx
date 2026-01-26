@@ -18,10 +18,29 @@ interface RequestItem {
   error_message?: string;
 }
 
-interface RequestDetail extends RequestItem {
-  prompt: string;
-  response: string;
-  params: Record<string, unknown>;
+interface RequestDetail {
+  id: string;
+  user_email: string;
+  provider: string;
+  model: string;
+  status: string;
+  input: {
+    prompt: string;
+    params: Record<string, unknown>;
+  };
+  output: {
+    content: string | null;
+    tokens_input: number;
+    tokens_output: number;
+  };
+  costs: {
+    credits_spent: number;
+    provider_cost_usd: number;
+  };
+  error?: {
+    code: string;
+    message: string;
+  } | null;
 }
 
 export default function Requests() {
@@ -38,9 +57,12 @@ export default function Requests() {
   const loadRequests = async () => {
     try {
       const response = await getRequests(1, 100);
-      setRequests(response.data.requests);
+      // Бэкенд возвращает { ok: true, data: [...], pagination: {...} }
+      const items = response.data?.data;
+      setRequests(Array.isArray(items) ? items : []);
     } catch (err) {
       console.error('Ошибка загрузки запросов:', err);
+      setRequests([]);
     } finally {
       setLoading(false);
     }
@@ -50,7 +72,8 @@ export default function Requests() {
     setModalLoading(true);
     try {
       const response = await getRequest(id);
-      setSelectedRequest(response.data);
+      // Бэкенд возвращает { ok: true, request: {...} }
+      setSelectedRequest(response.data?.request || null);
     } catch (err) {
       console.error('Ошибка загрузки деталей:', err);
     } finally {
@@ -71,7 +94,7 @@ export default function Requests() {
     }
   };
 
-  const filteredRequests = requests.filter(r => {
+  const filteredRequests = (requests || []).filter(r => {
     if (filter === 'all') return true;
     return r.status === filter;
   });
@@ -172,7 +195,7 @@ export default function Requests() {
                   </div>
                   <div className="bg-[#252525] p-3 rounded">
                     <p className="text-xs text-gray-500">Стоимость</p>
-                    <p className="text-white">${(selectedRequest.provider_cost || 0).toFixed(6)}</p>
+                    <p className="text-white">${(selectedRequest.costs?.provider_cost_usd || 0).toFixed(6)}</p>
                   </div>
                 </div>
 
@@ -180,29 +203,29 @@ export default function Requests() {
                 <div className="grid grid-cols-3 gap-4">
                   <div className="bg-[#252525] p-3 rounded">
                     <p className="text-xs text-gray-500">Токены (вход)</p>
-                    <p className="text-white">{selectedRequest.tokens_input}</p>
+                    <p className="text-white">{selectedRequest.output?.tokens_input || 0}</p>
                   </div>
                   <div className="bg-[#252525] p-3 rounded">
                     <p className="text-xs text-gray-500">Токены (выход)</p>
-                    <p className="text-white">{selectedRequest.tokens_output}</p>
+                    <p className="text-white">{selectedRequest.output?.tokens_output || 0}</p>
                   </div>
                   <div className="bg-[#252525] p-3 rounded">
                     <p className="text-xs text-gray-500">Кредиты</p>
-                    <p className="text-white">{(selectedRequest.credits_spent || 0).toFixed(4)}</p>
+                    <p className="text-white">{(selectedRequest.costs?.credits_spent || 0).toFixed(4)}</p>
                   </div>
                 </div>
 
                 {/* Промпт */}
                 <div className="bg-[#252525] p-3 rounded">
                   <p className="text-xs text-gray-500 mb-2">Запрос (промпт)</p>
-                  <p className="text-white whitespace-pre-wrap">{selectedRequest.prompt}</p>
+                  <p className="text-white whitespace-pre-wrap">{selectedRequest.input?.prompt || 'Нет данных'}</p>
                 </div>
 
                 {/* Ответ */}
                 <div className="bg-[#252525] p-3 rounded">
                   <p className="text-xs text-gray-500 mb-2">Ответ</p>
                   <p className="text-white whitespace-pre-wrap">
-                    {selectedRequest.response || selectedRequest.error_message || 'Нет ответа'}
+                    {selectedRequest.output?.content || selectedRequest.error?.message || 'Нет ответа'}
                   </p>
                 </div>
               </div>
