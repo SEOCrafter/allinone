@@ -44,7 +44,7 @@ async def adapters_status(
 ):
     """Health check всех адаптеров."""
     results = []
-    
+
     # OpenAI health check
     if settings.OPENAI_API_KEY:
         try:
@@ -70,7 +70,7 @@ async def adapters_status(
                     results.append({"name": "openai", "status": "degraded", "latency_ms": latency, "error": response.text})
         except Exception as e:
             results.append({"name": "openai", "status": "unhealthy", "latency_ms": None, "error": str(e)})
-    
+
     # Anthropic health check
     if settings.ANTHROPIC_API_KEY:
         try:
@@ -97,9 +97,49 @@ async def adapters_status(
                     results.append({"name": "anthropic", "status": "degraded", "latency_ms": latency, "error": response.text})
         except Exception as e:
             results.append({"name": "anthropic", "status": "unhealthy", "latency_ms": None, "error": str(e)})
-    
-    return {"ok": True, "adapters": results}
 
+    # Gemini health check (через адаптер)
+    if settings.GEMINI_API_KEY:
+        try:
+            import time
+            start = time.time()
+            adapter = AdapterRegistry.get_adapter("gemini", settings.GEMINI_API_KEY)
+            result = await adapter.generate("Hi", model="gemini-2.0-flash", max_tokens=5)
+            latency = int((time.time() - start) * 1000)
+            if result.success:
+                results.append({"name": "gemini", "status": "healthy", "latency_ms": latency, "error": None})
+            else:
+                results.append({"name": "gemini", "status": "degraded", "latency_ms": latency, "error": result.error_message})
+        except Exception as e:
+            results.append({"name": "gemini", "status": "unhealthy", "latency_ms": None, "error": str(e)})
+
+    # DeepSeek health check
+    if settings.DEEPSEEK_API_KEY:
+        try:
+            import time
+            start = time.time()
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    "https://api.deepseek.com/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {settings.DEEPSEEK_API_KEY}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": "deepseek-chat",
+                        "messages": [{"role": "user", "content": "Hi"}],
+                        "max_tokens": 5,
+                    },
+                )
+                latency = int((time.time() - start) * 1000)
+                if response.status_code == 200:
+                    results.append({"name": "deepseek", "status": "healthy", "latency_ms": latency, "error": None})
+                else:
+                    results.append({"name": "deepseek", "status": "degraded", "latency_ms": latency, "error": response.text})
+        except Exception as e:
+            results.append({"name": "deepseek", "status": "unhealthy", "latency_ms": None, "error": str(e)})
+
+    return {"ok": True, "adapters": results}
 
 @router.get("/balances")
 async def adapters_balances(
