@@ -11,15 +11,25 @@ class GeminiAdapter(BaseAdapter):
     provider_type = ProviderType.TEXT
 
     PROJECT_ID = "proven-mind-444420-d6"
-    LOCATION = "us-central1"
+    
+    # Модели и их регионы
+    GLOBAL_MODELS = {
+        "gemini-3-pro-preview", "gemini-3-flash-preview",
+        "gemini-2.5-pro-preview-05-06", "gemini-2.5-flash-preview-05-20",
+        "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"
+    }
     
     PRICING = {
         "gemini-3-pro-preview": {"input": 0.002, "output": 0.012},
         "gemini-3-flash-preview": {"input": 0.0005, "output": 0.003},
+        "gemini-2.5-pro-preview-05-06": {"input": 0.00125, "output": 0.01},
+        "gemini-2.5-flash-preview-05-20": {"input": 0.00015, "output": 0.0006},
         "gemini-2.5-pro": {"input": 0.00125, "output": 0.01},
         "gemini-2.5-flash": {"input": 0.00015, "output": 0.0006},
         "gemini-2.5-flash-lite": {"input": 0.0001, "output": 0.0004},
         "gemini-2.0-flash": {"input": 0.0001, "output": 0.0004},
+        "gemini-2.0-flash-001": {"input": 0.0001, "output": 0.0004},
+        "gemini-2.0-flash-lite-001": {"input": 0.000075, "output": 0.0003},
     }
 
     def __init__(self, api_key: str = "", default_model: str = "gemini-2.5-flash", **kwargs):
@@ -53,17 +63,37 @@ class GeminiAdapter(BaseAdapter):
         except Exception as e:
             raise Exception(f"Failed to get access token: {e}")
 
+    def _get_location(self, model: str) -> str:
+        """Возвращает регион для модели"""
+        if model in self.GLOBAL_MODELS:
+            return "global"
+        return "us-central1"
+
     def _get_endpoint(self, model: str) -> str:
+        location = self._get_location(model)
+        if location == "global":
+            return (
+                f"https://aiplatform.googleapis.com/v1/"
+                f"projects/{self.PROJECT_ID}/locations/{location}/"
+                f"publishers/google/models/{model}:generateContent"
+            )
         return (
-            f"https://{self.LOCATION}-aiplatform.googleapis.com/v1/"
-            f"projects/{self.PROJECT_ID}/locations/{self.LOCATION}/"
+            f"https://{location}-aiplatform.googleapis.com/v1/"
+            f"projects/{self.PROJECT_ID}/locations/{location}/"
             f"publishers/google/models/{model}:generateContent"
         )
 
     def _get_stream_endpoint(self, model: str) -> str:
+        location = self._get_location(model)
+        if location == "global":
+            return (
+                f"https://aiplatform.googleapis.com/v1/"
+                f"projects/{self.PROJECT_ID}/locations/{location}/"
+                f"publishers/google/models/{model}:streamGenerateContent"
+            )
         return (
-            f"https://{self.LOCATION}-aiplatform.googleapis.com/v1/"
-            f"projects/{self.PROJECT_ID}/locations/{self.LOCATION}/"
+            f"https://{location}-aiplatform.googleapis.com/v1/"
+            f"projects/{self.PROJECT_ID}/locations/{location}/"
             f"publishers/google/models/{model}:streamGenerateContent"
         )
 
