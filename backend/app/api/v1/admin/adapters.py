@@ -198,11 +198,15 @@ async def adapter_health(
     health_models = {
         "openai": "gpt-4o-mini",
         "anthropic": "claude-haiku-4-5-20251001",
+        "gemini": "gemini-2.5-flash",
+        "deepseek": "deepseek-chat",
     }
     
     api_keys = {
         "openai": settings.OPENAI_API_KEY,
         "anthropic": settings.ANTHROPIC_API_KEY,
+        "gemini": settings.GEMINI_API_KEY,
+        "deepseek": settings.DEEPSEEK_API_KEY,
     }
     
     api_key = api_keys.get(adapter_name)
