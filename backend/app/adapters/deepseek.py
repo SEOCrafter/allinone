@@ -11,8 +11,8 @@ class DeepSeekAdapter(BaseAdapter):
     BASE_URL = "https://api.deepseek.com"
 
     PRICING = {
-        "deepseek-chat": {"input": 0.00028, "output": 0.00042, "cache_hit": 0.000028},
-        "deepseek-reasoner": {"input": 0.00028, "output": 0.00042, "cache_hit": 0.000028},
+        "deepseek-chat": {"input": 0.00014, "output": 0.00028, "cache_hit": 0.000014},
+        "deepseek-reasoner": {"input": 0.00055, "output": 0.00219, "cache_hit": 0.000055},
     }
 
     def __init__(self, api_key: str, default_model: str = "deepseek-chat", **kwargs):

@@ -14,13 +14,15 @@ class GeminiAdapter(BaseAdapter):
     LOCATION = "us-central1"
     
     PRICING = {
+        "gemini-3-pro-preview": {"input": 0.002, "output": 0.012},
+        "gemini-3-flash-preview": {"input": 0.0005, "output": 0.003},
+        "gemini-2.5-pro": {"input": 0.00125, "output": 0.01},
+        "gemini-2.5-flash": {"input": 0.00015, "output": 0.0006},
+        "gemini-2.5-flash-lite": {"input": 0.0001, "output": 0.0004},
         "gemini-2.0-flash": {"input": 0.0001, "output": 0.0004},
-        "gemini-2.0-flash-lite": {"input": 0.000075, "output": 0.0003},
-        "gemini-1.5-flash": {"input": 0.000075, "output": 0.0003},
-        "gemini-1.5-pro": {"input": 0.00125, "output": 0.005},
     }
 
-    def __init__(self, api_key: str = "", default_model: str = "gemini-2.0-flash", **kwargs):
+    def __init__(self, api_key: str = "", default_model: str = "gemini-2.5-flash", **kwargs):
         super().__init__(api_key, **kwargs)
         self.default_model = default_model
         self._access_token = None
@@ -67,7 +69,7 @@ class GeminiAdapter(BaseAdapter):
 
     async def generate(self, prompt: str, **params) -> GenerationResult:
         model = params.get("model", self.default_model)
-        system_prompt = params.get("system_prompt")
+        system_prompt = params.get("system_prompt") or "Отвечай на русском языке."
         max_tokens = params.get("max_tokens", 2048)
         temperature = params.get("temperature", 0.7)
 
@@ -81,10 +83,8 @@ class GeminiAdapter(BaseAdapter):
         request_body = {
             "contents": contents,
             "generationConfig": generation_config,
+            "systemInstruction": {"parts": [{"text": system_prompt}]},
         }
-
-        if system_prompt:
-            request_body["systemInstruction"] = {"parts": [{"text": system_prompt}]}
 
         try:
             access_token = await self._get_access_token()
@@ -148,7 +148,7 @@ class GeminiAdapter(BaseAdapter):
 
     async def generate_stream(self, prompt: str, **params) -> AsyncIterator[str]:
         model = params.get("model", self.default_model)
-        system_prompt = params.get("system_prompt")
+        system_prompt = params.get("system_prompt") or "Отвечай на русском языке."
 
         request_body = {
             "contents": [{"role": "user", "parts": [{"text": prompt}]}],
@@ -156,10 +156,8 @@ class GeminiAdapter(BaseAdapter):
                 "temperature": params.get("temperature", 0.7),
                 "maxOutputTokens": params.get("max_tokens", 2048),
             },
+            "systemInstruction": {"parts": [{"text": system_prompt}]},
         }
-
-        if system_prompt:
-            request_body["systemInstruction"] = {"parts": [{"text": system_prompt}]}
 
         access_token = await self._get_access_token()
         url = self._get_stream_endpoint(model) + "?alt=sse"
@@ -189,7 +187,7 @@ class GeminiAdapter(BaseAdapter):
 
     def calculate_cost(self, tokens_input: int, tokens_output: int, **params) -> float:
         model = params.get("model", self.default_model)
-        pricing = self.PRICING.get(model, self.PRICING["gemini-2.0-flash"])
+        pricing = self.PRICING.get(model, self.PRICING["gemini-2.5-flash"])
         return (tokens_input / 1000 * pricing["input"]) + (tokens_output / 1000 * pricing["output"])
 
     def get_capabilities(self) -> dict:
