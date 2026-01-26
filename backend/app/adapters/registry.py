@@ -49,6 +49,7 @@ class AdapterRegistry:
                 adapter_info["models"] = [
                     {
                         "id": model_id,
+                        "display_name": pricing.get("display_name", model_id),
                         "type": adapter_class.provider_type.value,
                         "pricing": {
                             "input_per_1k": pricing.get("input", 0),
