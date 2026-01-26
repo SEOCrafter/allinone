@@ -1,82 +1,153 @@
-from typing import Dict, Type, Optional
-from app.adapters.base import BaseAdapter, ProviderType, ProviderHealth
-from app.adapters.openai import OpenAIAdapter
-from app.adapters.anthropic import AnthropicAdapter
-from app.adapters.gemini import GeminiAdapter
-from app.adapters.deepseek import DeepSeekAdapter
+from typing import AsyncIterator, Optional
+import httpx
+from app.adapters.base import BaseAdapter, GenerationResult, ProviderType
 
 
-class AdapterRegistry:
-    """Реестр всех доступных адаптеров."""
+class GeminiAdapter(BaseAdapter):
+    name = "gemini"
+    display_name = "Google Gemini"
+    provider_type = ProviderType.TEXT
 
-    _adapters: Dict[str, Type[BaseAdapter]] = {}
-    _instances: Dict[str, BaseAdapter] = {}
+    BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 
-    @classmethod
-    def register(cls, adapter_class: Type[BaseAdapter]):
-        """Регистрация адаптера."""
-        cls._adapters[adapter_class.name] = adapter_class
-        return adapter_class
+    PRICING = {
+        "gemini-3-pro-preview": {"input": 0.002, "output": 0.012},
+        "gemini-3-flash-preview": {"input": 0.0005, "output": 0.003},
+        "gemini-2.5-pro": {"input": 0.00125, "output": 0.01},
+        "gemini-2.5-flash": {"input": 0.00015, "output": 0.0006},
+        "gemini-2.5-flash-lite": {"input": 0.0001, "output": 0.0004},
+        "gemini-2.0-flash": {"input": 0.0001, "output": 0.0004},
+    }
 
-    @classmethod
-    def get_adapter(cls, name: str, api_key: str, **kwargs) -> Optional[BaseAdapter]:
-        """Получение инстанса адаптера."""
-        if name not in cls._adapters:
-            return None
+    def __init__(self, api_key: str, default_model: str = "gemini-2.5-flash", **kwargs):
+        super().__init__(api_key, **kwargs)
+        self.default_model = default_model
 
-        # Кэшируем инстансы
-        cache_key = f"{name}:{api_key[:8]}"
-        if cache_key not in cls._instances:
-            cls._instances[cache_key] = cls._adapters[name](api_key, **kwargs)
+    async def generate(self, prompt: str, **params) -> GenerationResult:
+        model = params.get("model", self.default_model)
+        system_prompt = params.get("system_prompt")
+        max_tokens = params.get("max_tokens", 2048)
+        temperature = params.get("temperature", 0.7)
 
-        return cls._instances[cache_key]
+        contents = [{"role": "user", "parts": [{"text": prompt}]}]
 
-    @classmethod
-    def list_adapters(cls, provider_type: Optional[ProviderType] = None, include_models: bool = False) -> list:
-        """Список всех адаптеров."""
-        adapters = []
-        for name, adapter_class in cls._adapters.items():
-            if provider_type and adapter_class.provider_type != provider_type:
-                continue
+        generation_config = {
+            "temperature": temperature,
+            "maxOutputTokens": max_tokens,
+        }
 
-            adapter_info = {
-                "name": adapter_class.name,
-                "display_name": adapter_class.display_name,
-                "type": adapter_class.provider_type.value,
-            }
+        request_body = {
+            "contents": contents,
+            "generationConfig": generation_config,
+        }
 
-            if include_models and hasattr(adapter_class, 'PRICING'):
-                adapter_info["models"] = [
-                    {
-                        "id": model_id,
-                        "type": adapter_class.provider_type.value,
-                        "pricing": {
-                            "input_per_1k": pricing.get("input", 0),
-                            "output_per_1k": pricing.get("output", 0),
-                        }
-                    }
-                    for model_id, pricing in adapter_class.PRICING.items()
-                ]
+        if system_prompt:
+            request_body["systemInstruction"] = {"parts": [{"text": system_prompt}]}
 
-            adapters.append(adapter_info)
+        url = f"{self.BASE_URL}/models/{model}:generateContent?key={self.api_key}"
 
-        return adapters
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                response = await client.post(url, json=request_body)
 
-    @classmethod
-    async def health_check_all(cls, api_keys: dict) -> Dict[str, ProviderHealth]:
-        """Проверка всех провайдеров."""
-        results = {}
-        for name in cls._adapters:
-            if name in api_keys and api_keys[name]:
-                adapter = cls.get_adapter(name, api_keys[name])
-                results[name] = await adapter.health_check()
-            else:
-                results[name] = ProviderHealth(status="no_key", error="API key not configured")
-        return results
+                if response.status_code != 200:
+                    error_data = response.json()
+                    error_msg = error_data.get("error", {}).get("message", "Unknown error")
+                    return GenerationResult(
+                        success=False,
+                        error_code=f"HTTP_{response.status_code}",
+                        error_message=error_msg,
+                        raw_response={"request": request_body, "response": error_data},
+                    )
 
+                data = response.json()
 
-# Регистрируем адаптеры
-AdapterRegistry.register(OpenAIAdapter)
-AdapterRegistry.register(AnthropicAdapter)
-AdapterRegistry.register(GeminiAdapter)
-AdapterRegistry.register(DeepSeekAdapter)
+                candidates = data.get("candidates", [])
+                if not candidates:
+                    prompt_feedback = data.get("promptFeedback", {})
+                    block_reason = prompt_feedback.get("blockReason", "UNKNOWN")
+                    return GenerationResult(
+                        success=False,
+                        error_code="BLOCKED",
+                        error_message=f"Content blocked: {block_reason}",
+                        raw_response={"request": request_body, "response": data},
+                    )
+
+                content = candidates[0].get("content", {})
+                parts = content.get("parts", [])
+                text = "".join(p.get("text", "") for p in parts if "text" in p)
+
+                usage = data.get("usageMetadata", {})
+                tokens_in = usage.get("promptTokenCount", 0)
+                tokens_out = usage.get("candidatesTokenCount", 0)
+
+                return GenerationResult(
+                    success=True,
+                    content=text,
+                    tokens_input=tokens_in,
+                    tokens_output=tokens_out,
+                    provider_cost=self.calculate_cost(tokens_in, tokens_out, model=model),
+                    raw_response={"request": request_body, "response": data},
+                )
+
+        except httpx.TimeoutException:
+            return GenerationResult(
+                success=False,
+                error_code="TIMEOUT",
+                error_message="Request timed out",
+                raw_response={"request": request_body},
+            )
+        except Exception as e:
+            return GenerationResult(
+                success=False,
+                error_code="EXCEPTION",
+                error_message=str(e),
+                raw_response={"request": request_body},
+            )
+
+    async def generate_stream(self, prompt: str, **params) -> AsyncIterator[str]:
+        model = params.get("model", self.default_model)
+        system_prompt = params.get("system_prompt")
+
+        request_body = {
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": params.get("temperature", 0.7),
+                "maxOutputTokens": params.get("max_tokens", 2048),
+            },
+        }
+
+        if system_prompt:
+            request_body["systemInstruction"] = {"parts": [{"text": system_prompt}]}
+
+        url = f"{self.BASE_URL}/models/{model}:streamGenerateContent?key={self.api_key}&alt=sse"
+
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            async with client.stream("POST", url, json=request_body) as response:
+                async for line in response.aiter_lines():
+                    if line.startswith("data: "):
+                        import json
+                        try:
+                            chunk = json.loads(line[6:])
+                            candidates = chunk.get("candidates", [])
+                            if candidates:
+                                parts = candidates[0].get("content", {}).get("parts", [])
+                                for part in parts:
+                                    if "text" in part:
+                                        yield part["text"]
+                        except json.JSONDecodeError:
+                            continue
+
+    def calculate_cost(self, tokens_input: int, tokens_output: int, **params) -> float:
+        model = params.get("model", self.default_model)
+        pricing = self.PRICING.get(model, self.PRICING["gemini-2.5-flash"])
+        return (tokens_input / 1000 * pricing["input"]) + (tokens_output / 1000 * pricing["output"])
+
+    def get_capabilities(self) -> dict:
+        return {
+            "models": list(self.PRICING.keys()),
+            "max_tokens": 1048576,
+            "streaming": True,
+            "vision": True,
+            "function_calling": True,
+        }
