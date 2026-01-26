@@ -2,19 +2,33 @@ import { useEffect, useState } from 'react';
 import { getStats } from '../api/client';
 import { RefreshCw } from 'lucide-react';
 
-interface Stats {
-  users_count: number;
-  requests_count: number;
-  total_credits_spent: number;
-  total_provider_cost: number;
-  tokens_input: number;
-  tokens_output: number;
-  by_status: Record<string, number>;
-  by_role: Record<string, number>;
+// Интерфейс соответствует ответу бэкенда
+interface StatsData {
+  users: {
+    total: number;
+    by_role: Record<string, number>;
+  };
+  requests: {
+    total: number;
+    by_status: Record<string, number>;
+  };
+  costs: {
+    total_credits_spent: number;
+    total_provider_cost_usd: number;
+  };
+  tokens: {
+    total_input: number;
+    total_output: number;
+  };
+  by_provider: Array<{
+    provider: string;
+    requests: number;
+    cost_usd: number;
+  }>;
 }
 
 export default function Stats() {
-  const [stats, setStats] = useState<Stats | null>(null);
+  const [stats, setStats] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -25,7 +39,8 @@ export default function Stats() {
     setLoading(true);
     try {
       const response = await getStats();
-      setStats(response.data);
+      // Бэкенд возвращает { ok: true, stats: {...} }
+      setStats(response.data?.stats || null);
     } catch (err) {
       console.error('Ошибка загрузки статистики:', err);
     } finally {
@@ -47,7 +62,7 @@ export default function Stats() {
     const map: Record<string, string> = {
       superadmin: 'Суперадмин',
       admin: 'Админ',
-      dev: 'Разработчик',
+      developer: 'Разработчик',
       user: 'Пользователь',
     };
     return map[role] || role;
@@ -83,13 +98,13 @@ export default function Stats() {
         <div className="bg-[#2f2f2f] rounded-lg p-4">
           <h2 className="text-lg font-semibold text-white mb-4">Запросы по статусу</h2>
           <div className="space-y-2">
-            {stats?.by_status && Object.entries(stats.by_status).map(([status, count]) => (
+            {stats?.requests?.by_status && Object.entries(stats.requests.by_status).map(([status, count]) => (
               <div key={status} className="flex justify-between items-center">
                 <span className="text-gray-300">{translateStatus(status)}</span>
                 <span className="text-white font-semibold">{count}</span>
               </div>
             ))}
-            {(!stats?.by_status || Object.keys(stats.by_status).length === 0) && (
+            {(!stats?.requests?.by_status || Object.keys(stats.requests.by_status).length === 0) && (
               <p className="text-gray-500">Нет данных</p>
             )}
           </div>
@@ -99,13 +114,13 @@ export default function Stats() {
         <div className="bg-[#2f2f2f] rounded-lg p-4">
           <h2 className="text-lg font-semibold text-white mb-4">Пользователи по ролям</h2>
           <div className="space-y-2">
-            {stats?.by_role && Object.entries(stats.by_role).map(([role, count]) => (
+            {stats?.users?.by_role && Object.entries(stats.users.by_role).map(([role, count]) => (
               <div key={role} className="flex justify-between items-center">
                 <span className="text-gray-300">{translateRole(role)}</span>
                 <span className="text-white font-semibold">{count}</span>
               </div>
             ))}
-            {(!stats?.by_role || Object.keys(stats.by_role).length === 0) && (
+            {(!stats?.users?.by_role || Object.keys(stats.users.by_role).length === 0) && (
               <p className="text-gray-500">Нет данных</p>
             )}
           </div>
@@ -118,19 +133,19 @@ export default function Stats() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-[#252525] p-4 rounded-lg">
             <p className="text-gray-400 text-sm">Всего пользователей</p>
-            <p className="text-2xl font-bold text-white">{stats?.users_count || 0}</p>
+            <p className="text-2xl font-bold text-white">{stats?.users?.total || 0}</p>
           </div>
           <div className="bg-[#252525] p-4 rounded-lg">
             <p className="text-gray-400 text-sm">Всего запросов</p>
-            <p className="text-2xl font-bold text-white">{stats?.requests_count || 0}</p>
+            <p className="text-2xl font-bold text-white">{stats?.requests?.total || 0}</p>
           </div>
           <div className="bg-[#252525] p-4 rounded-lg">
             <p className="text-gray-400 text-sm">Кредитов потрачено</p>
-            <p className="text-2xl font-bold text-white">{(stats?.total_credits_spent || 0).toFixed(4)}</p>
+            <p className="text-2xl font-bold text-white">{(stats?.costs?.total_credits_spent || 0).toFixed(4)}</p>
           </div>
           <div className="bg-[#252525] p-4 rounded-lg">
             <p className="text-gray-400 text-sm">Расходы провайдеров</p>
-            <p className="text-2xl font-bold text-white">${(stats?.total_provider_cost || 0).toFixed(6)}</p>
+            <p className="text-2xl font-bold text-white">${(stats?.costs?.total_provider_cost_usd || 0).toFixed(6)}</p>
           </div>
         </div>
       </div>
