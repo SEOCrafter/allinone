@@ -235,7 +235,6 @@ async def adapter_health(
             "error": result.error_message,
         }
 
-
 @router.post("/{adapter_name}/test")
 async def test_adapter(
     adapter_name: str,
@@ -244,6 +243,11 @@ async def test_adapter(
     db: AsyncSession = Depends(get_db),
 ):
     """Тестовый запрос к адаптеру с полным логом и списанием баланса."""
+    from app.models.request import Request, Result
+    from app.models.provider import Provider
+    from datetime import datetime
+    import uuid
+    
     api_keys = {
         "openai": settings.OPENAI_API_KEY,
         "anthropic": settings.ANTHROPIC_API_KEY,
@@ -257,7 +261,25 @@ async def test_adapter(
     if not adapter:
         raise HTTPException(status_code=404, detail=f"Адаптер {adapter_name} не найден")
     
-    # 1. Frontend request
+    # Получаем provider из БД
+    provider_result = await db.execute(
+        select(Provider).where(Provider.name == adapter_name)
+    )
+    provider = provider_result.scalar_one_or_none()
+    
+    if not provider:
+        # Создаём провайдера если нет
+        provider = Provider(
+            id=uuid.uuid4(),
+            name=adapter_name,
+            display_name=adapter.display_name,
+            type=adapter.provider_type.value,
+            is_active=True,
+        )
+        db.add(provider)
+        await db.flush()
+    
+    # Frontend request
     frontend_request = {
         "endpoint": "/api/v1/chat",
         "method": "POST",
@@ -275,8 +297,45 @@ async def test_adapter(
     if data.system_prompt:
         params["system_prompt"] = data.system_prompt
     
+    # Создаём запись запроса
+    request_record = Request(
+        id=uuid.uuid4(),
+        user_id=admin.id,
+        provider_id=provider.id,
+        type="chat",
+        endpoint="/api/v1/admin/adapters/test",
+        model=data.model or adapter.default_model,
+        prompt=data.message,
+        params=params,
+        status="processing",
+        started_at=datetime.utcnow(),
+    )
+    db.add(request_record)
+    await db.flush()
+    
     # Выполняем запрос
     result = await adapter.generate(data.message, **params)
+    
+    # Обновляем запись
+    request_record.completed_at = datetime.utcnow()
+    if result.success:
+        request_record.status = "completed"
+        request_record.tokens_input = result.tokens_input or 0
+        request_record.tokens_output = result.tokens_output or 0
+        request_record.provider_cost = result.provider_cost
+        
+        # Сохраняем результат
+        result_record = Result(
+            id=uuid.uuid4(),
+            request_id=request_record.id,
+            type="text",
+            content=result.content,
+        )
+        db.add(result_record)
+    else:
+        request_record.status = "failed"
+        request_record.error_code = result.error_code
+        request_record.error_message = result.error_message
     
     # Списываем баланс при успехе
     if result.success and result.provider_cost > 0:
@@ -287,7 +346,8 @@ async def test_adapter(
         if balance:
             balance.balance_usd = balance.balance_usd - Decimal(str(result.provider_cost))
             balance.total_spent_usd = balance.total_spent_usd + Decimal(str(result.provider_cost))
-            await db.commit()
+    
+    await db.commit()
     
     provider_request = None
     provider_response_raw = None
