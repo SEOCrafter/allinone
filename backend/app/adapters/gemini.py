@@ -1,5 +1,7 @@
 from typing import AsyncIterator, Optional
 import httpx
+import json
+import os
 from app.adapters.base import BaseAdapter, GenerationResult, ProviderType
 
 
@@ -8,20 +10,60 @@ class GeminiAdapter(BaseAdapter):
     display_name = "Google Gemini"
     provider_type = ProviderType.TEXT
 
-    BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
-
+    PROJECT_ID = "proven-mind-444420-d6"
+    LOCATION = "us-central1"
+    
     PRICING = {
-        "gemini-3-pro-preview": {"input": 0.002, "output": 0.012},
-        "gemini-3-flash-preview": {"input": 0.0005, "output": 0.003},
-        "gemini-2.5-pro": {"input": 0.00125, "output": 0.01},
-        "gemini-2.5-flash": {"input": 0.00015, "output": 0.0006},
-        "gemini-2.5-flash-lite": {"input": 0.0001, "output": 0.0004},
         "gemini-2.0-flash": {"input": 0.0001, "output": 0.0004},
+        "gemini-2.0-flash-lite": {"input": 0.000075, "output": 0.0003},
+        "gemini-1.5-flash": {"input": 0.000075, "output": 0.0003},
+        "gemini-1.5-pro": {"input": 0.00125, "output": 0.005},
     }
 
-    def __init__(self, api_key: str, default_model: str = "gemini-2.5-flash", **kwargs):
+    def __init__(self, api_key: str = "", default_model: str = "gemini-2.0-flash", **kwargs):
         super().__init__(api_key, **kwargs)
         self.default_model = default_model
+        self._access_token = None
+        self._token_expiry = 0
+        self.credentials_path = kwargs.get(
+            "credentials_path", 
+            os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "/app/google-credentials.json")
+        )
+
+    async def _get_access_token(self) -> str:
+        import time
+        
+        if self._access_token and time.time() < self._token_expiry - 60:
+            return self._access_token
+        
+        try:
+            from google.oauth2 import service_account
+            from google.auth.transport.requests import Request
+            
+            credentials = service_account.Credentials.from_service_account_file(
+                self.credentials_path,
+                scopes=["https://www.googleapis.com/auth/cloud-platform"]
+            )
+            credentials.refresh(Request())
+            self._access_token = credentials.token
+            self._token_expiry = time.time() + 3600
+            return self._access_token
+        except Exception as e:
+            raise Exception(f"Failed to get access token: {e}")
+
+    def _get_endpoint(self, model: str) -> str:
+        return (
+            f"https://{self.LOCATION}-aiplatform.googleapis.com/v1/"
+            f"projects/{self.PROJECT_ID}/locations/{self.LOCATION}/"
+            f"publishers/google/models/{model}:generateContent"
+        )
+
+    def _get_stream_endpoint(self, model: str) -> str:
+        return (
+            f"https://{self.LOCATION}-aiplatform.googleapis.com/v1/"
+            f"projects/{self.PROJECT_ID}/locations/{self.LOCATION}/"
+            f"publishers/google/models/{model}:streamGenerateContent"
+        )
 
     async def generate(self, prompt: str, **params) -> GenerationResult:
         model = params.get("model", self.default_model)
@@ -44,15 +86,23 @@ class GeminiAdapter(BaseAdapter):
         if system_prompt:
             request_body["systemInstruction"] = {"parts": [{"text": system_prompt}]}
 
-        url = f"{self.BASE_URL}/models/{model}:generateContent?key={self.api_key}"
-
         try:
+            access_token = await self._get_access_token()
+            url = self._get_endpoint(model)
+
             async with httpx.AsyncClient(timeout=120.0) as client:
-                response = await client.post(url, json=request_body)
+                response = await client.post(
+                    url,
+                    headers={
+                        "Authorization": f"Bearer {access_token}",
+                        "Content-Type": "application/json",
+                    },
+                    json=request_body,
+                )
 
                 if response.status_code != 200:
                     error_data = response.json()
-                    error_msg = error_data.get("error", {}).get("message", "Unknown error")
+                    error_msg = error_data.get("error", {}).get("message", response.text)
                     return GenerationResult(
                         success=False,
                         error_code=f"HTTP_{response.status_code}",
@@ -64,12 +114,10 @@ class GeminiAdapter(BaseAdapter):
 
                 candidates = data.get("candidates", [])
                 if not candidates:
-                    prompt_feedback = data.get("promptFeedback", {})
-                    block_reason = prompt_feedback.get("blockReason", "UNKNOWN")
                     return GenerationResult(
                         success=False,
-                        error_code="BLOCKED",
-                        error_message=f"Content blocked: {block_reason}",
+                        error_code="NO_CANDIDATES",
+                        error_message="No response candidates",
                         raw_response={"request": request_body, "response": data},
                     )
 
@@ -90,13 +138,6 @@ class GeminiAdapter(BaseAdapter):
                     raw_response={"request": request_body, "response": data},
                 )
 
-        except httpx.TimeoutException:
-            return GenerationResult(
-                success=False,
-                error_code="TIMEOUT",
-                error_message="Request timed out",
-                raw_response={"request": request_body},
-            )
         except Exception as e:
             return GenerationResult(
                 success=False,
@@ -120,13 +161,21 @@ class GeminiAdapter(BaseAdapter):
         if system_prompt:
             request_body["systemInstruction"] = {"parts": [{"text": system_prompt}]}
 
-        url = f"{self.BASE_URL}/models/{model}:streamGenerateContent?key={self.api_key}&alt=sse"
+        access_token = await self._get_access_token()
+        url = self._get_stream_endpoint(model) + "?alt=sse"
 
         async with httpx.AsyncClient(timeout=120.0) as client:
-            async with client.stream("POST", url, json=request_body) as response:
+            async with client.stream(
+                "POST",
+                url,
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "application/json",
+                },
+                json=request_body,
+            ) as response:
                 async for line in response.aiter_lines():
                     if line.startswith("data: "):
-                        import json
                         try:
                             chunk = json.loads(line[6:])
                             candidates = chunk.get("candidates", [])
@@ -140,7 +189,7 @@ class GeminiAdapter(BaseAdapter):
 
     def calculate_cost(self, tokens_input: int, tokens_output: int, **params) -> float:
         model = params.get("model", self.default_model)
-        pricing = self.PRICING.get(model, self.PRICING["gemini-2.5-flash"])
+        pricing = self.PRICING.get(model, self.PRICING["gemini-2.0-flash"])
         return (tokens_input / 1000 * pricing["input"]) + (tokens_output / 1000 * pricing["output"])
 
     def get_capabilities(self) -> dict:

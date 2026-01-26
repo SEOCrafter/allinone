@@ -10,7 +10,6 @@ class DeepSeekAdapter(BaseAdapter):
 
     BASE_URL = "https://api.deepseek.com"
 
-    # Цены за 1K токенов USD (cache miss pricing)
     PRICING = {
         "deepseek-chat": {"input": 0.00028, "output": 0.00042, "cache_hit": 0.000028},
         "deepseek-reasoner": {"input": 0.00028, "output": 0.00042, "cache_hit": 0.000028},
@@ -26,8 +25,8 @@ class DeepSeekAdapter(BaseAdapter):
         max_tokens = params.get("max_tokens", 2048)
         temperature = params.get("temperature", 0.7)
 
-        if params.get("system_prompt"):
-            messages.insert(0, {"role": "system", "content": params["system_prompt"]})
+        system_prompt = params.get("system_prompt") or "Отвечай на русском языке."
+        messages.insert(0, {"role": "system", "content": system_prompt})
 
         request_body = {
             "model": model,
@@ -106,6 +105,9 @@ class DeepSeekAdapter(BaseAdapter):
         model = params.get("model", self.default_model)
         messages = params.get("messages") or [{"role": "user", "content": prompt}]
 
+        system_prompt = params.get("system_prompt") or "Отвечай на русском языке."
+        messages.insert(0, {"role": "system", "content": system_prompt})
+
         request_body = {
             "model": model,
             "messages": messages,
@@ -151,7 +153,6 @@ class DeepSeekAdapter(BaseAdapter):
             return (tokens_input / 1000 * pricing["input"]) + (tokens_output / 1000 * pricing["output"])
 
     async def get_balance(self) -> dict:
-        """Получить баланс аккаунта (уникальная фича DeepSeek)."""
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(
                 f"{self.BASE_URL}/user/balance",

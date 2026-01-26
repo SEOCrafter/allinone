@@ -40,3 +40,5 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+google-credentials.json
+backend/google-credentials.json
