@@ -255,6 +255,8 @@ async def test_adapter(
     api_keys = {
         "openai": settings.OPENAI_API_KEY,
         "anthropic": settings.ANTHROPIC_API_KEY,
+        "gemini": settings.GEMINI_API_KEY,
+        "deepseek": settings.DEEPSEEK_API_KEY,
     }
     
     api_key = api_keys.get(adapter_name)
