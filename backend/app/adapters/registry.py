@@ -4,6 +4,9 @@ from app.adapters.openai import OpenAIAdapter
 from app.adapters.anthropic import AnthropicAdapter
 from app.adapters.gemini import GeminiAdapter
 from app.adapters.deepseek import DeepSeekAdapter
+from app.adapters.nano_banana import NanoBananaAdapter
+from app.adapters.kling import KlingAdapter
+from app.adapters.midjourney import MidjourneyAdapter
 
 
 class AdapterRegistry:
@@ -24,7 +27,6 @@ class AdapterRegistry:
         if name not in cls._adapters:
             return None
 
-        # Кэшируем инстансы
         cache_key = f"{name}:{api_key[:8]}"
         if cache_key not in cls._instances:
             cls._instances[cache_key] = cls._adapters[name](api_key, **kwargs)
@@ -76,8 +78,10 @@ class AdapterRegistry:
         return results
 
 
-# Регистрируем адаптеры
 AdapterRegistry.register(OpenAIAdapter)
 AdapterRegistry.register(AnthropicAdapter)
 AdapterRegistry.register(GeminiAdapter)
 AdapterRegistry.register(DeepSeekAdapter)
+AdapterRegistry.register(NanoBananaAdapter)
+AdapterRegistry.register(KlingAdapter)
+AdapterRegistry.register(MidjourneyAdapter)
