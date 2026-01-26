@@ -20,16 +20,16 @@ class GeminiAdapter(BaseAdapter):
     }
     
     PRICING = {
-        "gemini-3-pro-preview": {"input": 0.002, "output": 0.012},
-        "gemini-3-flash-preview": {"input": 0.0005, "output": 0.003},
-        "gemini-2.5-pro-preview-05-06": {"input": 0.00125, "output": 0.01},
-        "gemini-2.5-flash-preview-05-20": {"input": 0.00015, "output": 0.0006},
-        "gemini-2.5-pro": {"input": 0.00125, "output": 0.01},
-        "gemini-2.5-flash": {"input": 0.00015, "output": 0.0006},
-        "gemini-2.5-flash-lite": {"input": 0.0001, "output": 0.0004},
-        "gemini-2.0-flash": {"input": 0.0001, "output": 0.0004},
-        "gemini-2.0-flash-001": {"input": 0.0001, "output": 0.0004},
-        "gemini-2.0-flash-lite-001": {"input": 0.000075, "output": 0.0003},
+        "gemini-3-pro-preview": {"input": 0.002, "output": 0.012, "display_name": "Gemini 3 Pro"},
+        "gemini-3-flash-preview": {"input": 0.0005, "output": 0.003, "display_name": "Gemini 3 Flash"},
+        "gemini-2.5-pro-preview-05-06": {"input": 0.00125, "output": 0.01, "display_name": "Gemini 2.5 Pro"},
+        "gemini-2.5-flash-preview-05-20": {"input": 0.00015, "output": 0.0006, "display_name": "Gemini 2.5 Flash"},
+        "gemini-2.5-pro": {"input": 0.00125, "output": 0.01, "display_name": "Gemini 2.5 Pro"},
+        "gemini-2.5-flash": {"input": 0.00015, "output": 0.0006, "display_name": "Gemini 2.5 Flash"},
+        "gemini-2.5-flash-lite": {"input": 0.0001, "output": 0.0004, "display_name": "Gemini 2.5 Flash Lite"},
+        "gemini-2.0-flash": {"input": 0.0001, "output": 0.0004, "display_name": "Gemini 2.0 Flash"},
+        "gemini-2.0-flash-001": {"input": 0.0001, "output": 0.0004, "display_name": "Gemini 2.0 Flash"},
+        "gemini-2.0-flash-lite-001": {"input": 0.000075, "output": 0.0003, "display_name": "Gemini 2.0 Flash Lite"},
     }
 
     def __init__(self, api_key: str = "", default_model: str = "gemini-2.5-flash", **kwargs):
