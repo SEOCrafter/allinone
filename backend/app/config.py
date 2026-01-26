@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     # AI Providers
     OPENAI_API_KEY: str = ""
     ANTHROPIC_API_KEY: str = ""
+    GEMINI_API_KEY: str = ""
+    DEEPSEEK_API_KEY: str = ""
 
 @lru_cache
 def get_settings() -> Settings:
