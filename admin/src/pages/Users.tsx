@@ -24,9 +24,12 @@ export default function Users() {
     setLoading(true);
     try {
       const response = await getUsers(1, 100);
-      setUsers(response.data.users);
+      // Бэкенд возвращает { ok: true, data: [...], pagination: {...} }
+      const items = response.data?.data;
+      setUsers(Array.isArray(items) ? items : []);
     } catch (err) {
       console.error('Ошибка загрузки пользователей:', err);
+      setUsers([]);
     } finally {
       setLoading(false);
     }
@@ -34,7 +37,7 @@ export default function Users() {
 
   const handleRoleChange = async (userId: string, newRole: string) => {
     try {
-      await updateUserRole(userId, newRole);
+      await setUserRole(userId, newRole);
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
       setMenuOpen(null);
     } catch (err) {
@@ -47,7 +50,7 @@ export default function Users() {
     if (!newPassword) return;
     
     try {
-      await updateUserPassword(userId, newPassword);
+      await setUserPassword(userId, newPassword);
       alert('Пароль изменён');
       setMenuOpen(null);
     } catch (err) {
@@ -58,7 +61,11 @@ export default function Users() {
 
   const handleBlockToggle = async (userId: string, currentBlocked: boolean) => {
     try {
-      await blockUser(userId, !currentBlocked);
+      if (currentBlocked) {
+        await unblockUser(userId);
+      } else {
+        await blockUser(userId);
+      }
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_blocked: !currentBlocked } : u));
       setMenuOpen(null);
     } catch (err) {
@@ -72,8 +79,8 @@ export default function Users() {
         return <span className="px-2 py-1 bg-red-600 text-white text-xs rounded">superadmin</span>;
       case 'admin':
         return <span className="px-2 py-1 bg-orange-600 text-white text-xs rounded">admin</span>;
-      case 'dev':
-        return <span className="px-2 py-1 bg-blue-600 text-white text-xs rounded">dev</span>;
+      case 'developer':
+        return <span className="px-2 py-1 bg-blue-600 text-white text-xs rounded">developer</span>;
       default:
         return <span className="px-2 py-1 bg-gray-600 text-white text-xs rounded">user</span>;
     }
@@ -109,11 +116,11 @@ export default function Users() {
             </tr>
           </thead>
           <tbody>
-            {users.map((u) => (
+            {(users || []).map((u) => (
               <tr key={u.id} className="border-t border-gray-700">
                 <td className="p-4 text-white">{u.email}</td>
                 <td className="p-4">{getRoleBadge(u.role)}</td>
-                <td className="p-4 text-gray-300">{parseFloat(String(u.credits_balance)).toFixed(2)}</td>
+                <td className="p-4 text-gray-300">{parseFloat(String(u.credits_balance || 0)).toFixed(2)}</td>
                 <td className="p-4">
                   {u.is_blocked ? (
                     <span className="text-red-400">Заблокирован</span>
@@ -141,16 +148,16 @@ export default function Users() {
                         Роль: user
                       </button>
                       <button
-                        onClick={() => handleRoleChange(u.id, 'dev')}
+                        onClick={() => handleRoleChange(u.id, 'developer')}
                         className="w-full px-4 py-2 text-left text-white hover:bg-[#4f4f4f]"
                       >
-                        Роль: dev
+                        Роль: developer
                       </button>
                       <button
-                        onClick={() => handleRoleChange(u.id, 'admin')}
+                        onClick={() => handleRoleChange(u.id, 'superadmin')}
                         className="w-full px-4 py-2 text-left text-white hover:bg-[#4f4f4f]"
                       >
-                        Роль: admin
+                        Роль: superadmin
                       </button>
                       <hr className="border-gray-600 my-1" />
                       <button
@@ -170,6 +177,13 @@ export default function Users() {
                 </td>
               </tr>
             ))}
+            {users.length === 0 && (
+              <tr>
+                <td colSpan={6} className="p-4 text-center text-gray-500">
+                  Нет пользователей
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
