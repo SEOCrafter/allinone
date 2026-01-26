@@ -8,6 +8,7 @@ interface Adapter {
   type: string;
   models: Array<{
     id: string;
+    display_name?: string;
     type: string;
     pricing: {
       input_per_1k: number;
@@ -408,7 +409,7 @@ export default function Adapters() {
               className="w-full px-4 py-2 bg-[#3f3f3f] border border-gray-600 rounded-lg text-white"
             >
               {currentAdapter?.models?.map((m) => (
-                <option key={m.id} value={m.id}>{m.id}</option>
+                <option key={m.id} value={m.id}>{m.display_name || m.id}</option>
               ))}
             </select>
           </div>
@@ -494,7 +495,7 @@ export default function Adapters() {
             {adapters.flatMap((adapter) =>
               adapter.models?.map((model) => (
                 <tr key={`${adapter.name}-${model.id}`} className="border-t border-gray-700">
-                  <td className="py-3 text-white">{adapter.display_name}</td>
+                  <td className="py-3 text-gray-300">{model.display_name || model.id}</td>
                   <td className="py-3 text-gray-300">{model.id}</td>
                   <td className="py-3 text-gray-300">{model.type === 'text' ? 'Текст' : model.type}</td>
                   <td className="py-3 text-gray-300">${model.pricing.input_per_1k.toFixed(4)}</td>
