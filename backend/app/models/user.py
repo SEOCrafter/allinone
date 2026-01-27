@@ -36,3 +36,4 @@ class User(Base, UUIDMixin, TimestampMixin):
     api_keys: Mapped[list["ApiKey"]] = relationship(back_populates="user")
     requests: Mapped[list["Request"]] = relationship(back_populates="user")
     transactions: Mapped[list["Transaction"]] = relationship(back_populates="user")
+    files: Mapped[list["File"]] = relationship(back_populates="user")
