@@ -1,10 +1,9 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: '/api/v1',
+  baseURL: 'http://95.140.153.151:8100/api/v1',
 });
 
-// Добавляем токен к каждому запросу
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
@@ -13,7 +12,6 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Обработка 401 ошибки
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -28,14 +26,11 @@ api.interceptors.response.use(
 
 export default api;
 
-// Auth
 export const login = (email: string, password: string) =>
   api.post('/auth/login', { email, password });
 
-// Admin - Stats
 export const getStats = () => api.get('/admin/stats');
 
-// Admin - Users
 export const getUsers = (page = 1, limit = 50) =>
   api.get('/admin/users', { params: { page, limit } });
 
@@ -51,14 +46,12 @@ export const blockUser = (userId: string) =>
 export const unblockUser = (userId: string) =>
   api.post(`/admin/users/${userId}/unblock`);
 
-// Requests
 export const getRequests = (page = 1, limit = 20) =>
   api.get(`/admin/requests?page=${page}&limit=${limit}`);
 
 export const getRequest = (id: string) =>
   api.get(`/admin/requests/${id}`);
 
-// Admin - Adapters
 export const getAdapters = () => api.get('/admin/adapters');
 
 export const getAdaptersStatus = () => api.get('/admin/adapters/status');
@@ -71,7 +64,6 @@ export const testAdapter = (name: string, message: string, model?: string) =>
 export const healthCheckAdapter = (name: string) =>
   api.post(`/admin/adapters/${name}/health`);
 
-// Балансы провайдеров
 export const setProviderBalance = (provider: string, balance_usd: number) =>
   api.post(`/admin/adapters/balances/${provider}/set`, { balance_usd });
 
