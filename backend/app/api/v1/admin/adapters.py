@@ -138,6 +138,31 @@ async def adapters_status(
                     results.append({"name": "deepseek", "status": "degraded", "latency_ms": latency, "error": response.text})
         except Exception as e:
             results.append({"name": "deepseek", "status": "unhealthy", "latency_ms": None, "error": str(e)})
+    
+    # Kie.ai health check (один раз для всех kie-адаптеров)
+    if settings.KIE_API_KEY:
+        try:
+            import time
+            start = time.time()
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    "https://api.kie.ai/api/user/profile",
+                    headers={"Authorization": f"Bearer {settings.KIE_API_KEY}"},
+                )
+                latency = int((time.time() - start) * 1000)
+                if response.status_code == 200:
+                    status = "healthy"
+                    error = None
+                else:
+                    status = "degraded"
+                    error = response.text
+        except Exception as e:
+            latency = None
+            status = "unhealthy"
+            error = str(e)
+        
+        for name in ["nano_banana", "kling", "midjourney"]:
+            results.append({"name": name, "status": status, "latency_ms": latency, "error": error})
 
     return {"ok": True, "adapters": results}
 
@@ -391,8 +416,12 @@ async def test_adapter(
     
     # Списываем баланс при успехе
     if result.success and result.provider_cost > 0:
+        balance_provider = adapter_name
+        if adapter_name in ("midjourney", "nano_banana", "kling"):
+            balance_provider = "kie"
+
         balance_result = await db.execute(
-            select(ProviderBalance).where(ProviderBalance.provider == adapter_name)
+            select(ProviderBalance).where(ProviderBalance.provider == balance_provider)
         )
         balance = balance_result.scalar_one_or_none()
         if balance:

@@ -68,27 +68,37 @@ export default function Adapters() {
   }, []);
 
   const loadData = async () => {
+    console.log('loadData started');
     setLoading(true);
     try {
-      const [adaptersRes, statusRes, balancesRes] = await Promise.all([
-        getAdapters(),
-        getAdaptersStatus(),
-        getAdaptersBalances(),
-      ]);
-      setAdapters(adaptersRes.data.adapters);
-      setStatuses(statusRes.data.adapters);
-      setBalances(balancesRes.data.balances);
+      console.log('fetching adapters with raw fetch...');
+      const token = localStorage.getItem('token');
+      const rawRes = await fetch('/api/v1/admin/adapters', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      console.log('raw fetch status:', rawRes.status);
+      const rawData = await rawRes.json();
+      console.log('raw fetch data:', rawData);
+      
+      const adaptersData = rawData.adapters || [];
+      console.log('adapters count:', adaptersData.length);
+      
+      // Балансы через axios
+      const balancesRes = await getAdaptersBalances();
+      const balancesData = balancesRes.data.balances || [];
+      
+      setAdapters(adaptersData);
+      setBalances(balancesData);
 
-      // Инициализируем инпуты балансов
       const inputs: Record<string, string> = {};
-      balancesRes.data.balances.forEach((b: AdapterBalance) => {
+      balancesData.forEach((b: AdapterBalance) => {
         inputs[b.provider] = b.balance_usd?.toString() || '0';
       });
       setBalanceInputs(inputs);
 
-      if (adaptersRes.data.adapters.length > 0) {
-        setSelectedAdapter(adaptersRes.data.adapters[0].name);
-        const firstAdapter = adaptersRes.data.adapters[0];
+      if (adaptersData.length > 0) {
+        setSelectedAdapter(adaptersData[0].name);
+        const firstAdapter = adaptersData[0];
         if (firstAdapter.models && firstAdapter.models.length > 0) {
           setSelectedModel(firstAdapter.models[0].id);
         }
@@ -97,6 +107,13 @@ export default function Adapters() {
       console.error('Ошибка загрузки:', err);
     } finally {
       setLoading(false);
+    }
+    
+    try {
+      const statusRes = await getAdaptersStatus();
+      setStatuses(statusRes.data.adapters || []);
+    } catch (err) {
+      console.error('Ошибка статусов:', err);
     }
   };
 
