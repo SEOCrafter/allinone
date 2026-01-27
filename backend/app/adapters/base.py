@@ -18,6 +18,7 @@ class ProviderStatus(str, Enum):
 class GenerationResult:
     success: bool
     content: Optional[str] = None  # Текст или URL
+    result_urls: Optional[list] = None  # Для множественных результатов
     tokens_input: Optional[int] = None
     tokens_output: Optional[int] = None
     provider_cost: float = 0.0
