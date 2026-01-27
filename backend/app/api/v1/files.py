@@ -78,8 +78,9 @@ async def upload_file(
         expires_at = datetime.utcnow() + timedelta(hours=24)
     
     import uuid as uuid_module
+    file_id = uuid_module.uuid4()
     db_file = FileModel(
-        id=uuid_module.uuid4(),
+        id=file_id,
         user_id=current_user.id,
         key=result["key"],
         filename=result["filename"],
@@ -91,18 +92,17 @@ async def upload_file(
     )
     db.add(db_file)
     await db.commit()
-    await db.refresh(db_file)
     
     url = storage_service.get_presigned_url(result["key"], expires_in=3600)
     
     return FileUploadResponse(
-        id=db_file.id,
-        key=db_file.key,
-        filename=db_file.filename,
-        original_filename=db_file.original_filename,
-        category=db_file.category,
-        content_type=db_file.content_type,
-        size_bytes=db_file.size_bytes,
+        id=file_id,
+        key=result["key"],
+        filename=result["filename"],
+        original_filename=result["original_filename"],
+        category=category,
+        content_type=result["content_type"],
+        size_bytes=result["size_bytes"],
         url=url,
     )
 
