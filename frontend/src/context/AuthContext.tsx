@@ -21,7 +21,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (isAuthenticated()) {
       getProfile()
         .then(setUser)
-        .catch(() => apiLogout())
+        .catch(() => {
+          apiLogout()
+          setUser(null)
+        })
         .finally(() => setLoading(false))
     } else {
       setLoading(false)

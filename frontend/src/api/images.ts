@@ -150,3 +150,16 @@ export async function getFileUrl(fileId: string): Promise<{ url: string }> {
     method: 'GET',
   })
 }
+
+export interface SaveFromUrlRequest {
+  url: string
+  category?: string
+  filename_hint?: string
+}
+
+export async function saveFromUrl(request: SaveFromUrlRequest): Promise<FileUploadResponse> {
+  return api.request<FileUploadResponse>('/api/v1/files/save-from-url', {
+    method: 'POST',
+    body: request,
+  })
+}

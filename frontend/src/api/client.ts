@@ -4,22 +4,39 @@ interface RequestOptions {
   method?: string
   body?: unknown
   headers?: Record<string, string>
+  skipAuth?: boolean
 }
 
 class ApiClient {
   private token: string | null = null
+  private refreshToken: string | null = null
+  private refreshPromise: Promise<boolean> | null = null
 
   constructor() {
     this.token = localStorage.getItem('token')
+    this.refreshToken = localStorage.getItem('refresh_token')
   }
 
-  setToken(token: string | null) {
+  setTokens(token: string | null, refreshToken?: string | null) {
     this.token = token
     if (token) {
       localStorage.setItem('token', token)
     } else {
       localStorage.removeItem('token')
     }
+    
+    if (refreshToken !== undefined) {
+      this.refreshToken = refreshToken
+      if (refreshToken) {
+        localStorage.setItem('refresh_token', refreshToken)
+      } else {
+        localStorage.removeItem('refresh_token')
+      }
+    }
+  }
+
+  setToken(token: string | null) {
+    this.setTokens(token)
   }
 
   getToken() {
@@ -30,26 +47,68 @@ class ApiClient {
     return !!this.token
   }
 
+  private async tryRefresh(): Promise<boolean> {
+    if (!this.refreshToken) return false
+    
+    if (this.refreshPromise) {
+      return this.refreshPromise
+    }
+
+    this.refreshPromise = (async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/v1/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: this.refreshToken }),
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          this.setTokens(data.access_token, data.refresh_token)
+          return true
+        }
+      } catch (e) {
+        console.error('Token refresh failed:', e)
+      }
+      
+      this.setTokens(null, null)
+      return false
+    })()
+
+    const result = await this.refreshPromise
+    this.refreshPromise = null
+    return result
+  }
+
   async request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...options.headers,
     }
 
-    if (this.token) {
+    if (this.token && !options.skipAuth) {
       headers['Authorization'] = `Bearer ${this.token}`
     }
 
-    const response = await fetch(`${API_URL}${endpoint}`, {
+    let response = await fetch(`${API_URL}${endpoint}`, {
       method: options.method || 'GET',
       headers,
       body: options.body ? JSON.stringify(options.body) : undefined,
     })
 
-    if (response.status === 401) {
-      this.setToken(null)
-      window.location.href = '/login'
-      throw new Error('Unauthorized')
+    if (response.status === 401 && !options.skipAuth) {
+      const refreshed = await this.tryRefresh()
+      if (refreshed) {
+        headers['Authorization'] = `Bearer ${this.token}`
+        response = await fetch(`${API_URL}${endpoint}`, {
+          method: options.method || 'GET',
+          headers,
+          body: options.body ? JSON.stringify(options.body) : undefined,
+        })
+      } else {
+        window.location.href = '/login'
+        throw new Error('Session expired')
+      }
     }
 
     if (!response.ok) {

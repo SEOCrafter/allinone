@@ -19,9 +19,10 @@ export async function login(email: string, password: string): Promise<User> {
   const response = await api.request<LoginResponse>('/api/v1/auth/login', {
     method: 'POST',
     body: { email, password },
+    skipAuth: true,
   })
   
-  api.setToken(response.access_token)
+  api.setTokens(response.access_token, response.refresh_token)
   return response.user
 }
 
@@ -29,9 +30,10 @@ export async function register(email: string, password: string, name: string): P
   const response = await api.request<LoginResponse>('/api/v1/auth/register', {
     method: 'POST',
     body: { email, password, name },
+    skipAuth: true,
   })
   
-  api.setToken(response.access_token)
+  api.setTokens(response.access_token, response.refresh_token)
   return response.user
 }
 
@@ -40,7 +42,7 @@ export async function getProfile(): Promise<User> {
 }
 
 export function logout() {
-  api.setToken(null)
+  api.setTokens(null, null)
 }
 
 export function isAuthenticated() {

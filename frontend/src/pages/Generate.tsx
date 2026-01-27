@@ -10,6 +10,7 @@ import {
   generateMidjourneyVideo,
   uploadFile,
   getFileUrl,
+  saveFromUrl,
 } from '../api/images'
 
 interface Props {
@@ -107,6 +108,18 @@ export default function Generate({ selectedModel }: Props) {
     setIsLoading(true)
     setResult(null)
 
+    const saveResult = async (url: string, isVideoResult: boolean) => {
+      try {
+        await saveFromUrl({
+          url,
+          category: isVideoResult ? 'videos' : 'images',
+          filename_hint: `generation_${Date.now()}`,
+        })
+      } catch (e) {
+        console.error('Failed to save result:', e)
+      }
+    }
+
     try {
       let response
 
@@ -120,6 +133,7 @@ export default function Generate({ selectedModel }: Props) {
         })
         if (response.ok && response.image_url) {
           setResult(response.image_url)
+          saveResult(response.image_url, false)
         }
       } else if (selectedModel.provider === 'midjourney') {
         if (selectedModel.taskType === 'i2v') {
@@ -129,6 +143,7 @@ export default function Generate({ selectedModel }: Props) {
           })
           if (response.ok && response.video_url) {
             setResult(response.video_url)
+            saveResult(response.video_url, true)
           }
         } else if (selectedModel.taskType === 'i2i') {
           response = await imageToImage({
@@ -142,6 +157,7 @@ export default function Generate({ selectedModel }: Props) {
           })
           if (response.ok && response.image_url) {
             setResult(response.image_url)
+            saveResult(response.image_url, false)
           }
         } else {
           response = await generateMidjourney({
@@ -154,6 +170,7 @@ export default function Generate({ selectedModel }: Props) {
           })
           if (response.ok && response.image_url) {
             setResult(response.image_url)
+            saveResult(response.image_url, false)
           }
         }
       } else if (selectedModel.provider === 'kling') {
@@ -169,6 +186,7 @@ export default function Generate({ selectedModel }: Props) {
         })
         if (response.ok && response.video_url) {
           setResult(response.video_url)
+          saveResult(response.video_url, true)
         }
       }
 

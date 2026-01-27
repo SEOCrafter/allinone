@@ -20,7 +20,11 @@ export default function Bots({ onSelectModel }: Props) {
 
   const handleModelClick = (model: Model) => {
     onSelectModel(model)
-    navigate('/chat')
+    if (model.category === 'text') {
+      navigate('/chat')
+    } else {
+      navigate('/generate')
+    }
   }
 
   return (
