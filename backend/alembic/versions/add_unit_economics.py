@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 
 revision: str = 'add_unit_economics'
-down_revision: Union[str, None] = 'add_user_role_001'
+down_revision: Union[str, None] = 'add_provider_balances'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

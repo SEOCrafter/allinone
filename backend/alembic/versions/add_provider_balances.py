@@ -8,7 +8,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = 'add_provider_balances'
-down_revision = 'add_user_role'
+down_revision = 'add_user_role_001'
 branch_labels = None
 depends_on = None
 
