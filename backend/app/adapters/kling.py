@@ -3,6 +3,10 @@ from app.adapters.base import BaseAdapter, GenerationResult, ProviderType, Provi
 from app.adapters.kie_base import KieBaseAdapter, KieTaskResult
 
 
+def clean_url(url: str) -> str:
+    return url.split('?')[0] if url else url
+
+
 class KlingAdapter(BaseAdapter, KieBaseAdapter):
     name = "kling"
     display_name = "Kling AI"
@@ -86,8 +90,8 @@ class KlingAdapter(BaseAdapter, KieBaseAdapter):
                     error_message="Avatar requires audio_url",
                 )
             input_data = {
-                "image_url": image_urls[0],
-                "audio_url": audio_url,
+                "image_url": clean_url(image_urls[0]),
+                "audio_url": clean_url(audio_url),
                 "prompt": prompt,
             }
         else:
@@ -107,8 +111,8 @@ class KlingAdapter(BaseAdapter, KieBaseAdapter):
                     )
                 input_data = {
                     "prompt": prompt,
-                    "input_urls": image_urls,
-                    "video_urls": video_urls,
+                    "input_urls": [clean_url(u) for u in image_urls],
+                    "video_urls": [clean_url(u) for u in video_urls],
                     "mode": "720p",
                     "character_orientation": params.get("character_orientation", "image"),
                 }
@@ -120,7 +124,7 @@ class KlingAdapter(BaseAdapter, KieBaseAdapter):
                         error_code="MISSING_PARAMS",
                         error_message="Image to Video requires image_urls",
                     )
-                input_data["image_urls"] = image_urls
+                input_data["image_urls"] = [clean_url(u) for u in image_urls]
 
         result = await self.generate_and_wait(model, input_data)
 
@@ -167,7 +171,7 @@ class KlingAdapter(BaseAdapter, KieBaseAdapter):
     ) -> KieTaskResult:
         input_data = {
             "prompt": prompt,
-            "image_urls": image_urls,
+            "image_urls": [clean_url(u) for u in image_urls],
             "duration": str(duration),
             "sound": sound,
         }
@@ -185,8 +189,8 @@ class KlingAdapter(BaseAdapter, KieBaseAdapter):
     ) -> KieTaskResult:
         input_data = {
             "prompt": prompt,
-            "image_urls": image_urls,
-            "video_urls": video_urls,
+            "input_urls": [clean_url(u) for u in image_urls],
+            "video_urls": [clean_url(u) for u in video_urls],
             "character_orientation": character_orientation,
             "duration": str(duration),
         }
