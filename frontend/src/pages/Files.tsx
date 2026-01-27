@@ -42,22 +42,21 @@ export default function Files() {
       params.append('limit', '50')
       
       const response = await api.request<FilesResponse>(`/api/v1/files?${params.toString()}`)
+      setFiles(response.files)
+      setLoading(false)
       
-      const filesWithUrls = await Promise.all(
-        response.files.map(async (file) => {
-          try {
-            const urlResponse = await api.request<{ url: string }>(`/api/v1/files/url/${file.id}`)
-            return { ...file, presigned_url: urlResponse.url }
-          } catch {
-            return file
-          }
-        })
-      )
-      
-      setFiles(filesWithUrls)
+      response.files.forEach(async (file, index) => {
+        try {
+          const urlResponse = await api.request<{ url: string }>(`/api/v1/files/url/${file.id}`)
+          setFiles(prev => prev.map((f, i) => 
+            i === index ? { ...f, presigned_url: urlResponse.url } : f
+          ))
+        } catch {
+          // ignore
+        }
+      })
     } catch (err) {
       console.error('Failed to load files:', err)
-    } finally {
       setLoading(false)
     }
   }
@@ -72,9 +71,16 @@ export default function Files() {
     }
   }
 
-  const handleDownload = (file: FileItem) => {
+  const handleDownload = async (file: FileItem) => {
     if (file.presigned_url) {
       window.open(file.presigned_url, '_blank')
+    } else {
+      try {
+        const urlResponse = await api.request<{ url: string }>(`/api/v1/files/url/${file.id}`)
+        window.open(urlResponse.url, '_blank')
+      } catch {
+        // ignore
+      }
     }
   }
 
@@ -145,20 +151,32 @@ export default function Files() {
             {files.map(file => (
               <div key={file.id} className="file-card">
                 <div className="file-preview">
-                  {isImage(file.content_type) && file.presigned_url ? (
-                    <img 
-                      src={file.presigned_url} 
-                      alt={file.original_filename || file.filename}
-                      loading="lazy"
-                    />
-                  ) : isVideo(file.content_type) && file.presigned_url ? (
-                    <video 
-                      src={file.presigned_url}
-                      muted
-                      playsInline
-                      onMouseEnter={(e) => e.currentTarget.play()}
-                      onMouseLeave={(e) => { e.currentTarget.pause(); e.currentTarget.currentTime = 0 }}
-                    />
+                  {isImage(file.content_type) ? (
+                    file.presigned_url ? (
+                      <img 
+                        src={file.presigned_url} 
+                        alt={file.original_filename || file.filename}
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="file-loading">
+                        <div className="spinner-small"></div>
+                      </div>
+                    )
+                  ) : isVideo(file.content_type) ? (
+                    file.presigned_url ? (
+                      <video 
+                        src={file.presigned_url}
+                        muted
+                        playsInline
+                        onMouseEnter={(e) => e.currentTarget.play()}
+                        onMouseLeave={(e) => { e.currentTarget.pause(); e.currentTarget.currentTime = 0 }}
+                      />
+                    ) : (
+                      <div className="file-loading">
+                        <div className="spinner-small"></div>
+                      </div>
+                    )
                   ) : (
                     <div className="file-icon">📄</div>
                   )}

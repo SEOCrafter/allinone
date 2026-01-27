@@ -1661,3 +1661,21 @@ input, textarea { font-family: inherit; border: none; outline: none; }
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
+
+.file-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: var(--bg-input);
+}
+
+.spinner-small {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}

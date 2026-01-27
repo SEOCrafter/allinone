@@ -108,15 +108,18 @@ export default function Generate({ selectedModel }: Props) {
     setIsLoading(true)
     setResult(null)
 
-    const saveResult = async (url: string, isVideoResult: boolean) => {
+    const saveAndGetLocalUrl = async (url: string, isVideoResult: boolean): Promise<string> => {
       try {
-        await saveFromUrl({
+        const saved = await saveFromUrl({
           url,
           category: isVideoResult ? 'videos' : 'images',
           filename_hint: `generation_${Date.now()}`,
         })
+        const presigned = await getFileUrl(saved.id)
+        return presigned.url
       } catch (e) {
         console.error('Failed to save result:', e)
+        return url
       }
     }
 
@@ -132,8 +135,8 @@ export default function Generate({ selectedModel }: Props) {
           image_input: uploadedImage?.url ? [uploadedImage.url] : undefined,
         })
         if (response.ok && response.image_url) {
-          setResult(response.image_url)
-          saveResult(response.image_url, false)
+          const localUrl = await saveAndGetLocalUrl(response.image_url, false)
+          setResult(localUrl)
         }
       } else if (selectedModel.provider === 'midjourney') {
         if (selectedModel.taskType === 'i2v') {
@@ -142,8 +145,8 @@ export default function Generate({ selectedModel }: Props) {
             image_url: uploadedImage!.url!,
           })
           if (response.ok && response.video_url) {
-            setResult(response.video_url)
-            saveResult(response.video_url, true)
+            const localUrl = await saveAndGetLocalUrl(response.video_url, true)
+            setResult(localUrl)
           }
         } else if (selectedModel.taskType === 'i2i') {
           response = await imageToImage({
@@ -156,8 +159,8 @@ export default function Generate({ selectedModel }: Props) {
             stylization: settings.stylization,
           })
           if (response.ok && response.image_url) {
-            setResult(response.image_url)
-            saveResult(response.image_url, false)
+            const localUrl = await saveAndGetLocalUrl(response.image_url, false)
+            setResult(localUrl)
           }
         } else {
           response = await generateMidjourney({
@@ -169,8 +172,8 @@ export default function Generate({ selectedModel }: Props) {
             stylization: settings.stylization,
           })
           if (response.ok && response.image_url) {
-            setResult(response.image_url)
-            saveResult(response.image_url, false)
+            const localUrl = await saveAndGetLocalUrl(response.image_url, false)
+            setResult(localUrl)
           }
         }
       } else if (selectedModel.provider === 'kling') {
@@ -185,8 +188,8 @@ export default function Generate({ selectedModel }: Props) {
           sound: settings.sound,
         })
         if (response.ok && response.video_url) {
-          setResult(response.video_url)
-          saveResult(response.video_url, true)
+          const localUrl = await saveAndGetLocalUrl(response.video_url, true)
+          setResult(localUrl)
         }
       }
 
