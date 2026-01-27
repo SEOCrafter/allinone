@@ -285,7 +285,7 @@ async def test_adapter(
 
     if result.success and result.provider_cost and result.provider_cost > 0:
         balance_provider = adapter_name
-        if adapter_name in ("midjourney", "nano_banana", "kling"):
+        if adapter_name in ("midjourney", "nano_banana", "kling", "veo", "sora", "hailuo", "runway", "luma", "seedance", "flux"):
             balance_provider = "kie"
         balance_result = await db.execute(select(ProviderBalance).where(ProviderBalance.provider == balance_provider))
         balance = balance_result.scalar_one_or_none()
