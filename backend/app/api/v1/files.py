@@ -77,7 +77,9 @@ async def upload_file(
     if cat == FileCategory.TEMP:
         expires_at = datetime.utcnow() + timedelta(hours=24)
     
+    import uuid as uuid_module
     db_file = FileModel(
+        id=uuid_module.uuid4(),
         user_id=current_user.id,
         key=result["key"],
         filename=result["filename"],
