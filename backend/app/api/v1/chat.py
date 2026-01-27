@@ -40,24 +40,21 @@ async def chat(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Отправить сообщение в AI."""
-    
-    # Получаем API ключ
     api_keys = {
         "openai": settings.OPENAI_API_KEY,
         "anthropic": settings.ANTHROPIC_API_KEY,
+        "gemini": settings.GEMINI_API_KEY,
+        "deepseek": settings.DEEPSEEK_API_KEY,
     }
     
     api_key = api_keys.get(data.provider)
     if not api_key:
         raise HTTPException(status_code=400, detail=f"Provider {data.provider} not configured")
     
-    # Получаем адаптер
     adapter = AdapterRegistry.get_adapter(data.provider, api_key)
     if not adapter:
         raise HTTPException(status_code=400, detail=f"Unknown provider: {data.provider}")
     
-    # Получаем provider из БД
     provider_result = await db.execute(
         select(Provider).where(Provider.name == data.provider)
     )
@@ -68,11 +65,12 @@ async def chat(
     
     model = data.model or adapter.default_model
     
-    # Создаём запись request
     request_record = Request(
         id=str(uuid.uuid4()),
         user_id=user.id,
         provider_id=provider_record.id,
+        type="chat",
+        endpoint="/api/v1/chat",
         model=model,
         prompt=data.message,
         status="processing",
@@ -80,21 +78,17 @@ async def chat(
     db.add(request_record)
     await db.flush()
     
-    # Формируем параметры
     params = {}
     if data.model:
         params["model"] = data.model
     if data.system_prompt:
         params["system_prompt"] = data.system_prompt
     
-    # Выполняем запрос
     result = await adapter.generate(data.message, **params)
     
     if result.success:
-        # Рассчитываем кредиты (1 кредит = $0.001)
         credits_spent = result.provider_cost * 1000
         
-        # Списываем баланс провайдера
         balance_result = await db.execute(
             select(ProviderBalance).where(ProviderBalance.provider == data.provider)
         )
@@ -103,12 +97,9 @@ async def chat(
             provider_balance.balance_usd = provider_balance.balance_usd - Decimal(str(result.provider_cost))
             provider_balance.total_spent_usd = provider_balance.total_spent_usd + Decimal(str(result.provider_cost))
         
-        # Списываем кредиты пользователя
         user.credits_balance = user.credits_balance - Decimal(str(credits_spent))
         
-        # Обновляем request
         request_record.status = "completed"
-        request_record.response = result.content
         request_record.tokens_input = result.tokens_input
         request_record.tokens_output = result.tokens_output
         request_record.credits_spent = Decimal(str(credits_spent))
@@ -124,7 +115,6 @@ async def chat(
             credits_spent=credits_spent,
         )
     else:
-        # Записываем ошибку
         request_record.status = "failed"
         request_record.error_code = result.error_code
         request_record.error_message = result.error_message
