@@ -34,6 +34,14 @@ class StorageService:
             aws_secret_access_key=self.secret_key,
             config=Config(signature_version="s3v4"),
         )
+        
+        self.public_client = boto3.client(
+            "s3",
+            endpoint_url=self.public_endpoint,
+            aws_access_key_id=self.access_key,
+            aws_secret_access_key=self.secret_key,
+            config=Config(signature_version="s3v4"),
+        )
     
     def _get_path(
         self,
@@ -156,14 +164,11 @@ class StorageService:
     ) -> str:
         method = "put_object" if for_upload else "get_object"
         
-        url = self.client.generate_presigned_url(
+        url = self.public_client.generate_presigned_url(
             method,
             Params={"Bucket": self.bucket, "Key": key},
             ExpiresIn=expires_in,
         )
-        
-        if self.public_endpoint != self.endpoint_url:
-            url = url.replace(self.endpoint_url, self.public_endpoint)
         
         return url
     
@@ -178,7 +183,7 @@ class StorageService:
         generated_filename = self._generate_filename(filename)
         key = self._get_path(user_id, category, generated_filename)
         
-        url = self.client.generate_presigned_url(
+        url = self.public_client.generate_presigned_url(
             "put_object",
             Params={
                 "Bucket": self.bucket,
@@ -187,9 +192,6 @@ class StorageService:
             },
             ExpiresIn=expires_in,
         )
-        
-        if self.public_endpoint != self.endpoint_url:
-            url = url.replace(self.endpoint_url, self.public_endpoint)
         
         return {
             "upload_url": url,
