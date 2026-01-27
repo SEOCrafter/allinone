@@ -53,6 +53,60 @@ class StorageStatsResponse(BaseModel):
     by_category: dict
 
 
+class SaveFromUrlRequest(BaseModel):
+    url: str
+    category: str = "images"
+    filename_hint: Optional[str] = None
+
+
+@router.post("/save-from-url", response_model=FileUploadResponse)
+async def save_from_url(
+    request: SaveFromUrlRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        cat = FileCategory(request.category)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid category: {request.category}")
+    
+    try:
+        result = await storage_service.upload_from_url(
+            user_id=str(current_user.id),
+            category=cat,
+            source_url=request.url,
+            filename_hint=request.filename_hint,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to download file: {str(e)}")
+    
+    import uuid as uuid_module
+    file_id = uuid_module.uuid4()
+    db_file = FileModel(
+        id=file_id,
+        user_id=current_user.id,
+        key=result["key"],
+        filename=result["filename"],
+        original_filename=result["original_filename"],
+        category=request.category,
+        content_type=result["content_type"],
+        size_bytes=result["size_bytes"],
+    )
+    db.add(db_file)
+    await db.commit()
+    
+    return FileUploadResponse(
+        id=file_id,
+        key=result["key"],
+        filename=result["filename"],
+        original_filename=result["original_filename"],
+        category=request.category,
+        content_type=result["content_type"],
+        size_bytes=result["size_bytes"],
+        url=f"/api/v1/files/download/{file_id}",
+    )
+
+
 @router.post("/upload", response_model=FileUploadResponse)
 async def upload_file(
     file: UploadFile = File(...),
