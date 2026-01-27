@@ -1,8 +1,16 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Model } from '../data/models'
 import { useAuth } from '../context/AuthContext'
-import { generateImage } from '../api/images'
+import { 
+  generateNanoBanana, 
+  generateMidjourney, 
+  imageToImage,
+  generateVideo,
+  generateMidjourneyVideo,
+  uploadFile,
+  getFileUrl,
+} from '../api/images'
 
 interface Props {
   selectedModel: Model | null
@@ -11,21 +19,70 @@ interface Props {
 export default function Generate({ selectedModel }: Props) {
   const { user, updateCredits } = useAuth()
   const navigate = useNavigate()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const videoInputRef = useRef<HTMLInputElement>(null)
+
   const [prompt, setPrompt] = useState('')
-  const [negativePrompt, setNegativePrompt] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<string | null>(null)
-  
+
+  const [uploadedImage, setUploadedImage] = useState<{ file: File; preview: string; url?: string } | null>(null)
+  const [uploadedVideo, setUploadedVideo] = useState<{ file: File; preview: string; url?: string } | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
+
   const [settings, setSettings] = useState({
-    width: 1024,
-    height: 1024,
-    steps: 30,
-    guidance: 7.5,
+    aspectRatio: '1:1',
+    resolution: '1K',
+    version: '7',
+    speed: 'fast',
+    stylization: 100,
+    duration: '5',
+    sound: false,
   })
 
   const isImage = selectedModel?.category === 'image'
   const isVideo = selectedModel?.category === 'video'
+  const requiresImage = selectedModel?.requiresImage
+  const requiresVideo = selectedModel?.requiresVideo
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const preview = URL.createObjectURL(file)
+    setUploadedImage({ file, preview })
+    setIsUploading(true)
+
+    try {
+      const uploadResult = await uploadFile(file, 'images')
+      const urlResult = await getFileUrl(uploadResult.id)
+      setUploadedImage({ file, preview, url: urlResult.url })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ошибка загрузки файла')
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const preview = URL.createObjectURL(file)
+    setUploadedVideo({ file, preview })
+    setIsUploading(true)
+
+    try {
+      const uploadResult = await uploadFile(file, 'videos')
+      const urlResult = await getFileUrl(uploadResult.id)
+      setUploadedVideo({ file, preview, url: urlResult.url })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ошибка загрузки файла')
+    } finally {
+      setIsUploading(false)
+    }
+  }
 
   const handleGenerate = async () => {
     if (!prompt.trim() || isLoading) return
@@ -37,36 +94,88 @@ export default function Generate({ selectedModel }: Props) {
       setError('Войдите в аккаунт')
       return
     }
+    if (requiresImage && !uploadedImage?.url) {
+      setError('Загрузите изображение')
+      return
+    }
+    if (requiresVideo && !uploadedVideo?.url) {
+      setError('Загрузите видео')
+      return
+    }
 
     setError(null)
     setIsLoading(true)
     setResult(null)
 
     try {
-      if (isVideo) {
-        setError('Генерация видео пока не реализована')
-        setIsLoading(false)
-        return
+      let response
+
+      if (selectedModel.provider === 'nano_banana') {
+        response = await generateNanoBanana({
+          prompt: prompt.trim(),
+          model: selectedModel.backendModel,
+          aspect_ratio: settings.aspectRatio,
+          resolution: settings.resolution,
+          image_input: uploadedImage?.url ? [uploadedImage.url] : undefined,
+        })
+        if (response.ok && response.image_url) {
+          setResult(response.image_url)
+        }
+      } else if (selectedModel.provider === 'midjourney') {
+        if (selectedModel.taskType === 'i2v') {
+          response = await generateMidjourneyVideo({
+            prompt: prompt.trim(),
+            image_url: uploadedImage!.url!,
+          })
+          if (response.ok && response.video_url) {
+            setResult(response.video_url)
+          }
+        } else if (selectedModel.taskType === 'i2i') {
+          response = await imageToImage({
+            prompt: prompt.trim(),
+            provider: 'midjourney',
+            image_url: uploadedImage!.url!,
+            aspect_ratio: settings.aspectRatio,
+            version: settings.version,
+            speed: settings.speed,
+            stylization: settings.stylization,
+          })
+          if (response.ok && response.image_url) {
+            setResult(response.image_url)
+          }
+        } else {
+          response = await generateMidjourney({
+            prompt: prompt.trim(),
+            task_type: selectedModel.backendModel,
+            aspect_ratio: settings.aspectRatio,
+            version: settings.version,
+            speed: settings.speed,
+            stylization: settings.stylization,
+          })
+          if (response.ok && response.image_url) {
+            setResult(response.image_url)
+          }
+        }
+      } else if (selectedModel.provider === 'kling') {
+        response = await generateVideo({
+          prompt: prompt.trim(),
+          provider: 'kling',
+          model: selectedModel.backendModel,
+          image_urls: uploadedImage?.url ? [uploadedImage.url] : undefined,
+          video_urls: uploadedVideo?.url ? [uploadedVideo.url] : undefined,
+          duration: settings.duration,
+          aspect_ratio: settings.aspectRatio,
+          sound: settings.sound,
+        })
+        if (response.ok && response.video_url) {
+          setResult(response.video_url)
+        }
       }
 
-      const response = await generateImage({
-        prompt: prompt.trim(),
-        provider: selectedModel.provider,
-        model: selectedModel.backendModel,
-        negative_prompt: negativePrompt || undefined,
-        width: settings.width,
-        height: settings.height,
-        steps: settings.steps,
-        guidance: settings.guidance,
-      })
-
-      if (response.ok && response.image_url) {
-        setResult(response.image_url)
-        if (response.credits_spent && user) {
-          updateCredits((user.credits_balance ?? 0) - response.credits_spent)
-        }
-      } else {
+      if (response && !response.ok) {
         setError(response.error || 'Ошибка генерации')
+      } else if (response?.credits_spent && user) {
+        updateCredits((user.credits_balance ?? 0) - response.credits_spent)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка генерации')
@@ -129,93 +238,206 @@ export default function Generate({ selectedModel }: Props) {
             />
           </div>
 
-          {isImage && (
-            <div className="form-section">
-              <label className="form-label">Негативный промпт (необязательно)</label>
-              <textarea
-                className="form-textarea"
-                placeholder="Что НЕ должно быть на изображении..."
-                rows={2}
-                value={negativePrompt}
-                onChange={(e) => setNegativePrompt(e.target.value)}
-                disabled={isLoading}
-              />
-            </div>
-          )}
-
           <div className="form-section">
             <label className="form-label">Настройки</label>
             <div className="settings-grid">
-              <div className="setting-item">
-                <span>Ширина</span>
-                <select 
-                  value={settings.width} 
-                  onChange={(e) => setSettings({...settings, width: +e.target.value})}
-                  disabled={isLoading}
-                >
-                  <option value={512}>512</option>
-                  <option value={768}>768</option>
-                  <option value={1024}>1024</option>
-                  <option value={1280}>1280</option>
-                </select>
-              </div>
-              <div className="setting-item">
-                <span>Высота</span>
-                <select 
-                  value={settings.height} 
-                  onChange={(e) => setSettings({...settings, height: +e.target.value})}
-                  disabled={isLoading}
-                >
-                  <option value={512}>512</option>
-                  <option value={768}>768</option>
-                  <option value={1024}>1024</option>
-                  <option value={1280}>1280</option>
-                </select>
-              </div>
-              {isImage && (
+              {selectedModel.aspectRatios && (
+                <div className="setting-item">
+                  <span>Соотношение сторон</span>
+                  <select 
+                    value={settings.aspectRatio} 
+                    onChange={(e) => setSettings({...settings, aspectRatio: e.target.value})}
+                    disabled={isLoading}
+                  >
+                    {selectedModel.aspectRatios.map(ar => (
+                      <option key={ar} value={ar}>{ar}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {selectedModel.resolutions && (
+                <div className="setting-item">
+                  <span>Разрешение</span>
+                  <select 
+                    value={settings.resolution} 
+                    onChange={(e) => setSettings({...settings, resolution: e.target.value})}
+                    disabled={isLoading}
+                  >
+                    {selectedModel.resolutions.map(res => (
+                      <option key={res} value={res}>{res}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {selectedModel.provider === 'midjourney' && selectedModel.taskType !== 'i2v' && (
                 <>
                   <div className="setting-item">
-                    <span>Шаги</span>
-                    <input 
-                      type="number" 
-                      value={settings.steps} 
-                      onChange={(e) => setSettings({...settings, steps: +e.target.value})}
-                      min={10} 
-                      max={50}
+                    <span>Версия</span>
+                    <select 
+                      value={settings.version} 
+                      onChange={(e) => setSettings({...settings, version: e.target.value})}
                       disabled={isLoading}
-                    />
+                    >
+                      <option value="7">v7</option>
+                      <option value="6.1">v6.1</option>
+                      <option value="6">v6</option>
+                      <option value="5.2">v5.2</option>
+                      <option value="niji6">Niji 6</option>
+                    </select>
                   </div>
                   <div className="setting-item">
-                    <span>Guidance</span>
+                    <span>Скорость</span>
+                    <select 
+                      value={settings.speed} 
+                      onChange={(e) => setSettings({...settings, speed: e.target.value})}
+                      disabled={isLoading}
+                    >
+                      <option value="turbo">Turbo</option>
+                      <option value="fast">Fast</option>
+                      <option value="relax">Relax</option>
+                    </select>
+                  </div>
+                  <div className="setting-item">
+                    <span>Стилизация</span>
                     <input 
                       type="number" 
-                      value={settings.guidance} 
-                      onChange={(e) => setSettings({...settings, guidance: +e.target.value})}
-                      min={1} 
-                      max={20} 
-                      step={0.5}
+                      value={settings.stylization} 
+                      onChange={(e) => setSettings({...settings, stylization: +e.target.value})}
+                      min={0} 
+                      max={1000}
                       disabled={isLoading}
                     />
                   </div>
                 </>
               )}
+
+              {selectedModel.durations && (
+                <div className="setting-item">
+                  <span>Длительность (сек)</span>
+                  <select 
+                    value={settings.duration} 
+                    onChange={(e) => setSettings({...settings, duration: e.target.value})}
+                    disabled={isLoading}
+                  >
+                    {selectedModel.durations.map(d => (
+                      <option key={d} value={d}>{d}s</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {selectedModel.provider === 'kling' && (
+                <div className="setting-item">
+                  <span>Звук</span>
+                  <label className="toggle">
+                    <input 
+                      type="checkbox" 
+                      checked={settings.sound}
+                      onChange={(e) => setSettings({...settings, sound: e.target.checked})}
+                      disabled={isLoading}
+                    />
+                    <span className="toggle-slider"></span>
+                  </label>
+                </div>
+              )}
             </div>
           </div>
 
-          {selectedModel.id.includes('i2i') || selectedModel.id.includes('i2v') ? (
+          {requiresImage && (
             <div className="form-section">
-              <label className="form-label">Исходное изображение</label>
-              <div className="upload-area">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                  <polyline points="17,8 12,3 7,8"/>
-                  <line x1="12" y1="3" x2="12" y2="15"/>
-                </svg>
-                <p>Перетащите изображение или кликните для выбора</p>
-                <input type="file" accept="image/*" disabled={isLoading} />
+              <label className="form-label">Исходное изображение {requiresImage && <span className="required">*</span>}</label>
+              <div 
+                className={`upload-area ${uploadedImage ? 'has-file' : ''} ${isUploading ? 'uploading' : ''}`}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {uploadedImage ? (
+                  <div className="upload-preview">
+                    <img src={uploadedImage.preview} alt="Preview" />
+                    {isUploading && <div className="upload-overlay">Загрузка...</div>}
+                    {uploadedImage.url && <div className="upload-success">✓</div>}
+                  </div>
+                ) : (
+                  <>
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="17,8 12,3 7,8"/>
+                      <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    <p>Перетащите изображение или кликните для выбора</p>
+                  </>
+                )}
+                <input 
+                  ref={fileInputRef}
+                  type="file" 
+                  accept="image/*" 
+                  onChange={handleImageUpload}
+                  disabled={isLoading || isUploading} 
+                  style={{ display: 'none' }}
+                />
               </div>
+              {uploadedImage && (
+                <button 
+                  className="btn btn-secondary btn-sm"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setUploadedImage(null)
+                  }}
+                  disabled={isLoading}
+                >
+                  Удалить
+                </button>
+              )}
             </div>
-          ) : null}
+          )}
+
+          {requiresVideo && (
+            <div className="form-section">
+              <label className="form-label">Видео с движением {requiresVideo && <span className="required">*</span>}</label>
+              <div 
+                className={`upload-area ${uploadedVideo ? 'has-file' : ''} ${isUploading ? 'uploading' : ''}`}
+                onClick={() => videoInputRef.current?.click()}
+              >
+                {uploadedVideo ? (
+                  <div className="upload-preview">
+                    <video src={uploadedVideo.preview} muted />
+                    {isUploading && <div className="upload-overlay">Загрузка...</div>}
+                    {uploadedVideo.url && <div className="upload-success">✓</div>}
+                  </div>
+                ) : (
+                  <>
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="17,8 12,3 7,8"/>
+                      <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    <p>Перетащите видео или кликните для выбора</p>
+                  </>
+                )}
+                <input 
+                  ref={videoInputRef}
+                  type="file" 
+                  accept="video/*" 
+                  onChange={handleVideoUpload}
+                  disabled={isLoading || isUploading} 
+                  style={{ display: 'none' }}
+                />
+              </div>
+              {uploadedVideo && (
+                <button 
+                  className="btn btn-secondary btn-sm"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setUploadedVideo(null)
+                  }}
+                  disabled={isLoading}
+                >
+                  Удалить
+                </button>
+              )}
+            </div>
+          )}
 
           {error && (
             <div className="generate-error">
@@ -229,7 +451,7 @@ export default function Generate({ selectedModel }: Props) {
           <button 
             className="btn btn-primary btn-generate"
             onClick={handleGenerate}
-            disabled={!prompt.trim() || isLoading || !user}
+            disabled={!prompt.trim() || isLoading || !user || isUploading || (requiresImage && !uploadedImage?.url)}
           >
             {isLoading ? (
               <>

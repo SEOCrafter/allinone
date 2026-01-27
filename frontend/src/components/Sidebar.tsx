@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import ModelSelector from './ModelSelector'
 import type { Model } from '../data/models'
 
@@ -10,6 +10,18 @@ interface Props {
 }
 
 export default function Sidebar({ selectedModel, onSelectModel, isOpen, onClose }: Props) {
+  const navigate = useNavigate()
+
+  const handleSelectModel = (model: Model) => {
+    onSelectModel(model)
+    if (model.category === 'text') {
+      navigate('/chat')
+    } else {
+      navigate('/generate')
+    }
+    onClose()
+  }
+
   return (
     <>
       <div className={`sidebar-overlay ${isOpen ? 'open' : ''}`} onClick={onClose} />
@@ -29,29 +41,37 @@ export default function Sidebar({ selectedModel, onSelectModel, isOpen, onClose 
         </div>
 
         <div className="sidebar-model-selector">
-          <ModelSelector selected={selectedModel} onSelect={onSelectModel} />
+          <ModelSelector selected={selectedModel} onSelect={handleSelectModel} />
         </div>
 
         <nav className="sidebar-nav">
           <NavLink to="/chat" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={onClose}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 5v14M5 12h14"/>
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
             </svg>
-            <span>Новый чат</span>
+            <span>Чат</span>
+          </NavLink>
+          <NavLink to="/generate" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={onClose}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <path d="M21 15l-5-5L5 21"/>
+            </svg>
+            <span>Генерация</span>
           </NavLink>
           <NavLink to="/files" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={onClose}>
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"/>
-              <path d="M14 2v6h6" fill="none" stroke="white" strokeWidth="1"/>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14,2 14,8 20,8"/>
             </svg>
             <span>Мои файлы</span>
           </NavLink>
           <NavLink to="/bots" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={onClose}>
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <rect x="3" y="3" width="7" height="7" rx="1.5"/>
-              <rect x="14" y="3" width="7" height="7" rx="1.5"/>
-              <rect x="3" y="14" width="7" height="7" rx="1.5"/>
-              <circle cx="17.5" cy="17.5" r="3.5"/>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="7" height="7"/>
+              <rect x="14" y="3" width="7" height="7"/>
+              <rect x="3" y="14" width="7" height="7"/>
+              <rect x="14" y="14" width="7" height="7"/>
             </svg>
             <span>Все нейросети</span>
           </NavLink>
