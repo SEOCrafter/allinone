@@ -14,7 +14,7 @@ from app.api.deps import get_current_user
 from app.services.storage import storage_service, FileCategory
 
 
-router = APIRouter(prefix="/files", tags=["Files"])
+router = APIRouter()
 
 
 class FileUploadResponse(BaseModel):
