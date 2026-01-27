@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Model } from '../data/models'
-import { MODELS, CATEGORIES, getModelsByCategory } from '../data/models'
+import { CATEGORIES, getModelsByCategory } from '../data/models'
 
 interface Props {
   selected: Model | null

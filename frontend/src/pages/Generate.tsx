@@ -42,7 +42,6 @@ export default function Generate({ selectedModel }: Props) {
     sound: false,
   })
 
-  const isImage = selectedModel?.category === 'image'
   const isVideo = selectedModel?.category === 'video'
   const requiresImage = selectedModel?.requiresImage
   const requiresVideo = selectedModel?.requiresVideo
