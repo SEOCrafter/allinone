@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from app.database import get_db
 from app.models.user import User
 from app.models.file import File as FileModel
-from app.api.v1.auth import get_current_user
+from app.api.deps import get_current_user
 from app.services.storage import storage_service, FileCategory
 
 
