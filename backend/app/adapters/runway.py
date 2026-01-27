@@ -1,15 +1,15 @@
-from typing import Optional
+from typing import Optional, List
 import httpx
 import asyncio
+import json
 from app.adapters.base import BaseAdapter, GenerationResult, ProviderType, ProviderHealth, ProviderStatus
+from app.adapters.kie_base import KieBaseAdapter, KieTaskResult
 
 
-class RunwayAdapter(BaseAdapter):
+class RunwayAdapter(BaseAdapter, KieBaseAdapter):
     name = "runway"
     display_name = "Runway"
     provider_type = ProviderType.VIDEO
-
-    BASE_URL = "https://api.kie.ai/api/v1"
 
     PRICING = {
         "gen4": {"per_second": 0.05, "display_name": "Gen-4"},
@@ -19,36 +19,21 @@ class RunwayAdapter(BaseAdapter):
     }
 
     def __init__(self, api_key: str, default_model: str = "gen4-turbo", **kwargs):
-        super().__init__(api_key, **kwargs)
+        BaseAdapter.__init__(self, api_key, **kwargs)
+        KieBaseAdapter.__init__(self, api_key, **kwargs)
         self.default_model = default_model
         self.max_poll_attempts = kwargs.get("max_poll_attempts", 180)
         self.poll_interval = kwargs.get("poll_interval", 10)
 
-    def _get_headers(self) -> dict:
-        return {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-
-    async def generate(
-        self,
-        prompt: str,
-        model: Optional[str] = None,
-        duration: int = 5,
-        quality: str = "720p",
-        image_url: Optional[str] = None,
-        **params
-    ) -> GenerationResult:
-        model = model or self.default_model
-
+    async def create_runway_task(self, input_data: dict) -> KieTaskResult:
         payload = {
-            "prompt": prompt,
-            "duration": duration,
-            "quality": quality,
+            "prompt": input_data.get("prompt"),
+            "duration": input_data.get("duration", 5),
+            "quality": input_data.get("quality", "720p"),
         }
 
-        if image_url:
-            payload["image_url"] = image_url
+        if input_data.get("image_url"):
+            payload["image_url"] = input_data["image_url"]
 
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
@@ -59,7 +44,7 @@ class RunwayAdapter(BaseAdapter):
                 )
 
                 if response.status_code != 200:
-                    return GenerationResult(
+                    return KieTaskResult(
                         success=False,
                         error_code=f"HTTP_{response.status_code}",
                         error_message=response.text,
@@ -67,89 +52,170 @@ class RunwayAdapter(BaseAdapter):
 
                 data = response.json()
                 if data.get("code") != 200:
-                    return GenerationResult(
+                    return KieTaskResult(
                         success=False,
                         error_code=str(data.get("code")),
                         error_message=data.get("msg", "Unknown error"),
                     )
 
                 task_id = data.get("data", {}).get("taskId")
-                if not task_id:
-                    return GenerationResult(
-                        success=False,
-                        error_code="NO_TASK_ID",
-                        error_message="No task ID returned",
-                    )
-
-                result = await self._wait_for_completion(task_id, duration)
-                if result.success:
-                    result.provider_cost = self.calculate_cost(model=model, duration=duration)
-                return result
+                return KieTaskResult(
+                    success=True,
+                    task_id=task_id,
+                    status="pending",
+                    raw_response=data,
+                )
 
         except Exception as e:
-            return GenerationResult(
+            return KieTaskResult(
                 success=False,
                 error_code="EXCEPTION",
                 error_message=str(e),
             )
 
-    async def _wait_for_completion(self, task_id: str, duration: int = 5) -> GenerationResult:
-        for _ in range(self.max_poll_attempts):
-            try:
-                async with httpx.AsyncClient(timeout=30.0) as client:
-                    response = await client.get(
-                        f"{self.BASE_URL}/runway/record-info",
-                        headers=self._get_headers(),
-                        params={"taskId": task_id},
+    async def get_runway_task_status(self, task_id: str) -> KieTaskResult:
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    f"{self.BASE_URL}/runway/record-info",
+                    headers=self._get_headers(),
+                    params={"taskId": task_id},
+                )
+
+                if response.status_code != 200:
+                    return KieTaskResult(
+                        success=False,
+                        task_id=task_id,
+                        error_code=f"HTTP_{response.status_code}",
+                        error_message=response.text,
                     )
 
-                    if response.status_code != 200:
-                        await asyncio.sleep(self.poll_interval)
-                        continue
+                data = response.json()
+                if data.get("code") != 200:
+                    return KieTaskResult(
+                        success=False,
+                        task_id=task_id,
+                        error_code=str(data.get("code")),
+                        error_message=data.get("msg", "Unknown error"),
+                    )
 
-                    data = response.json()
-                    if data.get("code") != 200:
-                        await asyncio.sleep(self.poll_interval)
-                        continue
+                task_data = data.get("data", {})
+                state = task_data.get("state", "").lower()
 
-                    task_data = data.get("data", {})
-                    state = task_data.get("state", "").lower()
+                if state == "success":
+                    video_url = task_data.get("videoUrl") or task_data.get("video_url")
+                    return KieTaskResult(
+                        success=True,
+                        task_id=task_id,
+                        status="completed",
+                        result_url=video_url,
+                        raw_response=data,
+                    )
+                elif state == "fail":
+                    return KieTaskResult(
+                        success=False,
+                        task_id=task_id,
+                        status="failed",
+                        error_code=task_data.get("failCode", "TASK_FAILED"),
+                        error_message=task_data.get("failMsg", "Task failed"),
+                        raw_response=data,
+                    )
+                else:
+                    return KieTaskResult(
+                        success=True,
+                        task_id=task_id,
+                        status=state or "processing",
+                        raw_response=data,
+                    )
 
-                    if state == "success":
-                        video_url = task_data.get("videoUrl") or task_data.get("video_url")
-                        return GenerationResult(success=True, content=video_url)
-                    elif state == "fail":
-                        return GenerationResult(
-                            success=False,
-                            error_code=task_data.get("failCode", "TASK_FAILED"),
-                            error_message=task_data.get("failMsg", "Task failed"),
-                        )
+        except Exception as e:
+            return KieTaskResult(
+                success=False,
+                task_id=task_id,
+                error_code="EXCEPTION",
+                error_message=str(e),
+            )
 
-                    await asyncio.sleep(self.poll_interval)
+    async def wait_for_runway_completion(self, task_id: str) -> KieTaskResult:
+        for _ in range(self.max_poll_attempts):
+            result = await self.get_runway_task_status(task_id)
 
-            except Exception:
-                await asyncio.sleep(self.poll_interval)
+            if not result.success and result.error_code != "TASK_FAILED":
+                return result
 
-        return GenerationResult(
+            if result.status == "completed":
+                return result
+
+            if result.status == "failed":
+                return result
+
+            await asyncio.sleep(self.poll_interval)
+
+        return KieTaskResult(
             success=False,
+            task_id=task_id,
             error_code="TIMEOUT",
             error_message=f"Task did not complete within {self.max_poll_attempts * self.poll_interval} seconds",
+        )
+
+    async def generate(
+        self,
+        prompt: str,
+        model: Optional[str] = None,
+        image_url: Optional[str] = None,
+        duration: int = 5,
+        quality: str = "720p",
+        **params
+    ) -> GenerationResult:
+        model = model or self.default_model
+
+        input_data = {
+            "prompt": prompt,
+            "duration": duration,
+            "quality": quality,
+        }
+
+        if image_url:
+            input_data["image_url"] = image_url
+
+        create_result = await self.create_runway_task(input_data)
+
+        if not create_result.success:
+            return GenerationResult(
+                success=False,
+                error_code=create_result.error_code,
+                error_message=create_result.error_message,
+                raw_response=create_result.raw_response,
+            )
+
+        result = await self.wait_for_runway_completion(create_result.task_id)
+
+        if not result.success:
+            return GenerationResult(
+                success=False,
+                error_code=result.error_code,
+                error_message=result.error_message,
+                raw_response=result.raw_response,
+            )
+
+        return GenerationResult(
+            success=True,
+            content=result.result_url,
+            provider_cost=self.calculate_cost(model=model, duration=duration),
+            raw_response=result.raw_response,
         )
 
     async def health_check(self) -> ProviderHealth:
         import time
         start = time.time()
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(
-                    f"{self.BASE_URL}/runway/record-info",
-                    headers=self._get_headers(),
-                    params={"taskId": "health_check"},
-                )
-                latency = int((time.time() - start) * 1000)
-                if response.status_code in [200, 400]:
-                    return ProviderHealth(status=ProviderStatus.HEALTHY, latency_ms=latency)
-                return ProviderHealth(status=ProviderStatus.DEGRADED, error=response.text)
+            result = await self.create_runway_task(
+                {"prompt": "test", "duration": 5, "quality": "720p"},
+            )
+            latency = int((time.time() - start) * 1000)
+            if result.success and result.task_id:
+                return ProviderHealth(status=ProviderStatus.HEALTHY, latency_ms=latency)
+            return ProviderHealth(status=ProviderStatus.DEGRADED, error=result.error_message)
         except Exception as e:
             return ProviderHealth(status=ProviderStatus.DOWN, error=str(e))
 
