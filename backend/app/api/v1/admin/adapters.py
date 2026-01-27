@@ -203,6 +203,9 @@ async def adapter_health(
         "openai": settings.OPENAI_API_KEY, "anthropic": settings.ANTHROPIC_API_KEY,
         "gemini": settings.GEMINI_API_KEY, "deepseek": settings.DEEPSEEK_API_KEY,
         "nano_banana": settings.KIE_API_KEY, "kling": settings.KIE_API_KEY, "midjourney": settings.KIE_API_KEY,
+        "veo": settings.KIE_API_KEY, "sora": settings.KIE_API_KEY, "hailuo": settings.KIE_API_KEY,
+        "runway": settings.KIE_API_KEY, "luma": settings.KIE_API_KEY, "seedance": settings.KIE_API_KEY,
+        "flux": settings.KIE_API_KEY,
     }
     api_key = api_keys.get(adapter_name)
     if not api_key:
@@ -236,6 +239,9 @@ async def test_adapter(
         "openai": settings.OPENAI_API_KEY, "anthropic": settings.ANTHROPIC_API_KEY,
         "gemini": settings.GEMINI_API_KEY, "deepseek": settings.DEEPSEEK_API_KEY,
         "nano_banana": settings.KIE_API_KEY, "kling": settings.KIE_API_KEY, "midjourney": settings.KIE_API_KEY,
+        "veo": settings.KIE_API_KEY, "sora": settings.KIE_API_KEY, "hailuo": settings.KIE_API_KEY,
+        "runway": settings.KIE_API_KEY, "luma": settings.KIE_API_KEY, "seedance": settings.KIE_API_KEY,
+        "flux": settings.KIE_API_KEY,
     }
     api_key = api_keys.get(adapter_name)
     if not api_key:
