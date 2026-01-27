@@ -49,6 +49,9 @@ class KieBaseAdapter:
         if callback_url:
             payload["callBackUrl"] = callback_url
 
+        import logging
+        logging.info(f"KIE API Request: model={model}, input={json.dumps(input_data)[:500]}")
+
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
                 response = await client.post(
@@ -56,6 +59,8 @@ class KieBaseAdapter:
                     headers=self._get_headers(),
                     json=payload,
                 )
+
+                logging.info(f"KIE API Response: status={response.status_code}, body={response.text[:500]}")
 
                 if response.status_code != 200:
                     error_data = response.json() if response.text else {}

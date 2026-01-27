@@ -95,6 +95,8 @@ async def save_from_url(
     db.add(db_file)
     await db.commit()
     
+    presigned_url = storage_service.get_presigned_url(result["key"], expires_in=3600)
+    
     return FileUploadResponse(
         id=file_id,
         key=result["key"],
@@ -103,7 +105,7 @@ async def save_from_url(
         category=request.category,
         content_type=result["content_type"],
         size_bytes=result["size_bytes"],
-        url=f"/api/v1/files/download/{file_id}",
+        url=presigned_url,
     )
 
 
@@ -157,7 +159,7 @@ async def upload_file(
         category=category,
         content_type=result["content_type"],
         size_bytes=result["size_bytes"],
-        url=f"/api/v1/files/download/{file_id}",
+        url=url,
     )
 
 
@@ -259,6 +261,7 @@ async def list_files(
     
     files = []
     for f in db_files:
+        presigned_url = storage_service.get_presigned_url(f.key, expires_in=3600)
         files.append(FileUploadResponse(
             id=f.id,
             key=f.key,
@@ -267,7 +270,7 @@ async def list_files(
             category=f.category,
             content_type=f.content_type,
             size_bytes=f.size_bytes,
-            url=f"/api/v1/files/download/{f.id}",
+            url=presigned_url,
         ))
     
     return FileListResponse(files=files, total=total)

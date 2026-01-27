@@ -71,32 +71,46 @@ class KlingAdapter(BaseAdapter, KieBaseAdapter):
         model = model or self.default_model
         duration_str = str(duration)
 
-        input_data = {
-            "prompt": prompt,
-            "duration": duration_str,
-            "sound": sound,
-            "aspect_ratio": aspect_ratio,
-        }
-
-        if model == "kling-2.6/motion-control":
-            if not image_urls or not video_urls:
-                return GenerationResult(
-                    success=False,
-                    error_code="MISSING_PARAMS",
-                    error_message="Motion Control requires image_urls and video_urls",
-                )
-            input_data["image_urls"] = image_urls
-            input_data["video_urls"] = video_urls
-            input_data["character_orientation"] = params.get("character_orientation", "image")
-
-        elif "image-to-video" in model:
+        if "ai-avatar" in model:
             if not image_urls:
                 return GenerationResult(
                     success=False,
                     error_code="MISSING_PARAMS",
-                    error_message="Image to Video requires image_urls",
+                    error_message="Avatar requires image_url",
                 )
-            input_data["image_urls"] = image_urls
+            input_data = {
+                "image_url": image_urls[0],
+                "prompt": prompt,
+            }
+            if sound:
+                input_data["sound"] = sound
+        else:
+            input_data = {
+                "prompt": prompt,
+                "duration": duration_str,
+                "sound": sound,
+                "aspect_ratio": aspect_ratio,
+            }
+
+            if model == "kling-2.6/motion-control":
+                if not image_urls or not video_urls:
+                    return GenerationResult(
+                        success=False,
+                        error_code="MISSING_PARAMS",
+                        error_message="Motion Control requires image_urls and video_urls",
+                    )
+                input_data["image_urls"] = image_urls
+                input_data["video_urls"] = video_urls
+                input_data["character_orientation"] = params.get("character_orientation", "image")
+
+            elif "image-to-video" in model:
+                if not image_urls:
+                    return GenerationResult(
+                        success=False,
+                        error_code="MISSING_PARAMS",
+                        error_message="Image to Video requires image_urls",
+                    )
+                input_data["image_urls"] = image_urls
 
         result = await self.generate_and_wait(model, input_data)
 
