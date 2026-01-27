@@ -32,7 +32,7 @@ class StorageService:
             endpoint_url=self.endpoint_url,
             aws_access_key_id=self.access_key,
             aws_secret_access_key=self.secret_key,
-            config=Config(signature_version="s3v4"),
+            config=Config(signature_version="s3v4", s3={'addressing_style': 'path'}),
         )
         
         self.public_client = boto3.client(
@@ -40,7 +40,7 @@ class StorageService:
             endpoint_url=self.public_endpoint,
             aws_access_key_id=self.access_key,
             aws_secret_access_key=self.secret_key,
-            config=Config(signature_version="s3v4"),
+            config=Config(signature_version="s3v4", s3={'addressing_style': 'path'}),
         )
     
     def _get_path(
