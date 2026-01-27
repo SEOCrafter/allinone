@@ -127,7 +127,7 @@ async def adapters_status(
             latency = None
             kie_status = "unhealthy"
             kie_error = str(e)
-        for name in ["nano_banana", "kling", "midjourney"]:
+        for name in ["nano_banana", "kling", "midjourney", "veo", "sora", "hailuo", "runway", "seedance", "flux"]:
             results.append({"name": name, "status": kie_status, "latency_ms": latency, "error": kie_error})
 
     return {"ok": True, "adapters": results}
@@ -204,8 +204,7 @@ async def adapter_health(
         "gemini": settings.GEMINI_API_KEY, "deepseek": settings.DEEPSEEK_API_KEY,
         "nano_banana": settings.KIE_API_KEY, "kling": settings.KIE_API_KEY, "midjourney": settings.KIE_API_KEY,
         "veo": settings.KIE_API_KEY, "sora": settings.KIE_API_KEY, "hailuo": settings.KIE_API_KEY,
-        "runway": settings.KIE_API_KEY, "luma": settings.KIE_API_KEY, "seedance": settings.KIE_API_KEY,
-        "flux": settings.KIE_API_KEY,
+        "runway": settings.KIE_API_KEY, "seedance": settings.KIE_API_KEY, "flux": settings.KIE_API_KEY,
     }
     api_key = api_keys.get(adapter_name)
     if not api_key:
@@ -240,8 +239,7 @@ async def test_adapter(
         "gemini": settings.GEMINI_API_KEY, "deepseek": settings.DEEPSEEK_API_KEY,
         "nano_banana": settings.KIE_API_KEY, "kling": settings.KIE_API_KEY, "midjourney": settings.KIE_API_KEY,
         "veo": settings.KIE_API_KEY, "sora": settings.KIE_API_KEY, "hailuo": settings.KIE_API_KEY,
-        "runway": settings.KIE_API_KEY, "luma": settings.KIE_API_KEY, "seedance": settings.KIE_API_KEY,
-        "flux": settings.KIE_API_KEY,
+        "runway": settings.KIE_API_KEY, "seedance": settings.KIE_API_KEY, "flux": settings.KIE_API_KEY,
     }
     api_key = api_keys.get(adapter_name)
     if not api_key:
@@ -285,7 +283,7 @@ async def test_adapter(
 
     if result.success and result.provider_cost and result.provider_cost > 0:
         balance_provider = adapter_name
-        if adapter_name in ("midjourney", "nano_banana", "kling", "veo", "sora", "hailuo", "runway", "luma", "seedance", "flux"):
+        if adapter_name in ("midjourney", "nano_banana", "kling", "veo", "sora", "hailuo", "runway", "seedance", "flux"):
             balance_provider = "kie"
         balance_result = await db.execute(select(ProviderBalance).where(ProviderBalance.provider == balance_provider))
         balance = balance_result.scalar_one_or_none()
