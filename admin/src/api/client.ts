@@ -75,3 +75,24 @@ export const setProviderBalance = (provider: string, balance_usd: number) =>
 
 export const depositProviderBalance = (provider: string, amount_usd: number) =>
   api.post(`/admin/adapters/balances/${provider}/deposit`, { amount_usd });
+
+export const getUnitEconomics = () => api.get('/admin/unit-economics');
+
+export const createUnitEconomics = (data: {
+  name: string;
+  currency: string;
+  subscription_price: number;
+  credits_in_plan: number;
+  requests_in_plan: number;
+  avg_tokens_input: number;
+  avg_tokens_output: number;
+  overhead_percent: number;
+  selected_model: string;
+  notes?: string;
+}) => api.post('/admin/unit-economics', data);
+
+export const updateUnitEconomics = (id: string, data: Record<string, unknown>) =>
+  api.put(`/admin/unit-economics/${id}`, data);
+
+export const deleteUnitEconomics = (id: string) =>
+  api.delete(`/admin/unit-economics/${id}`);

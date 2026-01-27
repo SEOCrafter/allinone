@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Activity, MessageSquare, Users, BarChart3, LogOut } from 'lucide-react';
+import { LayoutDashboard, Activity, MessageSquare, Users, BarChart3, LogOut, Calculator } from 'lucide-react';
 
 export default function Layout() {
   const navigate = useNavigate();
@@ -17,6 +17,7 @@ export default function Layout() {
     { to: '/requests', icon: MessageSquare, label: 'Запросы' },
     { to: '/users', icon: Users, label: 'Пользователи' },
     { to: '/stats', icon: BarChart3, label: 'Статистика' },
+    { to: '/unit-economics', icon: Calculator, label: 'Unit-экономика' },
   ];
 
   return (

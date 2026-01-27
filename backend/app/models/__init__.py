@@ -6,6 +6,7 @@ from app.models.request import Request, RequestFile, Result
 from app.models.transaction import Transaction
 from app.models.plan import Plan, UserSubscription
 from app.models.promo import PromoCode, PromoActivation
+from app.models.unit_economics import UnitEconomics
 
 __all__ = [
     "Base",
@@ -21,4 +22,5 @@ __all__ = [
     "UserSubscription",
     "PromoCode",
     "PromoActivation",
+    "UnitEconomics",
 ]
