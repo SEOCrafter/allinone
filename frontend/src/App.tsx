@@ -5,6 +5,7 @@ import Header from './components/Header'
 import Home from './pages/Home'
 import Bots from './pages/Bots'
 import Chat from './pages/Chat'
+import Generate from './pages/Generate'
 import Files from './pages/Files'
 import Login from './pages/Login'
 import type { Model } from './data/models'
@@ -40,6 +41,7 @@ export default function App() {
           <Route path="/" element={<Home selectedModel={selectedModel} onSelectModel={setSelectedModel} />} />
           <Route path="/bots" element={<Bots onSelectModel={setSelectedModel} />} />
           <Route path="/chat" element={<Chat selectedModel={selectedModel} />} />
+          <Route path="/generate" element={<Generate selectedModel={selectedModel} />} />
           <Route path="/files" element={<Files />} />
           <Route path="/login" element={<Login />} />
         </Routes>
