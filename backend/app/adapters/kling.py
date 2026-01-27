@@ -63,6 +63,7 @@ class KlingAdapter(BaseAdapter, KieBaseAdapter):
         model: Optional[str] = None,
         image_urls: Optional[List[str]] = None,
         video_urls: Optional[List[str]] = None,
+        audio_url: Optional[str] = None,
         duration: str = "5",
         sound: bool = False,
         aspect_ratio: str = "16:9",
@@ -78,12 +79,17 @@ class KlingAdapter(BaseAdapter, KieBaseAdapter):
                     error_code="MISSING_PARAMS",
                     error_message="Avatar requires image_url",
                 )
+            if not audio_url:
+                return GenerationResult(
+                    success=False,
+                    error_code="MISSING_PARAMS",
+                    error_message="Avatar requires audio_url",
+                )
             input_data = {
                 "image_url": image_urls[0],
+                "audio_url": audio_url,
                 "prompt": prompt,
             }
-            if sound:
-                input_data["sound"] = sound
         else:
             input_data = {
                 "prompt": prompt,
@@ -99,9 +105,13 @@ class KlingAdapter(BaseAdapter, KieBaseAdapter):
                         error_code="MISSING_PARAMS",
                         error_message="Motion Control requires image_urls and video_urls",
                     )
-                input_data["image_urls"] = image_urls
-                input_data["video_urls"] = video_urls
-                input_data["character_orientation"] = params.get("character_orientation", "image")
+                input_data = {
+                    "prompt": prompt,
+                    "input_urls": image_urls,
+                    "video_urls": video_urls,
+                    "mode": "720p",
+                    "character_orientation": params.get("character_orientation", "image"),
+                }
 
             elif "image-to-video" in model:
                 if not image_urls:
