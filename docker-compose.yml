@@ -129,6 +129,7 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+      MINIO_SERVER_URL: http://95.140.153.151:9200
     volumes:
       - ai_minio_data:/data
     ports:
