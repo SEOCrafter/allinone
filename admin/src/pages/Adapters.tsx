@@ -68,73 +68,70 @@ export default function Adapters() {
   }, []);
 
   const loadData = async () => {
-  console.log('loadData started');
-  setLoading(true);
-  const token = localStorage.getItem('token');
-  
-  // Adapters - с retry
-  let adaptersData: Adapter[] = [];
-  for (let i = 0; i < 3; i++) {
+    console.log('loadData started');
+    setLoading(true);
+    const token = localStorage.getItem('token');
+    const BASE = 'http://95.140.153.151:8100/api/v1';
+    
+    // Adapters
+    let adaptersData: Adapter[] = [];
     try {
-      const res = await fetch('/api/v1/admin/adapters', {
+      const res = await fetch(`${BASE}/admin/adapters`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
         const data = await res.json();
         adaptersData = data.adapters || [];
-        break;
       }
     } catch (err) {
-      console.log(`Adapters attempt ${i + 1} failed`);
-      await new Promise(r => setTimeout(r, 500));
+      console.error('Adapters failed:', err);
     }
-  }
-  
-  // Balances
-  let balancesData: AdapterBalance[] = [];
-  try {
-    const res = await fetch('/api/v1/admin/adapters/balances', {
-      headers: { Authorization: `Bearer ${token}` }
+    
+    // Balances
+    let balancesData: AdapterBalance[] = [];
+    try {
+      const res = await fetch(`${BASE}/admin/adapters/balances`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        balancesData = data.balances || [];
+      }
+    } catch (err) {
+      console.error('Balances failed:', err);
+    }
+    
+    setAdapters(adaptersData);
+    setBalances(balancesData);
+    
+    const inputs: Record<string, string> = {};
+    balancesData.forEach((b) => {
+      inputs[b.provider] = b.balance_usd?.toString() || '0';
     });
-    if (res.ok) {
-      const data = await res.json();
-      balancesData = data.balances || [];
-    }
-  } catch (err) {
-    console.error('Balances failed:', err);
-  }
-  
-  setAdapters(adaptersData);
-  setBalances(balancesData);
-  
-  const inputs: Record<string, string> = {};
-  balancesData.forEach((b) => {
-    inputs[b.provider] = b.balance_usd?.toString() || '0';
-  });
-  setBalanceInputs(inputs);
+    setBalanceInputs(inputs);
 
-  if (adaptersData.length > 0) {
-    setSelectedAdapter(adaptersData[0].name);
-    if (adaptersData[0].models?.length > 0) {
-      setSelectedModel(adaptersData[0].models[0].id);
+    if (adaptersData.length > 0) {
+      setSelectedAdapter(adaptersData[0].name);
+      if (adaptersData[0].models?.length > 0) {
+        setSelectedModel(adaptersData[0].models[0].id);
+      }
     }
-  }
-  
-  setLoading(false);
-  
-  // Status в фоне
-  try {
-    const res = await fetch('/api/v1/admin/adapters/status', {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setStatuses(data.adapters || []);
+    
+    setLoading(false);
+    
+    // Status в фоне
+    try {
+      const res = await fetch(`${BASE}/admin/adapters/status`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setStatuses(data.adapters || []);
+      }
+    } catch (err) {
+      console.error('Status failed:', err);
     }
-  } catch (err) {
-    console.error('Status failed:', err);
-  }
-};
+  };
 
   const handleSaveBalance = async (provider: string) => {
     const value = parseFloat(balanceInputs[provider] || '0');

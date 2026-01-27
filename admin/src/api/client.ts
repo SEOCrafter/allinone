@@ -2,6 +2,10 @@ import axios from 'axios';
 
 const api = axios.create({
   baseURL: 'http://95.140.153.151:8100/api/v1',
+  headers: {
+    'Cache-Control': 'no-cache',
+    'Pragma': 'no-cache',
+  },
 });
 
 api.interceptors.request.use((config) => {
@@ -9,6 +13,8 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  // Добавляем timestamp чтобы избежать кеширования
+  config.params = { ...config.params, _t: Date.now() };
   return config;
 });
 
