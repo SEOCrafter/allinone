@@ -14,11 +14,11 @@ class KlingAdapter(BaseAdapter, KieBaseAdapter):
             "display_name": "Kling 2.6 Motion Control",
         },
         "kling-2.6/text-to-video": {
-            "per_second": 0.07,
+            "per_second": 0.056,
             "display_name": "Kling 2.6 Text to Video",
         },
         "kling-2.6/image-to-video": {
-            "per_second": 0.07,
+            "per_second": 0.056,
             "display_name": "Kling 2.6 Image to Video",
         },
         "kling/ai-avatar-standard": {
@@ -30,27 +30,27 @@ class KlingAdapter(BaseAdapter, KieBaseAdapter):
             "display_name": "Kling AI Avatar Pro",
         },
         "kling/v2-1-master-image-to-video": {
-            "per_second": 0.10,
+            "per_second": 0.16,
             "display_name": "Kling v2.1 Master I2V",
         },
         "kling/v2-1-master-text-to-video": {
-            "per_second": 0.10,
+            "per_second": 0.16,
             "display_name": "Kling v2.1 Master T2V",
         },
         "kling/v2-1-pro": {
-            "per_second": 0.08,
+            "per_second": 0.05,
             "display_name": "Kling v2.1 Pro",
         },
         "kling/v2-1-standard": {
-            "per_second": 0.05,
+            "per_second": 0.025,
             "display_name": "Kling v2.1 Standard",
         },
     }
 
     MODES = ["720p", "1080p"]
-    CHARACTER_ORIENTATIONS = ["image", "video"]
+    DURATIONS = ["5", "10"]
 
-    def __init__(self, api_key: str, default_model: str = "kling-2.6/motion-control", **kwargs):
+    def __init__(self, api_key: str, default_model: str = "kling-2.6/text-to-video", **kwargs):
         BaseAdapter.__init__(self, api_key, **kwargs)
         KieBaseAdapter.__init__(self, api_key, **kwargs)
         self.default_model = default_model
@@ -61,39 +61,40 @@ class KlingAdapter(BaseAdapter, KieBaseAdapter):
         self,
         prompt: str,
         model: Optional[str] = None,
-        input_urls: Optional[List[str]] = None,
+        image_urls: Optional[List[str]] = None,
         video_urls: Optional[List[str]] = None,
-        mode: str = "720p",
-        character_orientation: str = "image",
-        duration: int = 5,
+        duration: str = "5",
+        sound: bool = False,
         **params
     ) -> GenerationResult:
         model = model or self.default_model
+        duration_str = str(duration)
 
         input_data = {
             "prompt": prompt,
-            "mode": mode,
+            "duration": duration_str,
+            "sound": sound,
         }
 
         if model == "kling-2.6/motion-control":
-            if not input_urls or not video_urls:
+            if not image_urls or not video_urls:
                 return GenerationResult(
                     success=False,
                     error_code="MISSING_PARAMS",
-                    error_message="Motion Control requires input_urls (image) and video_urls (motion video)",
+                    error_message="Motion Control requires image_urls and video_urls",
                 )
-            input_data["input_urls"] = input_urls
+            input_data["image_urls"] = image_urls
             input_data["video_urls"] = video_urls
-            input_data["character_orientation"] = character_orientation
+            input_data["character_orientation"] = params.get("character_orientation", "image")
 
         elif "image-to-video" in model:
-            if not input_urls:
+            if not image_urls:
                 return GenerationResult(
                     success=False,
                     error_code="MISSING_PARAMS",
-                    error_message="Image to Video requires input_urls",
+                    error_message="Image to Video requires image_urls",
                 )
-            input_data["input_urls"] = input_urls
+            input_data["image_urls"] = image_urls
 
         result = await self.generate_and_wait(model, input_data)
 
@@ -105,43 +106,25 @@ class KlingAdapter(BaseAdapter, KieBaseAdapter):
                 raw_response=result.raw_response,
             )
 
+        duration_int = int(duration_str)
         return GenerationResult(
             success=True,
             content=result.result_url,
-            provider_cost=self.calculate_cost(model=model, duration=duration),
+            provider_cost=self.calculate_cost(model=model, duration=duration_int),
             raw_response=result.raw_response,
         )
-
-    async def generate_motion_control(
-        self,
-        prompt: str,
-        image_url: str,
-        video_url: str,
-        mode: str = "720p",
-        character_orientation: str = "image",
-        callback_url: Optional[str] = None,
-    ) -> KieTaskResult:
-        input_data = {
-            "prompt": prompt,
-            "input_urls": [image_url],
-            "video_urls": [video_url],
-            "mode": mode,
-            "character_orientation": character_orientation,
-        }
-
-        return await self.create_task("kling-2.6/motion-control", input_data, callback_url)
 
     async def generate_text_to_video(
         self,
         prompt: str,
-        mode: str = "720p",
-        duration: int = 5,
+        duration: str = "5",
+        sound: bool = False,
         callback_url: Optional[str] = None,
     ) -> KieTaskResult:
         input_data = {
             "prompt": prompt,
-            "mode": mode,
-            "duration": duration,
+            "duration": str(duration),
+            "sound": sound,
         }
 
         return await self.create_task("kling-2.6/text-to-video", input_data, callback_url)
@@ -149,19 +132,38 @@ class KlingAdapter(BaseAdapter, KieBaseAdapter):
     async def generate_image_to_video(
         self,
         prompt: str,
-        image_url: str,
-        mode: str = "720p",
-        duration: int = 5,
+        image_urls: List[str],
+        duration: str = "5",
+        sound: bool = False,
         callback_url: Optional[str] = None,
     ) -> KieTaskResult:
         input_data = {
             "prompt": prompt,
-            "input_urls": [image_url],
-            "mode": mode,
-            "duration": duration,
+            "image_urls": image_urls,
+            "duration": str(duration),
+            "sound": sound,
         }
 
         return await self.create_task("kling-2.6/image-to-video", input_data, callback_url)
+
+    async def generate_motion_control(
+        self,
+        prompt: str,
+        image_urls: List[str],
+        video_urls: List[str],
+        character_orientation: str = "image",
+        duration: str = "5",
+        callback_url: Optional[str] = None,
+    ) -> KieTaskResult:
+        input_data = {
+            "prompt": prompt,
+            "image_urls": image_urls,
+            "video_urls": video_urls,
+            "character_orientation": character_orientation,
+            "duration": str(duration),
+        }
+
+        return await self.create_task("kling-2.6/motion-control", input_data, callback_url)
 
     async def health_check(self) -> ProviderHealth:
         import time
@@ -169,7 +171,7 @@ class KlingAdapter(BaseAdapter, KieBaseAdapter):
         try:
             result = await self.create_task(
                 "kling-2.6/text-to-video",
-                {"prompt": "A simple animation test", "mode": "720p", "duration": 3},
+                {"prompt": "A simple animation test", "duration": "5", "sound": False},
             )
             latency = int((time.time() - start) * 1000)
             if result.success and result.task_id:
@@ -180,21 +182,19 @@ class KlingAdapter(BaseAdapter, KieBaseAdapter):
 
     def calculate_cost(self, model: Optional[str] = None, duration: int = 5, **params) -> float:
         model = model or self.default_model
-        pricing = self.PRICING.get(model, self.PRICING["kling-2.6/motion-control"])
+        pricing = self.PRICING.get(model, self.PRICING["kling-2.6/text-to-video"])
 
         if "per_video" in pricing:
             return pricing["per_video"]
-        return pricing.get("per_second", 0.07) * duration
+        return pricing.get("per_second", 0.056) * duration
 
     def get_capabilities(self) -> dict:
         return {
             "models": list(self.PRICING.keys()),
-            "modes": self.MODES,
-            "character_orientations": self.CHARACTER_ORIENTATIONS,
+            "durations": self.DURATIONS,
+            "supports_sound": True,
             "supports_motion_control": True,
             "supports_text_to_video": True,
             "supports_image_to_video": True,
             "supports_callback": True,
-            "min_duration": 3,
-            "max_duration": 30,
         }
