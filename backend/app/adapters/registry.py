@@ -11,7 +11,6 @@ from app.adapters.veo import VeoAdapter
 from app.adapters.sora import SoraAdapter
 from app.adapters.hailuo import HailuoAdapter
 from app.adapters.runway import RunwayAdapter
-from app.adapters.luma import LumaAdapter
 from app.adapters.seedance import SeedanceAdapter
 from app.adapters.flux import FluxAdapter
 
@@ -96,6 +95,5 @@ AdapterRegistry.register(VeoAdapter)
 AdapterRegistry.register(SoraAdapter)
 AdapterRegistry.register(HailuoAdapter)
 AdapterRegistry.register(RunwayAdapter)
-AdapterRegistry.register(LumaAdapter)
 AdapterRegistry.register(SeedanceAdapter)
 AdapterRegistry.register(FluxAdapter)

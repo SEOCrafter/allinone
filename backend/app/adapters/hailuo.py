@@ -1,124 +1,167 @@
-from typing import Optional, List
+from typing import Optional
+import httpx
+import asyncio
 from app.adapters.base import BaseAdapter, GenerationResult, ProviderType, ProviderHealth, ProviderStatus
-from app.adapters.kie_base import KieBaseAdapter, KieTaskResult
 
 
-class HailuoAdapter(BaseAdapter, KieBaseAdapter):
+class HailuoAdapter(BaseAdapter):
     name = "hailuo"
     display_name = "Hailuo (MiniMax)"
     provider_type = ProviderType.VIDEO
 
+    BASE_URL = "https://api.kie.ai/api/v1"
+
     PRICING = {
-        "minimax/video-01": {
-            "per_video": 0.45,
-            "display_name": "Hailuo Video-01",
-        },
-        "minimax/video-01-director": {
-            "per_video": 0.50,
-            "display_name": "Hailuo Director",
-        },
-        "minimax/video-01-live": {
-            "per_video": 0.40,
-            "display_name": "Hailuo Live (Animation)",
-        },
-        "minimax/hailuo-02": {
-            "per_video": 0.55,
-            "display_name": "Hailuo 02 Standard",
-        },
-        "minimax/hailuo-02-pro": {
-            "per_video": 0.80,
-            "display_name": "Hailuo 02 Pro (1080p)",
-        },
-        "minimax/hailuo-2.3": {
-            "per_video": 0.65,
-            "display_name": "Hailuo 2.3",
-        },
-        "minimax/hailuo-2.3-flash": {
-            "per_video": 0.45,
-            "display_name": "Hailuo 2.3 Flash",
-        },
+        "hailuo/02-text-to-video-standard": {"per_video": 0.35, "display_name": "Hailuo 02 Standard"},
+        "hailuo/02-text-to-video-pro": {"per_video": 0.50, "display_name": "Hailuo 02 Pro"},
+        "hailuo/2-3-text-to-video-standard": {"per_video": 0.40, "display_name": "Hailuo 2.3 Standard"},
+        "hailuo/2-3-text-to-video-pro": {"per_video": 0.60, "display_name": "Hailuo 2.3 Pro"},
+        "hailuo/2-3-image-to-video-standard": {"per_video": 0.40, "display_name": "Hailuo 2.3 I2V Standard"},
+        "hailuo/2-3-image-to-video-pro": {"per_video": 0.60, "display_name": "Hailuo 2.3 I2V Pro"},
     }
 
-    ASPECT_RATIOS = ["16:9", "9:16", "1:1"]
-    DURATIONS = ["6", "10"]
-
-    def __init__(self, api_key: str, default_model: str = "minimax/video-01", **kwargs):
-        BaseAdapter.__init__(self, api_key, **kwargs)
-        KieBaseAdapter.__init__(self, api_key, **kwargs)
+    def __init__(self, api_key: str, default_model: str = "hailuo/02-text-to-video-standard", **kwargs):
+        super().__init__(api_key, **kwargs)
         self.default_model = default_model
         self.max_poll_attempts = kwargs.get("max_poll_attempts", 180)
         self.poll_interval = kwargs.get("poll_interval", 10)
+
+    def _get_headers(self) -> dict:
+        return {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
 
     async def generate(
         self,
         prompt: str,
         model: Optional[str] = None,
-        image_urls: Optional[List[str]] = None,
-        subject_reference: Optional[str] = None,
-        duration: str = "6",
-        aspect_ratio: str = "16:9",
-        camera_movement: Optional[str] = None,
+        image_url: Optional[str] = None,
         **params
     ) -> GenerationResult:
         model = model or self.default_model
 
-        input_data = {
-            "prompt": prompt,
+        input_data = {"prompt": prompt}
+        if image_url:
+            input_data["image_url"] = image_url
+
+        payload = {
+            "model": model,
+            "input": input_data,
         }
 
-        if image_urls:
-            input_data["image_url"] = image_urls[0]
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(
+                    f"{self.BASE_URL}/jobs/createTask",
+                    headers=self._get_headers(),
+                    json=payload,
+                )
 
-        if subject_reference:
-            input_data["subject_reference"] = subject_reference
+                if response.status_code != 200:
+                    return GenerationResult(
+                        success=False,
+                        error_code=f"HTTP_{response.status_code}",
+                        error_message=response.text,
+                    )
 
-        if camera_movement and "director" in model:
-            input_data["camera_movement"] = camera_movement
+                data = response.json()
+                if data.get("code") != 200:
+                    return GenerationResult(
+                        success=False,
+                        error_code=str(data.get("code")),
+                        error_message=data.get("msg", "Unknown error"),
+                    )
 
-        result = await self.generate_and_wait(model, input_data)
+                task_id = data.get("data", {}).get("taskId")
+                if not task_id:
+                    return GenerationResult(
+                        success=False,
+                        error_code="NO_TASK_ID",
+                        error_message="No task ID returned",
+                    )
 
-        if not result.success:
+                result = await self._wait_for_completion(task_id)
+                if result.success:
+                    result.provider_cost = self.calculate_cost(model=model)
+                return result
+
+        except Exception as e:
             return GenerationResult(
                 success=False,
-                error_code=result.error_code,
-                error_message=result.error_message,
-                raw_response=result.raw_response,
+                error_code="EXCEPTION",
+                error_message=str(e),
             )
 
+    async def _wait_for_completion(self, task_id: str) -> GenerationResult:
+        for _ in range(self.max_poll_attempts):
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    response = await client.get(
+                        f"{self.BASE_URL}/jobs/taskInfo",
+                        headers=self._get_headers(),
+                        params={"taskId": task_id},
+                    )
+
+                    if response.status_code != 200:
+                        await asyncio.sleep(self.poll_interval)
+                        continue
+
+                    data = response.json()
+                    if data.get("code") != 200:
+                        await asyncio.sleep(self.poll_interval)
+                        continue
+
+                    task_data = data.get("data", {})
+                    status = task_data.get("status", "").lower()
+
+                    if status in ["success", "completed"]:
+                        output = task_data.get("output", {})
+                        video_url = output.get("video_url") or output.get("url")
+                        return GenerationResult(success=True, content=video_url)
+                    elif status in ["fail", "failed", "error"]:
+                        return GenerationResult(
+                            success=False,
+                            error_code="TASK_FAILED",
+                            error_message=task_data.get("error", "Task failed"),
+                        )
+
+                    await asyncio.sleep(self.poll_interval)
+
+            except Exception:
+                await asyncio.sleep(self.poll_interval)
+
         return GenerationResult(
-            success=True,
-            content=result.result_url,
-            provider_cost=self.calculate_cost(model=model),
-            raw_response=result.raw_response,
+            success=False,
+            error_code="TIMEOUT",
+            error_message=f"Task did not complete within {self.max_poll_attempts * self.poll_interval} seconds",
         )
 
     async def health_check(self) -> ProviderHealth:
         import time
         start = time.time()
         try:
-            result = await self.create_task(
-                "minimax/video-01",
-                {"prompt": "A simple test scene"},
-            )
-            latency = int((time.time() - start) * 1000)
-            if result.success and result.task_id:
-                return ProviderHealth(status=ProviderStatus.HEALTHY, latency_ms=latency)
-            return ProviderHealth(status=ProviderStatus.DEGRADED, error=result.error_message)
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(
+                    f"{self.BASE_URL}/jobs/taskInfo",
+                    headers=self._get_headers(),
+                    params={"taskId": "health_check"},
+                )
+                latency = int((time.time() - start) * 1000)
+                if response.status_code in [200, 400]:
+                    return ProviderHealth(status=ProviderStatus.HEALTHY, latency_ms=latency)
+                return ProviderHealth(status=ProviderStatus.DEGRADED, error=response.text)
         except Exception as e:
             return ProviderHealth(status=ProviderStatus.DOWN, error=str(e))
 
     def calculate_cost(self, model: Optional[str] = None, **params) -> float:
         model = model or self.default_model
-        pricing = self.PRICING.get(model, self.PRICING["minimax/video-01"])
-        return pricing.get("per_video", 0.45)
+        pricing = self.PRICING.get(model, self.PRICING["hailuo/02-text-to-video-standard"])
+        return pricing.get("per_video", 0.35)
 
     def get_capabilities(self) -> dict:
         return {
             "models": list(self.PRICING.keys()),
-            "aspect_ratios": self.ASPECT_RATIOS,
-            "durations": self.DURATIONS,
             "supports_text_to_video": True,
             "supports_image_to_video": True,
-            "supports_subject_reference": True,
-            "supports_camera_movement": True,
         }
