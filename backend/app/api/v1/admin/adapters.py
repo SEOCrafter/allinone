@@ -247,6 +247,9 @@ async def adapter_health(
         "anthropic": settings.ANTHROPIC_API_KEY,
         "gemini": settings.GEMINI_API_KEY,
         "deepseek": settings.DEEPSEEK_API_KEY,
+        "nano_banana": settings.KIE_API_KEY,
+        "kling": settings.KIE_API_KEY,
+        "midjourney": settings.KIE_API_KEY,
     }
     
     api_key = api_keys.get(adapter_name)
@@ -297,6 +300,9 @@ async def test_adapter(
         "anthropic": settings.ANTHROPIC_API_KEY,
         "gemini": settings.GEMINI_API_KEY,
         "deepseek": settings.DEEPSEEK_API_KEY,
+        "nano_banana": settings.KIE_API_KEY,
+        "kling": settings.KIE_API_KEY,
+        "midjourney": settings.KIE_API_KEY,
     }
     
     api_key = api_keys.get(adapter_name)
