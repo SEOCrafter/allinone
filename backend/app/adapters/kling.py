@@ -47,7 +47,7 @@ class KlingAdapter(BaseAdapter, KieBaseAdapter):
         },
     }
 
-    MODES = ["720p", "1080p"]
+    ASPECT_RATIOS = ["16:9", "9:16", "1:1", "4:3", "3:4"]
     DURATIONS = ["5", "10"]
 
     def __init__(self, api_key: str, default_model: str = "kling-2.6/text-to-video", **kwargs):
@@ -65,6 +65,7 @@ class KlingAdapter(BaseAdapter, KieBaseAdapter):
         video_urls: Optional[List[str]] = None,
         duration: str = "5",
         sound: bool = False,
+        aspect_ratio: str = "16:9",
         **params
     ) -> GenerationResult:
         model = model or self.default_model
@@ -74,6 +75,7 @@ class KlingAdapter(BaseAdapter, KieBaseAdapter):
             "prompt": prompt,
             "duration": duration_str,
             "sound": sound,
+            "aspect_ratio": aspect_ratio,
         }
 
         if model == "kling-2.6/motion-control":
@@ -119,12 +121,14 @@ class KlingAdapter(BaseAdapter, KieBaseAdapter):
         prompt: str,
         duration: str = "5",
         sound: bool = False,
+        aspect_ratio: str = "16:9",
         callback_url: Optional[str] = None,
     ) -> KieTaskResult:
         input_data = {
             "prompt": prompt,
             "duration": str(duration),
             "sound": sound,
+            "aspect_ratio": aspect_ratio,
         }
 
         return await self.create_task("kling-2.6/text-to-video", input_data, callback_url)
@@ -171,7 +175,7 @@ class KlingAdapter(BaseAdapter, KieBaseAdapter):
         try:
             result = await self.create_task(
                 "kling-2.6/text-to-video",
-                {"prompt": "A simple animation test", "duration": "5", "sound": False},
+                {"prompt": "A simple animation test", "duration": "5", "sound": False, "aspect_ratio": "16:9"},
             )
             latency = int((time.time() - start) * 1000)
             if result.success and result.task_id:
@@ -191,6 +195,7 @@ class KlingAdapter(BaseAdapter, KieBaseAdapter):
     def get_capabilities(self) -> dict:
         return {
             "models": list(self.PRICING.keys()),
+            "aspect_ratios": self.ASPECT_RATIOS,
             "durations": self.DURATIONS,
             "supports_sound": True,
             "supports_motion_control": True,
