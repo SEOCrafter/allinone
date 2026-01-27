@@ -12,10 +12,37 @@ class RunwayAdapter(BaseAdapter, KieBaseAdapter):
     provider_type = ProviderType.VIDEO
 
     PRICING = {
-        "gen4": {"per_second": 0.05, "display_name": "Gen-4"},
-        "gen4-turbo": {"per_second": 0.025, "display_name": "Gen-4 Turbo"},
-        "gen3-alpha": {"per_second": 0.04, "display_name": "Gen-3 Alpha"},
-        "gen3-alpha-turbo": {"per_second": 0.02, "display_name": "Gen-3 Alpha Turbo"},
+        "runway-t2v-5s-720p": {"per_video": 0.06, "display_name": "Runway T2V 5s 720p"},
+        "runway-t2v-10s-720p": {"per_video": 0.15, "display_name": "Runway T2V 10s 720p"},
+        "runway-t2v-5s-1080p": {"per_video": 0.15, "display_name": "Runway T2V 5s 1080p"},
+        "runway-i2v-5s-720p": {"per_video": 0.06, "display_name": "Runway I2V 5s 720p"},
+        "runway-i2v-10s-720p": {"per_video": 0.15, "display_name": "Runway I2V 10s 720p"},
+        "runway-i2v-5s-1080p": {"per_video": 0.15, "display_name": "Runway I2V 5s 1080p"},
+        "runway-aleph": {"per_video": 0.55, "display_name": "Runway Aleph"},
+        "gen4": {
+            "5s_720p": 0.06,
+            "10s_720p": 0.15,
+            "5s_1080p": 0.15,
+            "display_name": "Gen-4",
+        },
+        "gen4-turbo": {
+            "5s_720p": 0.06,
+            "10s_720p": 0.15,
+            "5s_1080p": 0.15,
+            "display_name": "Gen-4 Turbo",
+        },
+        "gen3-alpha": {
+            "5s_720p": 0.06,
+            "10s_720p": 0.15,
+            "5s_1080p": 0.15,
+            "display_name": "Gen-3 Alpha",
+        },
+        "gen3-alpha-turbo": {
+            "5s_720p": 0.06,
+            "10s_720p": 0.15,
+            "5s_1080p": 0.15,
+            "display_name": "Gen-3 Alpha Turbo",
+        },
     }
 
     def __init__(self, api_key: str, default_model: str = "gen4-turbo", **kwargs):
@@ -201,7 +228,7 @@ class RunwayAdapter(BaseAdapter, KieBaseAdapter):
         return GenerationResult(
             success=True,
             content=result.result_url,
-            provider_cost=self.calculate_cost(model=model, duration=duration),
+            provider_cost=self.calculate_cost(model=model, duration=duration, quality=quality),
             raw_response=result.raw_response,
         )
 
@@ -219,10 +246,30 @@ class RunwayAdapter(BaseAdapter, KieBaseAdapter):
         except Exception as e:
             return ProviderHealth(status=ProviderStatus.DOWN, error=str(e))
 
-    def calculate_cost(self, model: Optional[str] = None, duration: int = 5, **params) -> float:
+    def calculate_cost(self, model: Optional[str] = None, duration: int = 5, quality: str = "720p", **params) -> float:
         model = model or self.default_model
-        pricing = self.PRICING.get(model, self.PRICING["gen4-turbo"])
-        return pricing.get("per_second", 0.025) * duration
+        
+        if model == "runway-aleph":
+            return 0.55
+        
+        pricing = self.PRICING.get(model)
+        
+        if pricing and "per_video" in pricing:
+            return pricing["per_video"]
+        
+        if pricing:
+            key = f"{duration}s_{quality}"
+            if key in pricing:
+                return pricing[key]
+        
+        if duration == 5 and quality == "720p":
+            return 0.06
+        elif duration == 10 and quality == "720p":
+            return 0.15
+        elif duration == 5 and quality == "1080p":
+            return 0.15
+        
+        return 0.15
 
     def get_capabilities(self) -> dict:
         return {

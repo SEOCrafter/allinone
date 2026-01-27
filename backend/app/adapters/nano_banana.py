@@ -5,20 +5,36 @@ from app.adapters.kie_base import KieBaseAdapter, KieTaskResult
 
 class NanoBananaAdapter(BaseAdapter, KieBaseAdapter):
     name = "nano_banana"
-    display_name = "Nano Banana Pro"
+    display_name = "Google Imagen"
     provider_type = ProviderType.IMAGE
 
     PRICING = {
+        "google/imagen-standard": {
+            "per_image": 0.02,
+            "display_name": "Imagen Standard",
+        },
+        "google/imagen-edit": {
+            "per_image": 0.02,
+            "display_name": "Imagen Edit",
+        },
+        "google/imagen-pro": {
+            "1K": 0.09,
+            "2K": 0.09,
+            "4K": 0.12,
+            "display_name": "Imagen Pro",
+        },
         "nano-banana-pro": {
-            "per_image": 0.12,
-            "display_name": "Nano Banana Pro (Gemini 3)",
+            "1K": 0.09,
+            "2K": 0.09,
+            "4K": 0.12,
+            "display_name": "Nano Banana Pro (Imagen Pro)",
         },
         "google/nano-banana": {
-            "per_image": 0.08,
-            "display_name": "Nano Banana (Standard)",
+            "per_image": 0.02,
+            "display_name": "Nano Banana (Imagen Standard)",
         },
         "google/nano-banana-edit": {
-            "per_image": 0.10,
+            "per_image": 0.02,
             "display_name": "Nano Banana Edit",
         },
     }
@@ -65,7 +81,7 @@ class NanoBananaAdapter(BaseAdapter, KieBaseAdapter):
         return GenerationResult(
             success=True,
             content=result.result_url,
-            provider_cost=self.calculate_cost(model=model),
+            provider_cost=self.calculate_cost(model=model, resolution=resolution),
             raw_response=result.raw_response,
         )
 
@@ -107,10 +123,14 @@ class NanoBananaAdapter(BaseAdapter, KieBaseAdapter):
         except Exception as e:
             return ProviderHealth(status=ProviderStatus.DOWN, error=str(e))
 
-    def calculate_cost(self, model: Optional[str] = None, **params) -> float:
+    def calculate_cost(self, model: Optional[str] = None, resolution: str = "1K", **params) -> float:
         model = model or self.default_model
         pricing = self.PRICING.get(model, self.PRICING["nano-banana-pro"])
-        return pricing["per_image"]
+        
+        if "per_image" in pricing:
+            return pricing["per_image"]
+        
+        return pricing.get(resolution, pricing.get("1K", 0.09))
 
     def get_capabilities(self) -> dict:
         return {

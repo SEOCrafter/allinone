@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getAdapters, getAdaptersStatus, getAdaptersBalances, testAdapter, healthCheckAdapter, setProviderBalance } from '../api/client';
+import { testAdapter, healthCheckAdapter, setProviderBalance } from '../api/client';
 import { Send, RefreshCw, Loader2, Save } from 'lucide-react';
 
 interface Adapter {
@@ -13,6 +13,7 @@ interface Adapter {
     pricing: {
       input_per_1k: number;
       output_per_1k: number;
+      per_request?: number;
     };
   }>;
 }
@@ -68,12 +69,10 @@ export default function Adapters() {
   }, []);
 
   const loadData = async () => {
-    console.log('loadData started');
     setLoading(true);
     const token = localStorage.getItem('token');
     const BASE = 'http://95.140.153.151:8100/api/v1';
     
-    // Adapters
     let adaptersData: Adapter[] = [];
     try {
       const res = await fetch(`${BASE}/admin/adapters`, {
@@ -87,7 +86,6 @@ export default function Adapters() {
       console.error('Adapters failed:', err);
     }
     
-    // Balances
     let balancesData: AdapterBalance[] = [];
     try {
       const res = await fetch(`${BASE}/admin/adapters/balances`, {
@@ -119,7 +117,6 @@ export default function Adapters() {
     
     setLoading(false);
     
-    // Status в фоне
     try {
       const res = await fetch(`${BASE}/admin/adapters/status`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -140,7 +137,6 @@ export default function Adapters() {
     setBalanceSaving(prev => ({ ...prev, [provider]: true }));
     try {
       await setProviderBalance(provider, value);
-      // Обновляем локально
       setBalances(prev => prev.map(b => 
         b.provider === provider 
           ? { ...b, balance_usd: value, total_deposited_usd: value, total_spent_usd: 0 }
@@ -204,55 +200,22 @@ export default function Adapters() {
     }
   };
 
-  const handleHealthCheckAll = async () => {
-    const names = statuses.map(s => s.name);
-    names.forEach(name => setHealthCheckLoading(prev => ({ ...prev, [name]: true })));
-    
-    await Promise.all(names.map(async (name) => {
-      try {
-        const response = await healthCheckAdapter(name);
-        setStatuses(prev => prev.map(s => 
-          s.name === name 
-            ? { ...s, status: response.data.status, latency_ms: response.data.latency_ms, error: response.data.error }
-            : s
-        ));
-      } catch (err: unknown) {
-        const error = err as { response?: { data?: { detail?: string } }; message?: string };
-        setStatuses(prev => prev.map(s => 
-          s.name === name 
-            ? { ...s, status: 'error', error: error.response?.data?.detail || error.message || 'Unknown error' }
-            : s
-        ));
-      } finally {
-        setHealthCheckLoading(prev => ({ ...prev, [name]: false }));
-      }
-    }));
-  };
-
   const handleTest = async () => {
-    if (!selectedAdapter || !testMessage) return;
+    if (!testMessage || !selectedAdapter) return;
+
     setTestLoading(true);
     setTestResult(null);
+
     try {
-      const response = await testAdapter(selectedAdapter, testMessage, selectedModel || undefined);
+      const response = await testAdapter(
+        selectedAdapter, 
+        testMessage, 
+        selectedModel || undefined
+      );
       setTestResult(response.data);
-      // Обновляем балансы после теста
-      const balancesRes = await getAdaptersBalances();
-      setBalances(balancesRes.data.balances);
-      const inputs: Record<string, string> = {};
-      balancesRes.data.balances.forEach((b: AdapterBalance) => {
-        inputs[b.provider] = b.balance_usd?.toString() || '0';
-      });
-      setBalanceInputs(inputs);
     } catch (err: unknown) {
-      const error = err as { response?: { data?: unknown }; message?: string };
-      setTestResult({
-        ok: false,
-        frontend_request: { message: testMessage, model: selectedModel },
-        provider_request: null,
-        provider_response_raw: null,
-        error: (error.response?.data as Record<string, unknown>) || { message: error.message },
-      });
+      const error = err as { response?: { data?: TestResult } };
+      setTestResult(error.response?.data || { ok: false, frontend_request: {}, provider_request: null, provider_response_raw: null, error: { message: 'Ошибка запроса' } });
     } finally {
       setTestLoading(false);
     }
@@ -260,95 +223,75 @@ export default function Adapters() {
 
   const getStatusBg = (status: string) => {
     switch (status) {
-      case 'healthy':
-      case 'active':
-        return 'bg-green-600';
-      case 'degraded':
-      case 'low':
-        return 'bg-yellow-600';
-      case 'unhealthy':
-      case 'error':
-        return 'bg-red-600';
-      default:
-        return 'bg-gray-600';
+      case 'healthy': return 'bg-green-600';
+      case 'active': return 'bg-green-600';
+      case 'degraded': return 'bg-yellow-600';
+      case 'low': return 'bg-yellow-600';
+      case 'unhealthy': return 'bg-red-600';
+      case 'error': return 'bg-red-600';
+      default: return 'bg-gray-600';
     }
   };
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'healthy':
-        return 'РАБОТАЕТ';
-      case 'active':
-        return 'АКТИВЕН';
-      case 'degraded':
-        return 'ДЕГРАДАЦИЯ';
-      case 'low':
-        return 'МАЛО';
-      case 'unhealthy':
-        return 'НЕДОСТУПЕН';
-      case 'error':
-        return 'ОШИБКА';
-      default:
-        return status.toUpperCase();
+      case 'healthy': return 'OK';
+      case 'active': return 'Активен';
+      case 'degraded': return 'Проблемы';
+      case 'low': return 'Мало';
+      case 'unhealthy': return 'Ошибка';
+      case 'error': return 'Ошибка';
+      default: return status;
     }
   };
 
-  const currentAdapter = adapters.find((a) => a.name === selectedAdapter);
   const types = [...new Set(adapters.map(a => a.type))];
+  const currentAdapter = adapters.find((a) => a.name === selectedAdapter);
+
+  const formatPrice = (price: number) => {
+    if (price === 0) return '$0.0000';
+    if (price < 0.0001) return `$${price.toFixed(6)}`;
+    if (price < 0.01) return `$${price.toFixed(4)}`;
+    return `$${price.toFixed(2)}`;
+  };
 
   if (loading) {
-    return <div className="p-6 text-gray-400">Загрузка...</div>;
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-white" />
+      </div>
+    );
   }
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-white">Адаптеры</h1>
-        <button
-          onClick={loadData}
-          className="flex items-center gap-2 px-4 py-2 bg-[#3f3f3f] hover:bg-[#4f4f4f] text-white rounded-lg"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Обновить
-        </button>
-      </div>
+    <div>
+      <h1 className="text-2xl font-bold text-white mb-6">Адаптеры</h1>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        {/* Статус провайдеров */}
         <div className="bg-[#2f2f2f] rounded-lg p-4">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold text-white">Статус провайдеров</h2>
-            <button
-              onClick={handleHealthCheckAll}
-              disabled={Object.values(healthCheckLoading).some(Boolean)}
-              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white text-sm rounded"
-            >
-              Проверить все
-            </button>
-          </div>
+          <h2 className="text-lg font-semibold text-white mb-4">Статус провайдеров</h2>
           <div className="space-y-2">
             {statuses.map((s) => (
-              <div key={s.name} className="flex items-center justify-between bg-[#252525] rounded-lg p-3">
-                <div className="flex items-center gap-3">
-                  <span className={`px-2 py-1 rounded text-xs font-bold ${getStatusBg(s.status)} transition-all`}>
+              <div key={s.name} className="flex items-center justify-between bg-[#252525] px-4 py-2 rounded-lg">
+                <span className="text-gray-300">{s.name}</span>
+                <div className="flex items-center gap-2">
+                  {s.latency_ms && <span className="text-gray-400 text-sm">{s.latency_ms}ms</span>}
+                  <span className={`px-2 py-1 rounded text-xs font-bold ${getStatusBg(s.status)}`}>
                     {getStatusText(s.status)}
                   </span>
-                  <span className="text-white">{s.name}</span>
-                  {s.latency_ms && <span className="text-gray-500 text-sm">{s.latency_ms}мс</span>}
+                  <button
+                    onClick={() => handleHealthCheck(s.name)}
+                    disabled={healthCheckLoading[s.name]}
+                    className="p-1 text-gray-400 hover:text-white"
+                  >
+                    {healthCheckLoading[s.name] ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                  </button>
                 </div>
-                <button
-                  onClick={() => handleHealthCheck(s.name)}
-                  disabled={healthCheckLoading[s.name]}
-                  className="px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white text-sm rounded flex items-center gap-1"
-                >
-                  {healthCheckLoading[s.name] ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Проверить'}
-                </button>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Балансы аккаунтов */}
         <div className="bg-[#2f2f2f] rounded-lg p-4">
           <h2 className="text-lg font-semibold text-white mb-4">Балансы аккаунтов</h2>
           <div className="space-y-3">
@@ -361,7 +304,6 @@ export default function Adapters() {
                   </span>
                 </div>
                 
-                {/* Ввод баланса */}
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-gray-400">$</span>
                   <input
@@ -381,7 +323,6 @@ export default function Adapters() {
                   </button>
                 </div>
 
-                {/* Статистика */}
                 {b.total_deposited_usd !== undefined && (
                   <div className="text-xs text-gray-400 space-y-1">
                     <div className="flex justify-between">
@@ -406,7 +347,6 @@ export default function Adapters() {
         </div>
       </div>
 
-      {/* Тестирование */}
       <div className="bg-[#2f2f2f] rounded-lg p-4 mb-6">
         <h2 className="text-lg font-semibold text-white mb-4">Тестирование адаптера</h2>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
@@ -418,7 +358,7 @@ export default function Adapters() {
               className="w-full px-4 py-2 bg-[#3f3f3f] border border-gray-600 rounded-lg text-white"
             >
               {types.length > 0 ? types.map((t) => (
-                <option key={t} value={t}>{t === 'text' ? 'Текст' : t === 'image' ? 'Изображение' : t === 'audio' ? 'Аудио' : t}</option>
+                <option key={t} value={t}>{t === 'text' ? 'Текст' : t === 'image' ? 'Изображение' : t === 'video' ? 'Видео' : t === 'audio' ? 'Аудио' : t}</option>
               )) : <option value="text">Текст</option>}
             </select>
           </div>
@@ -511,17 +451,16 @@ export default function Adapters() {
         )}
       </div>
 
-      {/* Таблица моделей */}
       <div className="bg-[#2f2f2f] rounded-lg p-4">
         <h2 className="text-lg font-semibold text-white mb-4">Доступные модели</h2>
         <table className="w-full">
           <thead>
             <tr className="text-gray-400 text-left">
-              <th className="pb-3">Провайдер</th>
-              <th className="pb-3">Модель</th>
+              <th className="pb-3">Название</th>
+              <th className="pb-3">Модель ID</th>
               <th className="pb-3">Тип</th>
-              <th className="pb-3">Вход / 1K</th>
-              <th className="pb-3">Выход / 1K</th>
+              <th className="pb-3">Цена (вход)</th>
+              <th className="pb-3">Цена (выход)</th>
             </tr>
           </thead>
           <tbody>
@@ -529,10 +468,30 @@ export default function Adapters() {
               adapter.models?.map((model) => (
                 <tr key={`${adapter.name}-${model.id}`} className="border-t border-gray-700">
                   <td className="py-3 text-gray-300">{model.display_name || model.id}</td>
-                  <td className="py-3 text-gray-300">{model.id}</td>
-                  <td className="py-3 text-gray-300">{model.type === 'text' ? 'Текст' : model.type}</td>
-                  <td className="py-3 text-gray-300">${model.pricing.input_per_1k.toFixed(4)}</td>
-                  <td className="py-3 text-gray-300">${model.pricing.output_per_1k.toFixed(4)}</td>
+                  <td className="py-3 text-gray-500 text-sm font-mono">{model.id}</td>
+                  <td className="py-3">
+                    <span className={`px-2 py-1 rounded text-xs font-bold ${
+                      model.type === 'text' ? 'bg-blue-600' : 
+                      model.type === 'image' ? 'bg-purple-600' : 
+                      model.type === 'video' ? 'bg-pink-600' : 'bg-gray-600'
+                    }`}>
+                      {model.type === 'text' ? 'Текст' : 
+                       model.type === 'image' ? 'Изображение' : 
+                       model.type === 'video' ? 'Видео' : model.type}
+                    </span>
+                  </td>
+                  <td className="py-3 text-gray-300">
+                    {model.type === 'text' 
+                      ? `${formatPrice(model.pricing.input_per_1k)} / 1K`
+                      : formatPrice(model.pricing.per_request || model.pricing.input_per_1k)
+                    }
+                  </td>
+                  <td className="py-3 text-gray-300">
+                    {model.type === 'text' 
+                      ? `${formatPrice(model.pricing.output_per_1k)} / 1K`
+                      : <span className="text-gray-500">—</span>
+                    }
+                  </td>
                 </tr>
               ))
             )}

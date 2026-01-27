@@ -9,9 +9,22 @@ class SeedanceAdapter(BaseAdapter, KieBaseAdapter):
     provider_type = ProviderType.VIDEO
 
     PRICING = {
-        "bytedance/seedance-1.5-pro": {"per_video": 0.40, "display_name": "Seedance 1.5 Pro"},
-        "bytedance/seedance-1.5-standard": {"per_video": 0.25, "display_name": "Seedance 1.5 Standard"},
-        "bytedance/v1-lite-image-to-video": {"per_video": 0.20, "display_name": "Seedance Lite I2V"},
+        "bytedance/seedance-1.0-pro-fast": {
+            "per_10s": 0.08,
+            "display_name": "Seedance 1.0 Pro Fast",
+        },
+        "bytedance/seedance-1.5-pro": {
+            "per_video": 0.40,
+            "display_name": "Seedance 1.5 Pro",
+        },
+        "bytedance/seedance-1.5-standard": {
+            "per_video": 0.25,
+            "display_name": "Seedance 1.5 Standard",
+        },
+        "bytedance/v1-lite-image-to-video": {
+            "per_video": 0.20,
+            "display_name": "Seedance Lite I2V",
+        },
     }
 
     def __init__(self, api_key: str, default_model: str = "bytedance/seedance-1.5-pro", **kwargs):
@@ -54,7 +67,7 @@ class SeedanceAdapter(BaseAdapter, KieBaseAdapter):
         return GenerationResult(
             success=True,
             content=result.result_url,
-            provider_cost=self.calculate_cost(model=model),
+            provider_cost=self.calculate_cost(model=model, duration=duration),
             raw_response=result.raw_response,
         )
 
@@ -73,16 +86,21 @@ class SeedanceAdapter(BaseAdapter, KieBaseAdapter):
         except Exception as e:
             return ProviderHealth(status=ProviderStatus.DOWN, error=str(e))
 
-    def calculate_cost(self, model: Optional[str] = None, **params) -> float:
+    def calculate_cost(self, model: Optional[str] = None, duration: str = "4", **params) -> float:
         model = model or self.default_model
         pricing = self.PRICING.get(model, self.PRICING["bytedance/seedance-1.5-pro"])
+        
+        if "per_10s" in pricing:
+            duration_int = int(duration) if duration else 10
+            return pricing["per_10s"] * (duration_int / 10)
+        
         return pricing.get("per_video", 0.40)
 
     def get_capabilities(self) -> dict:
         return {
             "models": list(self.PRICING.keys()),
             "aspect_ratios": ["16:9", "9:16", "1:1"],
-            "durations": ["4", "8"],
+            "durations": ["4", "8", "10"],
             "supports_text_to_video": True,
             "supports_image_to_video": True,
         }
