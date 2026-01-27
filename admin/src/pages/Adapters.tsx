@@ -64,6 +64,14 @@ export default function Adapters() {
   const [testLoading, setTestLoading] = useState(false);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
 
+  const getHeaders = () => {
+    const token = localStorage.getItem('token');
+    return {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    };
+  };
+
   useEffect(() => {
     loadData();
   }, []);
@@ -82,8 +90,8 @@ export default function Adapters() {
         const data = await res.json();
         adaptersData = data.adapters || [];
       }
-    } catch (err) {
-      console.error('Adapters failed:', err);
+    } catch (e) {
+      console.error('Adapters failed:', e);
     }
     
     let balancesData: AdapterBalance[] = [];
@@ -95,8 +103,8 @@ export default function Adapters() {
         const data = await res.json();
         balancesData = data.balances || [];
       }
-    } catch (err) {
-      console.error('Balances failed:', err);
+    } catch (e) {
+      console.error('Balances failed:', e);
     }
     
     setAdapters(adaptersData);
@@ -125,8 +133,8 @@ export default function Adapters() {
         const data = await res.json();
         setStatuses(data.adapters || []);
       }
-    } catch (err) {
-      console.error('Status failed:', err);
+    } catch (e) {
+      console.error('Status failed:', e);
     }
   };
 
@@ -142,8 +150,8 @@ export default function Adapters() {
           ? { ...b, balance_usd: value, total_deposited_usd: value, total_spent_usd: 0 }
           : b
       ));
-    } catch (err) {
-      console.error('Ошибка сохранения:', err);
+    } catch (e) {
+      console.error('Ошибка сохранения:', e);
     } finally {
       setBalanceSaving(prev => ({ ...prev, [provider]: false }));
     }
@@ -188,8 +196,8 @@ export default function Adapters() {
           ? { ...s, status: response.data.status, latency_ms: response.data.latency_ms, error: response.data.error }
           : s
       ));
-    } catch (err: unknown) {
-      const error = err as { response?: { data?: { detail?: string } }; message?: string };
+    } catch (e) {
+      const error = e as { response?: { data?: { detail?: string } }; message?: string };
       setStatuses(prev => prev.map(s => 
         s.name === name 
           ? { ...s, status: 'error', error: error.response?.data?.detail || error.message || 'Unknown error' }
@@ -206,16 +214,18 @@ export default function Adapters() {
     setTestLoading(true);
     setTestResult(null);
 
+    const BASE = 'http://95.140.153.151:8100/api/v1';
+
     try {
-      const response = await testAdapter(
-        selectedAdapter, 
-        testMessage, 
-        selectedModel || undefined
-      );
-      setTestResult(response.data);
-    } catch (err: unknown) {
-      const error = err as { response?: { data?: TestResult } };
-      setTestResult(error.response?.data || { ok: false, frontend_request: {}, provider_request: null, provider_response_raw: null, error: { message: 'Ошибка запроса' } });
+      const res = await fetch(`${BASE}/admin/adapters/${selectedAdapter}/test`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ message: testMessage, model: selectedModel || undefined })
+      });
+      const data = await res.json();
+      setTestResult(data);
+    } catch (e) {
+      setTestResult({ ok: false, frontend_request: {}, provider_request: null, provider_response_raw: null, error: { message: 'Ошибка запроса' } });
     } finally {
       setTestLoading(false);
     }
