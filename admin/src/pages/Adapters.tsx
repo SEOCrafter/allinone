@@ -68,54 +68,73 @@ export default function Adapters() {
   }, []);
 
   const loadData = async () => {
-    console.log('loadData started');
-    setLoading(true);
+  console.log('loadData started');
+  setLoading(true);
+  const token = localStorage.getItem('token');
+  
+  // Adapters - с retry
+  let adaptersData: Adapter[] = [];
+  for (let i = 0; i < 3; i++) {
     try {
-      console.log('fetching adapters with raw fetch...');
-      const token = localStorage.getItem('token');
-      const rawRes = await fetch('/api/v1/admin/adapters', {
+      const res = await fetch('/api/v1/admin/adapters', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      console.log('raw fetch status:', rawRes.status);
-      const rawData = await rawRes.json();
-      console.log('raw fetch data:', rawData);
-      
-      const adaptersData = rawData.adapters || [];
-      console.log('adapters count:', adaptersData.length);
-      
-      // Балансы через axios
-      const balancesRes = await getAdaptersBalances();
-      const balancesData = balancesRes.data.balances || [];
-      
-      setAdapters(adaptersData);
-      setBalances(balancesData);
-
-      const inputs: Record<string, string> = {};
-      balancesData.forEach((b: AdapterBalance) => {
-        inputs[b.provider] = b.balance_usd?.toString() || '0';
-      });
-      setBalanceInputs(inputs);
-
-      if (adaptersData.length > 0) {
-        setSelectedAdapter(adaptersData[0].name);
-        const firstAdapter = adaptersData[0];
-        if (firstAdapter.models && firstAdapter.models.length > 0) {
-          setSelectedModel(firstAdapter.models[0].id);
-        }
+      if (res.ok) {
+        const data = await res.json();
+        adaptersData = data.adapters || [];
+        break;
       }
     } catch (err) {
-      console.error('Ошибка загрузки:', err);
-    } finally {
-      setLoading(false);
+      console.log(`Adapters attempt ${i + 1} failed`);
+      await new Promise(r => setTimeout(r, 500));
     }
-    
-    try {
-      const statusRes = await getAdaptersStatus();
-      setStatuses(statusRes.data.adapters || []);
-    } catch (err) {
-      console.error('Ошибка статусов:', err);
+  }
+  
+  // Balances
+  let balancesData: AdapterBalance[] = [];
+  try {
+    const res = await fetch('/api/v1/admin/adapters/balances', {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      balancesData = data.balances || [];
     }
-  };
+  } catch (err) {
+    console.error('Balances failed:', err);
+  }
+  
+  setAdapters(adaptersData);
+  setBalances(balancesData);
+  
+  const inputs: Record<string, string> = {};
+  balancesData.forEach((b) => {
+    inputs[b.provider] = b.balance_usd?.toString() || '0';
+  });
+  setBalanceInputs(inputs);
+
+  if (adaptersData.length > 0) {
+    setSelectedAdapter(adaptersData[0].name);
+    if (adaptersData[0].models?.length > 0) {
+      setSelectedModel(adaptersData[0].models[0].id);
+    }
+  }
+  
+  setLoading(false);
+  
+  // Status в фоне
+  try {
+    const res = await fetch('/api/v1/admin/adapters/status', {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setStatuses(data.adapters || []);
+    }
+  } catch (err) {
+    console.error('Status failed:', err);
+  }
+};
 
   const handleSaveBalance = async (provider: string) => {
     const value = parseFloat(balanceInputs[provider] || '0');

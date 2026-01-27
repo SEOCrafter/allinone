@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     S3_SECRET_KEY: str = "minioadmin"
     
     # CORS
-    CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8080"]
+    CORS_ORIGINS: List[str] = ["*"]
     
     # JWT
     JWT_ALGORITHM: str = "HS256"
