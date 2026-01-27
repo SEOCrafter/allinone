@@ -4,7 +4,8 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from fastapi.responses import RedirectResponse
-from sqlalchemy.orm import Session
+from sqlalchemy import select, func
+from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 
 from app.database import get_db
@@ -55,8 +56,8 @@ class StorageStatsResponse(BaseModel):
 @router.post("/upload", response_model=FileUploadResponse)
 async def upload_file(
     file: UploadFile = File(...),
-    category: str = Query(default="uploads", regex="^(images|videos|audio|uploads|temp)$"),
-    db: Session = Depends(get_db),
+    category: str = Query(default="uploads", pattern="^(images|videos|audio|uploads|temp)$"),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     try:
@@ -87,8 +88,8 @@ async def upload_file(
         expires_at=expires_at,
     )
     db.add(db_file)
-    db.commit()
-    db.refresh(db_file)
+    await db.commit()
+    await db.refresh(db_file)
     
     url = storage_service.get_presigned_url(result["key"], expires_in=3600)
     
@@ -128,13 +129,16 @@ async def get_presigned_upload_url(
 @router.get("/download/{file_id}")
 async def download_file(
     file_id: UUID,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    db_file = db.query(FileModel).filter(
-        FileModel.id == file_id,
-        FileModel.user_id == current_user.id,
-    ).first()
+    result = await db.execute(
+        select(FileModel).where(
+            FileModel.id == file_id,
+            FileModel.user_id == current_user.id,
+        )
+    )
+    db_file = result.scalar_one_or_none()
     
     if not db_file:
         raise HTTPException(status_code=404, detail="File not found")
@@ -148,13 +152,16 @@ async def download_file(
 async def get_file_url(
     file_id: UUID,
     expires_in: int = Query(default=3600, ge=60, le=86400),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    db_file = db.query(FileModel).filter(
-        FileModel.id == file_id,
-        FileModel.user_id == current_user.id,
-    ).first()
+    result = await db.execute(
+        select(FileModel).where(
+            FileModel.id == file_id,
+            FileModel.user_id == current_user.id,
+        )
+    )
+    db_file = result.scalar_one_or_none()
     
     if not db_file:
         raise HTTPException(status_code=404, detail="File not found")
@@ -166,20 +173,25 @@ async def get_file_url(
 
 @router.get("", response_model=FileListResponse)
 async def list_files(
-    category: Optional[str] = Query(default=None, regex="^(images|videos|audio|uploads|temp)$"),
+    category: Optional[str] = Query(default=None, pattern="^(images|videos|audio|uploads|temp)$"),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    query = db.query(FileModel).filter(FileModel.user_id == current_user.id)
+    query = select(FileModel).where(FileModel.user_id == current_user.id)
+    count_query = select(func.count(FileModel.id)).where(FileModel.user_id == current_user.id)
     
     if category:
-        query = query.filter(FileModel.category == category)
+        query = query.where(FileModel.category == category)
+        count_query = count_query.where(FileModel.category == category)
     
-    total = query.count()
+    total_result = await db.execute(count_query)
+    total = total_result.scalar()
     
-    db_files = query.order_by(FileModel.created_at.desc()).offset(offset).limit(limit).all()
+    query = query.order_by(FileModel.created_at.desc()).offset(offset).limit(limit)
+    result = await db.execute(query)
+    db_files = result.scalars().all()
     
     files = []
     for f in db_files:
@@ -201,28 +213,31 @@ async def list_files(
 @router.delete("/{file_id}")
 async def delete_file(
     file_id: UUID,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    db_file = db.query(FileModel).filter(
-        FileModel.id == file_id,
-        FileModel.user_id == current_user.id,
-    ).first()
+    result = await db.execute(
+        select(FileModel).where(
+            FileModel.id == file_id,
+            FileModel.user_id == current_user.id,
+        )
+    )
+    db_file = result.scalar_one_or_none()
     
     if not db_file:
         raise HTTPException(status_code=404, detail="File not found")
     
     await storage_service.delete_file(db_file.key)
     
-    db.delete(db_file)
-    db.commit()
+    await db.delete(db_file)
+    await db.commit()
     
     return {"deleted": True, "file_id": str(file_id)}
 
 
 @router.get("/stats", response_model=StorageStatsResponse)
 async def get_storage_stats(
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     stats = await storage_service.get_storage_stats(str(current_user.id))
