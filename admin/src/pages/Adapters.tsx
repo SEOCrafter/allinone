@@ -114,34 +114,21 @@ export default function Adapters() {
     console.log('[loadData] START');
     setLoading(true);
     const token = localStorage.getItem('token');
-    console.log('[loadData] Token exists:', !!token);
     const headers = { Authorization: `Bearer ${token}` };
 
     try {
-      console.log('[loadData] Fetching adapters...');
-      const adaptersRes = await fetch(`${BASE}/admin/adapters`, { headers, signal });
-      console.log('[loadData] Adapters response:', adaptersRes.ok);
-      const adaptersText = await adaptersRes.text();
-      console.log('[loadData] Adapters text length:', adaptersText.length);
-      const adaptersJson = JSON.parse(adaptersText);
+      const [adaptersJson, balancesJson, settingsJson] = await Promise.all([
+        fetch(`${BASE}/admin/adapters`, { headers, signal }).then(r => r.json()),
+        fetch(`${BASE}/admin/adapters/balances`, { headers, signal }).then(r => r.json()),
+        fetch(`${BASE}/admin/models/settings`, { headers, signal }).then(r => r.json()),
+      ]);
+
+      console.log('[loadData] All fetched');
+
       const adaptersData = adaptersJson.adapters || [];
-      console.log('[loadData] Adapters parsed:', adaptersData.length);
-
-      console.log('[loadData] Fetching balances...');
-      const balancesRes = await fetch(`${BASE}/admin/adapters/balances`, { headers, signal });
-      console.log('[loadData] Balances response:', balancesRes.ok);
-      const balancesJson = await balancesRes.json();
       const balancesData = balancesJson.balances || [];
-      console.log('[loadData] Balances parsed:', balancesData.length);
-
-      console.log('[loadData] Fetching settings...');
-      const settingsRes = await fetch(`${BASE}/admin/models/settings`, { headers, signal });
-      console.log('[loadData] Settings response:', settingsRes.ok);
-      const settingsJson = await settingsRes.json();
       const settingsData = settingsJson.settings || {};
-      console.log('[loadData] Settings parsed:', Object.keys(settingsData).length);
 
-      console.log('[loadData] Setting state...');
       setAdapters(adaptersData);
       setBalances(balancesData);
       setModelSettings(settingsData);
@@ -160,27 +147,16 @@ export default function Adapters() {
       }
       console.log('[loadData] State set OK');
     } catch (e) {
-      if ((e as Error).name === 'AbortError') {
-        console.log('[loadData] Aborted');
-        return;
-      }
+      if ((e as Error).name === 'AbortError') return;
       console.error('[loadData] ERROR:', e);
     } finally {
-      console.log('[loadData] FINALLY - setLoading(false)');
       setLoading(false);
     }
 
-    fetch(`${BASE}/admin/adapters/status`, { headers, signal })
-      .then(res => res.json())
-      .then(data => {
-        console.log('[loadData] Status loaded:', data.adapters?.length);
-        setStatuses(data.adapters || []);
-      })
-      .catch(e => {
-        if ((e as Error).name !== 'AbortError') {
-          console.error('[loadData] Status error:', e);
-        }
-      });
+    fetch(`${BASE}/admin/adapters/status`, { headers })
+      .then(r => r.json())
+      .then(d => setStatuses(d.adapters || []))
+      .catch(console.error);
   };
 
   const handleSaveBalance = async (provider: string) => {
