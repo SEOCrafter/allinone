@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getRequests, getRequest } from '../api/client';
 import { X } from 'lucide-react';
+import { flushSync } from 'react-dom';
 
 interface RequestItem {
   id: string;
@@ -54,17 +55,20 @@ export default function Requests() {
     loadRequests();
   }, []);
 
-  const loadRequests = async () => {
+    const loadRequests = async () => {
     try {
       const response = await getRequests(1, 100);
-      // Бэкенд возвращает { ok: true, data: [...], pagination: {...} }
       const items = response.data?.data;
-      setRequests(Array.isArray(items) ? items : []);
+      flushSync(() => {
+        setRequests(Array.isArray(items) ? items : []);
+        setLoading(false);
+      });
     } catch (err) {
       console.error('Ошибка загрузки запросов:', err);
-      setRequests([]);
-    } finally {
-      setLoading(false);
+      flushSync(() => {
+        setRequests([]);
+        setLoading(false);
+      });
     }
   };
 

@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'http://95.140.153.151:8100/api/v1',
+  baseURL: '/api/v1',
   headers: {
     'Cache-Control': 'no-cache',
     'Pragma': 'no-cache',
