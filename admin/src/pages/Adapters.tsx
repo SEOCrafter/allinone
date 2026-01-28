@@ -105,11 +105,12 @@ export default function Adapters() {
   };
 
   useEffect(() => {
-    console.log('[useEffect] Component mounted, calling loadData');
-    loadData();
+    const controller = new AbortController();
+    loadData(controller.signal);
+    return () => controller.abort();
   }, []);
 
-    const loadData = async () => {
+  const loadData = async (signal?: AbortSignal) => {
     console.log('[loadData] START');
     setLoading(true);
     const token = localStorage.getItem('token');
@@ -118,7 +119,7 @@ export default function Adapters() {
 
     try {
       console.log('[loadData] Fetching adapters...');
-      const adaptersRes = await fetch(`${BASE}/admin/adapters`, { headers });
+      const adaptersRes = await fetch(`${BASE}/admin/adapters`, { headers, signal });
       console.log('[loadData] Adapters response:', adaptersRes.ok);
       const adaptersText = await adaptersRes.text();
       console.log('[loadData] Adapters text length:', adaptersText.length);
@@ -127,14 +128,14 @@ export default function Adapters() {
       console.log('[loadData] Adapters parsed:', adaptersData.length);
 
       console.log('[loadData] Fetching balances...');
-      const balancesRes = await fetch(`${BASE}/admin/adapters/balances`, { headers });
+      const balancesRes = await fetch(`${BASE}/admin/adapters/balances`, { headers, signal });
       console.log('[loadData] Balances response:', balancesRes.ok);
       const balancesJson = await balancesRes.json();
       const balancesData = balancesJson.balances || [];
       console.log('[loadData] Balances parsed:', balancesData.length);
 
       console.log('[loadData] Fetching settings...');
-      const settingsRes = await fetch(`${BASE}/admin/models/settings`, { headers });
+      const settingsRes = await fetch(`${BASE}/admin/models/settings`, { headers, signal });
       console.log('[loadData] Settings response:', settingsRes.ok);
       const settingsJson = await settingsRes.json();
       const settingsData = settingsJson.settings || {};
@@ -159,19 +160,27 @@ export default function Adapters() {
       }
       console.log('[loadData] State set OK');
     } catch (e) {
+      if ((e as Error).name === 'AbortError') {
+        console.log('[loadData] Aborted');
+        return;
+      }
       console.error('[loadData] ERROR:', e);
     } finally {
       console.log('[loadData] FINALLY - setLoading(false)');
       setLoading(false);
     }
 
-    fetch(`${BASE}/admin/adapters/status`, { headers })
+    fetch(`${BASE}/admin/adapters/status`, { headers, signal })
       .then(res => res.json())
       .then(data => {
         console.log('[loadData] Status loaded:', data.adapters?.length);
         setStatuses(data.adapters || []);
       })
-      .catch(e => console.error('[loadData] Status error:', e));
+      .catch(e => {
+        if ((e as Error).name !== 'AbortError') {
+          console.error('[loadData] Status error:', e);
+        }
+      });
   };
 
   const handleSaveBalance = async (provider: string) => {
