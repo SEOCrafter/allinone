@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { testAdapter, healthCheckAdapter, setProviderBalance } from '../api/client';
+import { healthCheckAdapter, setProviderBalance } from '../api/client';
 import { Send, RefreshCw, Loader2, Save, Pencil, Check, X } from 'lucide-react';
 
 interface Adapter {
@@ -53,6 +53,17 @@ interface TestResult {
   error?: Record<string, unknown>;
 }
 
+const fetchWithTimeout = async (url: string, options: RequestInit, timeoutMs: number = 10000) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    return response;
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
 export default function Adapters() {
   const [adapters, setAdapters] = useState<Adapter[]>([]);
   const [statuses, setStatuses] = useState<AdapterStatus[]>([]);
@@ -91,76 +102,63 @@ export default function Adapters() {
   const loadData = async () => {
     setLoading(true);
     const token = localStorage.getItem('token');
-    
-    let adaptersData: Adapter[] = [];
+    const headers = { Authorization: `Bearer ${token}` };
+
     try {
-      const res = await fetch(`${BASE}/admin/adapters`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
+      const [adaptersRes, balancesRes, settingsRes] = await Promise.allSettled([
+        fetchWithTimeout(`${BASE}/admin/adapters`, { headers }, 10000),
+        fetchWithTimeout(`${BASE}/admin/adapters/balances`, { headers }, 10000),
+        fetchWithTimeout(`${BASE}/admin/models/settings`, { headers }, 10000),
+      ]);
+
+      let adaptersData: Adapter[] = [];
+      if (adaptersRes.status === 'fulfilled' && adaptersRes.value.ok) {
+        const data = await adaptersRes.value.json();
         adaptersData = data.adapters || [];
       }
-    } catch (e) {
-      console.error('Adapters failed:', e);
-    }
-    
-    let balancesData: AdapterBalance[] = [];
-    try {
-      const res = await fetch(`${BASE}/admin/adapters/balances`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
+
+      let balancesData: AdapterBalance[] = [];
+      if (balancesRes.status === 'fulfilled' && balancesRes.value.ok) {
+        const data = await balancesRes.value.json();
         balancesData = data.balances || [];
       }
-    } catch (e) {
-      console.error('Balances failed:', e);
-    }
 
-    let settingsData: Record<string, ModelSettingData> = {};
-    try {
-      const res = await fetch(`${BASE}/admin/models/settings`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
+      let settingsData: Record<string, ModelSettingData> = {};
+      if (settingsRes.status === 'fulfilled' && settingsRes.value.ok) {
+        const data = await settingsRes.value.json();
         settingsData = data.settings || {};
       }
-    } catch (e) {
-      console.error('Model settings failed:', e);
-    }
-    
-    setAdapters(adaptersData);
-    setBalances(balancesData);
-    setModelSettings(settingsData);
-    
-    const inputs: Record<string, string> = {};
-    balancesData.forEach((b) => {
-      inputs[b.provider] = b.balance_usd?.toString() || '0';
-    });
-    setBalanceInputs(inputs);
 
-    if (adaptersData.length > 0) {
-      setSelectedAdapter(adaptersData[0].name);
-      if (adaptersData[0].models?.length > 0) {
-        setSelectedModel(adaptersData[0].models[0].id);
-      }
-    }
-    
-    setLoading(false);
-    
-    try {
-      const res = await fetch(`${BASE}/admin/adapters/status`, {
-        headers: { Authorization: `Bearer ${token}` }
+      setAdapters(adaptersData);
+      setBalances(balancesData);
+      setModelSettings(settingsData);
+
+      const inputs: Record<string, string> = {};
+      balancesData.forEach((b) => {
+        inputs[b.provider] = b.balance_usd?.toString() || '0';
       });
-      if (res.ok) {
-        const data = await res.json();
-        setStatuses(data.adapters || []);
+      setBalanceInputs(inputs);
+
+      if (adaptersData.length > 0 && !selectedAdapter) {
+        setSelectedAdapter(adaptersData[0].name);
+        if (adaptersData[0].models?.length > 0) {
+          setSelectedModel(adaptersData[0].models[0].id);
+        }
       }
     } catch (e) {
-      console.error('Status failed:', e);
+      console.error('Load data failed:', e);
+    } finally {
+      setLoading(false);
     }
+
+    fetchWithTimeout(`${BASE}/admin/adapters/status`, { headers: { Authorization: `Bearer ${token}` } }, 15000)
+      .then(async (res) => {
+        if (res.ok) {
+          const data = await res.json();
+          setStatuses(data.adapters || []);
+        }
+      })
+      .catch((e) => console.error('Status failed:', e));
   };
 
   const handleSaveBalance = async (provider: string) => {
@@ -195,11 +193,11 @@ export default function Adapters() {
     
     setSavingSettings(prev => ({ ...prev, [key]: true }));
     try {
-      const res = await fetch(`${BASE}/admin/models/${adapterName}/${encodeURIComponent(modelId)}/settings`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({ credits_price: value })
-      });
+      const res = await fetchWithTimeout(
+        `${BASE}/admin/models/${adapterName}/${encodeURIComponent(modelId)}/settings`,
+        { method: 'POST', headers: getHeaders(), body: JSON.stringify({ credits_price: value }) },
+        10000
+      );
       if (res.ok) {
         setModelSettings(prev => ({
           ...prev,
@@ -229,11 +227,11 @@ export default function Adapters() {
     
     setSavingSettings(prev => ({ ...prev, [key]: true }));
     try {
-      const res = await fetch(`${BASE}/admin/models/${adapterName}/${encodeURIComponent(modelId)}/settings`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({ is_enabled: newEnabled })
-      });
+      const res = await fetchWithTimeout(
+        `${BASE}/admin/models/${adapterName}/${encodeURIComponent(modelId)}/settings`,
+        { method: 'POST', headers: getHeaders(), body: JSON.stringify({ is_enabled: newEnabled }) },
+        10000
+      );
       if (res.ok) {
         setModelSettings(prev => ({
           ...prev,
@@ -308,15 +306,15 @@ export default function Adapters() {
     setTestResult(null);
 
     try {
-      const res = await fetch(`${BASE}/admin/adapters/${selectedAdapter}/test`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({ message: testMessage, model: selectedModel || undefined })
-      });
+      const res = await fetchWithTimeout(
+        `${BASE}/admin/adapters/${selectedAdapter}/test`,
+        { method: 'POST', headers: getHeaders(), body: JSON.stringify({ message: testMessage, model: selectedModel || undefined }) },
+        60000
+      );
       const data = await res.json();
       setTestResult(data);
     } catch (e) {
-      setTestResult({ ok: false, frontend_request: {}, provider_request: null, provider_response_raw: null, error: { message: 'Ошибка запроса' } });
+      setTestResult({ ok: false, frontend_request: {}, provider_request: null, provider_response_raw: null, error: { message: 'Ошибка запроса или таймаут' } });
     } finally {
       setTestLoading(false);
     }
