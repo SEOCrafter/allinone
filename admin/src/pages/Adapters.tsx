@@ -158,7 +158,17 @@ export default function Adapters() {
     abortRef.current?.abort();
     abortRef.current = new AbortController();
     setLoading(true);
+    setStatuses([]);
     loadData(abortRef.current.signal);
+    
+    // Загружаем статусы отдельно
+    const token = localStorage.getItem('token');
+    axios.get(`${BASE}/admin/adapters/status?_t=${Date.now()}`, { 
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 15000 
+    })
+      .then(res => setStatuses(res.data.adapters || []))
+      .catch(() => {});
   };
 
   const handleSaveBalance = async (provider: string) => {
@@ -379,7 +389,7 @@ export default function Adapters() {
           <h2 className="text-lg font-semibold text-white mb-4">Статус провайдеров</h2>
           <div className="space-y-2">
             {statuses.length === 0 ? (
-              <div className="text-gray-500 text-center py-4">Загрузка статусов...</div>
+              <div className="text-gray-500 text-center py-4">Нажмите "Обновить" для загрузки статусов</div>
             ) : statuses.map((s) => (
               <div key={s.name} className="flex items-center justify-between bg-[#252525] px-4 py-2 rounded-lg">
                 <span className="text-gray-300">{s.name}</span>
