@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { healthCheckAdapter, setProviderBalance } from '../api/client';
 import { Send, RefreshCw, Loader2, Save, Pencil, Check, X } from 'lucide-react';
+import axios from 'axios';
 
 interface Adapter {
   name: string;
@@ -110,37 +111,25 @@ export default function Adapters() {
     return () => controller.abort();
   }, []);
 
-  const loadData = async (signal?: AbortSignal) => {
+  const loadData = async () => {
     console.log('[loadData] START');
     setLoading(true);
     const token = localStorage.getItem('token');
-    const headers = { Authorization: `Bearer ${token}` };
     const t = Date.now();
 
     try {
-      console.log('[loadData] Fetching adapters...');
-      const adaptersRes = await fetch(`${BASE}/admin/adapters?_t=${t}`, { headers, signal, cache: 'no-store' });
-      console.log('[loadData] Adapters status:', adaptersRes.status);
-      const adaptersText = await adaptersRes.clone().text();
-      console.log('[loadData] Adapters text:', adaptersText.length);
-      const adaptersJson = JSON.parse(adaptersText);
-      console.log('[loadData] Adapters:', adaptersJson.adapters?.length);
+      console.log('[loadData] Fetching with axios...');
+      const [adaptersRes, balancesRes, settingsRes] = await Promise.all([
+        axios.get(`${BASE}/admin/adapters?_t=${t}`, { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get(`${BASE}/admin/adapters/balances?_t=${t}`, { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get(`${BASE}/admin/models/settings?_t=${t}`, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
 
-      console.log('[loadData] Fetching balances...');
-      const balancesRes = await fetch(`${BASE}/admin/adapters/balances?_t=${t}`, { headers, signal, cache: 'no-store' });
-      const balancesText = await balancesRes.clone().text();
-      const balancesJson = JSON.parse(balancesText);
-      console.log('[loadData] Balances:', balancesJson.balances?.length);
+      console.log('[loadData] All fetched');
 
-      console.log('[loadData] Fetching settings...');
-      const settingsRes = await fetch(`${BASE}/admin/models/settings?_t=${t}`, { headers, signal, cache: 'no-store' });
-      const settingsText = await settingsRes.clone().text();
-      const settingsJson = JSON.parse(settingsText);
-      console.log('[loadData] Settings:', Object.keys(settingsJson.settings || {}).length);
-
-      const adaptersData = adaptersJson.adapters || [];
-      const balancesData = balancesJson.balances || [];
-      const settingsData = settingsJson.settings || {};
+      const adaptersData = adaptersRes.data.adapters || [];
+      const balancesData = balancesRes.data.balances || [];
+      const settingsData = settingsRes.data.settings || {};
 
       setAdapters(adaptersData);
       setBalances(balancesData);
@@ -160,17 +149,15 @@ export default function Adapters() {
       }
       console.log('[loadData] Done');
     } catch (e) {
-      if ((e as Error).name === 'AbortError') return;
       console.error('[loadData] ERROR:', e);
     } finally {
       setLoading(false);
     }
 
-    fetch(`${BASE}/admin/adapters/status?_t=${t}`, { headers, cache: 'no-store' })
-      .then(r => r.json())
-      .then(d => setStatuses(d.adapters || []))
+    axios.get(`${BASE}/admin/adapters/status?_t=${t}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => setStatuses(res.data.adapters || []))
       .catch(console.error);
-  };
+  };  
 
   const handleSaveBalance = async (provider: string) => {
     const value = parseFloat(balanceInputs[provider] || '0');
