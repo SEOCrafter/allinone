@@ -122,6 +122,7 @@ export default function Adapters() {
       const [adaptersRes, balancesRes] = await Promise.all([
         axios.get(`${BASE}/admin/adapters?_t=${t}`, { headers, signal }),
         axios.get(`${BASE}/admin/adapters/balances?_t=${t}`, { headers, signal }),
+        axios.get(`${BASE}/admin/models/settings?_t=${t}`, { headers, signal }),
       ]);
 
       const adaptersData = adaptersRes.data.adapters || [];
