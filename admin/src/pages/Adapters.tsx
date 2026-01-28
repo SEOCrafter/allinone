@@ -119,15 +119,14 @@ export default function Adapters() {
     const t = Date.now();
 
     try {
-      const [adaptersRes, balancesRes, settingsRes] = await Promise.all([
+      const [adaptersRes, balancesRes] = await Promise.all([
         axios.get(`${BASE}/admin/adapters?_t=${t}`, { headers, signal }),
         axios.get(`${BASE}/admin/adapters/balances?_t=${t}`, { headers, signal }),
-        axios.get(`${BASE}/admin/models/settings?_t=${t}`, { headers, signal }),
       ]);
 
       const adaptersData = adaptersRes.data.adapters || [];
       const balancesData = balancesRes.data.balances || [];
-      const settingsData = settingsRes.data.settings || {};
+      const settingsData: Record<string, ModelSettingData> = {};
 
       const inputs: Record<string, string> = {};
       balancesData.forEach((b: AdapterBalance) => {
