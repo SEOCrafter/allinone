@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { testAdapter, healthCheckAdapter, setProviderBalance } from '../api/client';
-import { Send, RefreshCw, Loader2, Save } from 'lucide-react';
+import { Send, RefreshCw, Loader2, Save, Pencil, Check, X } from 'lucide-react';
 
 interface Adapter {
   name: string;
@@ -34,6 +34,11 @@ interface AdapterBalance {
   updated_at?: string;
 }
 
+interface ModelSettingData {
+  credits_price: number | null;
+  is_enabled: boolean;
+}
+
 interface TestResult {
   ok: boolean;
   frontend_request: Record<string, unknown>;
@@ -52,10 +57,15 @@ export default function Adapters() {
   const [adapters, setAdapters] = useState<Adapter[]>([]);
   const [statuses, setStatuses] = useState<AdapterStatus[]>([]);
   const [balances, setBalances] = useState<AdapterBalance[]>([]);
+  const [modelSettings, setModelSettings] = useState<Record<string, ModelSettingData>>({});
   const [loading, setLoading] = useState(true);
   const [healthCheckLoading, setHealthCheckLoading] = useState<Record<string, boolean>>({});
   const [balanceInputs, setBalanceInputs] = useState<Record<string, string>>({});
   const [balanceSaving, setBalanceSaving] = useState<Record<string, boolean>>({});
+
+  const [editingCredits, setEditingCredits] = useState<string | null>(null);
+  const [creditsInput, setCreditsInput] = useState<string>('');
+  const [savingSettings, setSavingSettings] = useState<Record<string, boolean>>({});
 
   const [selectedType, setSelectedType] = useState<string>('text');
   const [selectedAdapter, setSelectedAdapter] = useState<string>('');
@@ -63,6 +73,8 @@ export default function Adapters() {
   const [testMessage, setTestMessage] = useState('');
   const [testLoading, setTestLoading] = useState(false);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
+
+  const BASE = 'http://95.140.153.151:8100/api/v1';
 
   const getHeaders = () => {
     const token = localStorage.getItem('token');
@@ -79,7 +91,6 @@ export default function Adapters() {
   const loadData = async () => {
     setLoading(true);
     const token = localStorage.getItem('token');
-    const BASE = 'http://95.140.153.151:8100/api/v1';
     
     let adaptersData: Adapter[] = [];
     try {
@@ -106,9 +117,23 @@ export default function Adapters() {
     } catch (e) {
       console.error('Balances failed:', e);
     }
+
+    let settingsData: Record<string, ModelSettingData> = {};
+    try {
+      const res = await fetch(`${BASE}/admin/models/settings`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        settingsData = data.settings || {};
+      }
+    } catch (e) {
+      console.error('Model settings failed:', e);
+    }
     
     setAdapters(adaptersData);
     setBalances(balancesData);
+    setModelSettings(settingsData);
     
     const inputs: Record<string, string> = {};
     balancesData.forEach((b) => {
@@ -154,6 +179,74 @@ export default function Adapters() {
       console.error('Ошибка сохранения:', e);
     } finally {
       setBalanceSaving(prev => ({ ...prev, [provider]: false }));
+    }
+  };
+
+  const handleEditCredits = (adapterName: string, modelId: string) => {
+    const key = `${adapterName}:${modelId}`;
+    const current = modelSettings[key]?.credits_price;
+    setEditingCredits(key);
+    setCreditsInput(current?.toString() || '');
+  };
+
+  const handleSaveCredits = async (adapterName: string, modelId: string) => {
+    const key = `${adapterName}:${modelId}`;
+    const value = creditsInput ? parseFloat(creditsInput) : null;
+    
+    setSavingSettings(prev => ({ ...prev, [key]: true }));
+    try {
+      const res = await fetch(`${BASE}/admin/models/${adapterName}/${encodeURIComponent(modelId)}/settings`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ credits_price: value })
+      });
+      if (res.ok) {
+        setModelSettings(prev => ({
+          ...prev,
+          [key]: { 
+            credits_price: value, 
+            is_enabled: prev[key]?.is_enabled ?? true 
+          }
+        }));
+      }
+    } catch (e) {
+      console.error('Ошибка сохранения:', e);
+    } finally {
+      setSavingSettings(prev => ({ ...prev, [key]: false }));
+      setEditingCredits(null);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingCredits(null);
+    setCreditsInput('');
+  };
+
+  const handleToggleEnabled = async (adapterName: string, modelId: string) => {
+    const key = `${adapterName}:${modelId}`;
+    const currentEnabled = modelSettings[key]?.is_enabled ?? true;
+    const newEnabled = !currentEnabled;
+    
+    setSavingSettings(prev => ({ ...prev, [key]: true }));
+    try {
+      const res = await fetch(`${BASE}/admin/models/${adapterName}/${encodeURIComponent(modelId)}/settings`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ is_enabled: newEnabled })
+      });
+      if (res.ok) {
+        setModelSettings(prev => ({
+          ...prev,
+          [key]: { 
+            credits_price: prev[key]?.credits_price ?? null,
+            is_enabled: newEnabled 
+          }
+        }));
+      }
+    } catch (e) {
+      console.error('Ошибка переключения:', e);
+    } finally {
+      setSavingSettings(prev => ({ ...prev, [key]: false }));
     }
   };
 
@@ -213,8 +306,6 @@ export default function Adapters() {
 
     setTestLoading(true);
     setTestResult(null);
-
-    const BASE = 'http://95.140.153.151:8100/api/v1';
 
     try {
       const res = await fetch(`${BASE}/admin/adapters/${selectedAdapter}/test`, {
@@ -463,50 +554,114 @@ export default function Adapters() {
 
       <div className="bg-[#2f2f2f] rounded-lg p-4">
         <h2 className="text-lg font-semibold text-white mb-4">Доступные модели</h2>
-        <table className="w-full">
-          <thead>
-            <tr className="text-gray-400 text-left">
-              <th className="pb-3">Название</th>
-              <th className="pb-3">Модель ID</th>
-              <th className="pb-3">Тип</th>
-              <th className="pb-3">Цена (вход)</th>
-              <th className="pb-3">Цена (выход)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {adapters.flatMap((adapter) =>
-              adapter.models?.map((model) => (
-                <tr key={`${adapter.name}-${model.id}`} className="border-t border-gray-700">
-                  <td className="py-3 text-gray-300">{model.display_name || model.id}</td>
-                  <td className="py-3 text-gray-500 text-sm font-mono">{model.id}</td>
-                  <td className="py-3">
-                    <span className={`px-2 py-1 rounded text-xs font-bold ${
-                      model.type === 'text' ? 'bg-blue-600' : 
-                      model.type === 'image' ? 'bg-purple-600' : 
-                      model.type === 'video' ? 'bg-pink-600' : 'bg-gray-600'
-                    }`}>
-                      {model.type === 'text' ? 'Текст' : 
-                       model.type === 'image' ? 'Изображение' : 
-                       model.type === 'video' ? 'Видео' : model.type}
-                    </span>
-                  </td>
-                  <td className="py-3 text-gray-300">
-                    {model.type === 'text' 
-                      ? `${formatPrice(model.pricing.input_per_1k)} / 1K`
-                      : formatPrice(model.pricing.per_request || model.pricing.input_per_1k)
-                    }
-                  </td>
-                  <td className="py-3 text-gray-300">
-                    {model.type === 'text' 
-                      ? `${formatPrice(model.pricing.output_per_1k)} / 1K`
-                      : <span className="text-gray-500">—</span>
-                    }
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="text-gray-400 text-left">
+                <th className="pb-3">Название</th>
+                <th className="pb-3">Модель ID</th>
+                <th className="pb-3">Тип</th>
+                <th className="pb-3">Себестоимость</th>
+                <th className="pb-3">Кредиты</th>
+                <th className="pb-3 text-center">Статус</th>
+              </tr>
+            </thead>
+            <tbody>
+              {adapters.flatMap((adapter) =>
+                adapter.models?.map((model) => {
+                  const key = `${adapter.name}:${model.id}`;
+                  const settings = modelSettings[key] || { credits_price: null, is_enabled: true };
+                  const isEditing = editingCredits === key;
+                  const isSaving = savingSettings[key];
+
+                  return (
+                    <tr key={key} className={`border-t border-gray-700 ${!settings.is_enabled ? 'opacity-50' : ''}`}>
+                      <td className="py-3 text-gray-300">{model.display_name || model.id}</td>
+                      <td className="py-3 text-gray-500 text-sm font-mono">{model.id}</td>
+                      <td className="py-3">
+                        <span className={`px-2 py-1 rounded text-xs font-bold ${
+                          model.type === 'text' ? 'bg-blue-600' : 
+                          model.type === 'image' ? 'bg-purple-600' : 
+                          model.type === 'video' ? 'bg-pink-600' : 'bg-gray-600'
+                        }`}>
+                          {model.type === 'text' ? 'Текст' : 
+                           model.type === 'image' ? 'Изображение' : 
+                           model.type === 'video' ? 'Видео' : model.type}
+                        </span>
+                      </td>
+                      <td className="py-3 text-gray-300 text-sm">
+                        {model.type === 'text' 
+                          ? `${formatPrice(model.pricing.input_per_1k)} / ${formatPrice(model.pricing.output_per_1k)}`
+                          : formatPrice(model.pricing.per_request || model.pricing.input_per_1k)
+                        }
+                      </td>
+                      <td className="py-3">
+                        {isEditing ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              step="0.0001"
+                              value={creditsInput}
+                              onChange={(e) => setCreditsInput(e.target.value)}
+                              className="w-24 px-2 py-1 bg-[#3f3f3f] border border-gray-600 rounded text-white text-sm"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveCredits(adapter.name, model.id);
+                                if (e.key === 'Escape') handleCancelEdit();
+                              }}
+                            />
+                            <button
+                              onClick={() => handleSaveCredits(adapter.name, model.id)}
+                              disabled={isSaving}
+                              className="p-1 text-green-400 hover:text-green-300"
+                            >
+                              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                            </button>
+                            <button
+                              onClick={handleCancelEdit}
+                              className="p-1 text-red-400 hover:text-red-300"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <span className={`${settings.credits_price !== null ? 'text-green-400 font-medium' : 'text-gray-500'}`}>
+                              {settings.credits_price !== null ? settings.credits_price.toFixed(4) : '—'}
+                            </span>
+                            <button
+                              onClick={() => handleEditCredits(adapter.name, model.id)}
+                              className="p-1 text-gray-400 hover:text-white"
+                              title="Редактировать цену"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-3 text-center">
+                        <button
+                          onClick={() => handleToggleEnabled(adapter.name, model.id)}
+                          disabled={isSaving}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                            settings.is_enabled ? 'bg-green-600' : 'bg-gray-600'
+                          } ${isSaving ? 'opacity-50' : ''}`}
+                          title={settings.is_enabled ? 'Включено' : 'Отключено'}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              settings.is_enabled ? 'translate-x-6' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
