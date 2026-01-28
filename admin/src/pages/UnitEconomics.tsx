@@ -9,6 +9,7 @@ interface Model {
   pricing: {
     input_per_1k: number;
     output_per_1k: number;
+    per_request: number;
   };
   provider: string;
 }
@@ -119,6 +120,11 @@ export default function UnitEconomics() {
     return models.find(m => m.id === selectedModel);
   }, [models, selectedModel]);
 
+  const isStaticPricing = useMemo(() => {
+    if (!currentModel) return false;
+    return currentModel.pricing.per_request > 0;
+  }, [currentModel]);
+
   const calculation = useMemo((): CalculationResult | null => {
     if (!currentModel || requestsInPlan === 0 || creditsInPlan === 0) return null;
 
@@ -128,9 +134,14 @@ export default function UnitEconomics() {
     const pricePerCredit = priceInUsd / creditsInPlan;
     const pricePerRequest = priceInUsd / requestsInPlan;
 
-    const costPerRequest = 
-      (avgTokensInput / 1000) * currentModel.pricing.input_per_1k +
-      (avgTokensOutput / 1000) * currentModel.pricing.output_per_1k;
+    let costPerRequest: number;
+    if (isStaticPricing) {
+      costPerRequest = currentModel.pricing.per_request;
+    } else {
+      costPerRequest = 
+        (avgTokensInput / 1000) * currentModel.pricing.input_per_1k +
+        (avgTokensOutput / 1000) * currentModel.pricing.output_per_1k;
+    }
 
     const costWithOverhead = costPerRequest * (1 + overheadPercent / 100);
 
@@ -151,7 +162,7 @@ export default function UnitEconomics() {
       totalCost,
       totalProfit,
     };
-  }, [currentModel, subscriptionPrice, creditsInPlan, requestsInPlan, avgTokensInput, avgTokensOutput, overheadPercent, currency, usdRate]);
+  }, [currentModel, subscriptionPrice, creditsInPlan, requestsInPlan, avgTokensInput, avgTokensOutput, overheadPercent, currency, usdRate, isStaticPricing]);
 
   const handleSaveCalculation = () => {
     if (!tariffName.trim()) {
@@ -215,9 +226,15 @@ export default function UnitEconomics() {
     const pricePerCredit = priceInUsd / calc.creditsInPlan;
     const pricePerRequest = priceInUsd / calc.requestsInPlan;
 
-    const costPerRequest = 
-      (calc.avgTokensInput / 1000) * model.pricing.input_per_1k +
-      (calc.avgTokensOutput / 1000) * model.pricing.output_per_1k;
+    const modelIsStatic = model.pricing.per_request > 0;
+    let costPerRequest: number;
+    if (modelIsStatic) {
+      costPerRequest = model.pricing.per_request;
+    } else {
+      costPerRequest = 
+        (calc.avgTokensInput / 1000) * model.pricing.input_per_1k +
+        (calc.avgTokensOutput / 1000) * model.pricing.output_per_1k;
+    }
 
     const costWithOverhead = costPerRequest * (1 + calc.overheadPercent / 100);
     const profitPerRequest = pricePerRequest - costWithOverhead;
@@ -261,9 +278,7 @@ export default function UnitEconomics() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Левая колонка - Ввод данных */}
         <div className="space-y-4">
-          {/* Параметры тарифа */}
           <div className="bg-[#2f2f2f] rounded-lg p-4">
             <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-green-400" />
@@ -340,7 +355,6 @@ export default function UnitEconomics() {
             </div>
           </div>
 
-          {/* Параметры использования */}
           <div className="bg-[#2f2f2f] rounded-lg p-4">
             <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-blue-400" />
@@ -363,32 +377,45 @@ export default function UnitEconomics() {
                 </select>
                 {currentModel && (
                   <div className="mt-1 text-xs text-gray-500">
-                    Вход: ${currentModel.pricing.input_per_1k.toFixed(4)}/1K • 
-                    Выход: ${currentModel.pricing.output_per_1k.toFixed(4)}/1K
+                    {isStaticPricing ? (
+                      <span className="text-purple-400">Фикс. цена: ${currentModel.pricing.per_request.toFixed(4)}/запрос</span>
+                    ) : (
+                      <span>Вход: ${currentModel.pricing.input_per_1k.toFixed(4)}/1K • Выход: ${currentModel.pricing.output_per_1k.toFixed(4)}/1K</span>
+                    )}
                   </div>
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-gray-400 text-sm mb-1">Средн. токенов (вход)</label>
-                  <input
-                    type="number"
-                    value={avgTokensInput}
-                    onChange={(e) => setAvgTokensInput(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-[#3f3f3f] border border-gray-600 rounded text-white"
-                  />
+              {!isStaticPricing && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-1">Средн. токенов (вход)</label>
+                    <input
+                      type="number"
+                      value={avgTokensInput}
+                      onChange={(e) => setAvgTokensInput(Number(e.target.value))}
+                      className="w-full px-3 py-2 bg-[#3f3f3f] border border-gray-600 rounded text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-1">Средн. токенов (выход)</label>
+                    <input
+                      type="number"
+                      value={avgTokensOutput}
+                      onChange={(e) => setAvgTokensOutput(Number(e.target.value))}
+                      className="w-full px-3 py-2 bg-[#3f3f3f] border border-gray-600 rounded text-white"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-gray-400 text-sm mb-1">Средн. токенов (выход)</label>
-                  <input
-                    type="number"
-                    value={avgTokensOutput}
-                    onChange={(e) => setAvgTokensOutput(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-[#3f3f3f] border border-gray-600 rounded text-white"
-                  />
+              )}
+
+              {isStaticPricing && (
+                <div className="bg-purple-900/20 border border-purple-500/30 rounded-lg p-3">
+                  <p className="text-purple-300 text-sm">
+                    Эта модель использует фиксированную цену за запрос: <strong>${currentModel?.pricing.per_request.toFixed(4)}</strong>
+                  </p>
                 </div>
-              </div>
+              )}
 
               <div>
                 <label className="block text-gray-400 text-sm mb-1 flex items-center gap-1">
@@ -416,7 +443,6 @@ export default function UnitEconomics() {
             </div>
           </div>
 
-          {/* Кнопка сохранения */}
           <button
             onClick={handleSaveCalculation}
             className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg flex items-center justify-center gap-2 font-semibold"
@@ -426,15 +452,12 @@ export default function UnitEconomics() {
           </button>
         </div>
 
-        {/* Правая колонка - Результаты */}
         <div className="space-y-4">
-          {/* Результаты расчёта */}
           <div className="bg-[#2f2f2f] rounded-lg p-4">
             <h2 className="text-lg font-semibold text-white mb-4">Результаты расчёта</h2>
 
             {calculation ? (
               <div className="space-y-4">
-                {/* Основные метрики */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-[#252525] rounded-lg p-3">
                     <div className="text-gray-400 text-sm">Кредитов за запрос</div>
@@ -450,14 +473,15 @@ export default function UnitEconomics() {
                   </div>
                 </div>
 
-                {/* Детализация */}
                 <div className="bg-[#252525] rounded-lg p-3 space-y-2">
                   <div className="flex justify-between">
                     <span className="text-gray-400">Цена продажи за запрос</span>
                     <span className="text-white font-mono">{formatUSD(calculation.pricePerRequest)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-400">Себестоимость (API)</span>
+                    <span className="text-gray-400">
+                      Себестоимость {isStaticPricing ? '(фикс.)' : '(API)'}
+                    </span>
                     <span className="text-white font-mono">{formatUSD(calculation.costPerRequest)}</span>
                   </div>
                   <div className="flex justify-between">
@@ -474,7 +498,6 @@ export default function UnitEconomics() {
                   </div>
                 </div>
 
-                {/* Прибыль и маржа */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-[#252525] rounded-lg p-3">
                     <div className="text-gray-400 text-sm">Прибыль за запрос</div>
@@ -490,7 +513,6 @@ export default function UnitEconomics() {
                   </div>
                 </div>
 
-                {/* Итого за подписку */}
                 <div className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 rounded-lg p-4 border border-purple-500/30">
                   <div className="text-gray-300 text-sm mb-2">Итого за подписку ({requestsInPlan} запросов)</div>
                   <div className="grid grid-cols-2 gap-4">
@@ -507,7 +529,6 @@ export default function UnitEconomics() {
                   </div>
                 </div>
 
-                {/* Визуальная шкала маржи */}
                 <div className="bg-[#252525] rounded-lg p-3">
                   <div className="flex justify-between text-sm mb-2">
                     <span className="text-gray-400">Шкала маржинальности</span>
@@ -540,7 +561,6 @@ export default function UnitEconomics() {
             )}
           </div>
 
-          {/* Сохранённые расчёты */}
           {savedCalculations.length > 0 && (
             <div className="bg-[#2f2f2f] rounded-lg p-4">
               <h2 className="text-lg font-semibold text-white mb-4">Сохранённые расчёты</h2>
@@ -607,7 +627,6 @@ export default function UnitEconomics() {
         </div>
       </div>
 
-      {/* Сравнительная таблица */}
       {savedCalculations.length > 1 && (
         <div className="mt-6 bg-[#2f2f2f] rounded-lg p-4">
           <h2 className="text-lg font-semibold text-white mb-4">Сравнение тарифов</h2>
