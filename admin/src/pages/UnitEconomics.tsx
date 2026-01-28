@@ -70,7 +70,7 @@ export default function UnitEconomics() {
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (loadedRef.current) return;
+    if (loadedRef.current && models.length > 0) return;
     loadedRef.current = true;
 
     abortRef.current = new AbortController();

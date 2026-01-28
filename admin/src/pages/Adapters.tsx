@@ -89,7 +89,7 @@ export default function Adapters() {
   };
 
   useEffect(() => {
-    if (loadedRef.current) return;
+    if (loadedRef.current && adapters.length > 0) return;
     loadedRef.current = true;
     
     abortRef.current = new AbortController();
