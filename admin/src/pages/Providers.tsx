@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { RefreshCw, Loader2, ArrowRightLeft } from 'lucide-react';
 import api from '../api/client';
 
@@ -24,21 +24,41 @@ export default function Providers() {
   const [switching, setSwitching] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'dual' | 'replicate_only'>('all');
   const [search, setSearch] = useState('');
+  const loadedRef = useRef(false);
 
   useEffect(() => {
-    loadData();
+    if (loadedRef.current) return;
+    loadedRef.current = true;
+    
+    const controller = new AbortController();
+    loadData(controller.signal);
+    
+    return () => {
+      controller.abort();
+    };
   }, []);
 
-  const loadData = async () => {
+  const loadData = async (signal?: AbortSignal) => {
     setLoading(true);
     try {
-      const res = await api.get('/admin/providers/models');
-      setModels(res.data);
-    } catch (err) {
+      const res = await api.get('/admin/providers/models', { signal });
+      if (!signal?.aborted) {
+        setModels(res.data);
+      }
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'CanceledError') return;
       console.error('Failed to load providers:', err);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) {
+        setLoading(false);
+      }
     }
+  };
+
+  const handleRefresh = () => {
+    loadedRef.current = false;
+    const controller = new AbortController();
+    loadData(controller.signal);
   };
 
   const handleSwitch = async (modelName: string, newProvider: string) => {
@@ -126,7 +146,7 @@ export default function Providers() {
           <p className="text-gray-400 mt-1">Переключение между KIE и Replicate</p>
         </div>
         <button
-          onClick={loadData}
+          onClick={handleRefresh}
           className="px-4 py-2 bg-[#3f3f3f] hover:bg-[#4f4f4f] text-white rounded-lg flex items-center gap-2"
         >
           <RefreshCw className="w-4 h-4" />
@@ -134,7 +154,6 @@ export default function Providers() {
         </button>
       </div>
 
-      {/* Статистика */}
       <div className="grid grid-cols-4 gap-4 mb-6">
         <div className="bg-[#2f2f2f] rounded-lg p-4">
           <div className="text-3xl font-bold text-white">{stats.total}</div>
@@ -154,7 +173,6 @@ export default function Providers() {
         </div>
       </div>
 
-      {/* Фильтры */}
       <div className="flex gap-4 mb-6">
         <input
           type="text"
@@ -180,12 +198,11 @@ export default function Providers() {
             onClick={() => setFilter('replicate_only')}
             className={`px-4 py-1 rounded ${filter === 'replicate_only' ? 'bg-[#5f5f5f] text-white' : 'text-gray-400'}`}
           >
-            Только Replicate ({stats.total - stats.dual - (stats.onKie - stats.dual)})
+            Только Replicate ({stats.total - stats.dual})
           </button>
         </div>
       </div>
 
-      {/* Таблица */}
       <div className="bg-[#2f2f2f] rounded-lg overflow-hidden">
         <table className="w-full">
           <thead>
@@ -276,7 +293,6 @@ export default function Providers() {
         </table>
       </div>
 
-      {/* Легенда */}
       <div className="mt-4 flex gap-6 text-sm text-gray-400">
         <div className="flex items-center gap-2">
           <span className="w-3 h-3 rounded-full bg-orange-500/50"></span>
