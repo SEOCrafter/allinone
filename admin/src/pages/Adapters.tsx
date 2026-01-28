@@ -120,23 +120,25 @@ export default function Adapters() {
       console.log('[loadData] Fetching adapters...');
       const adaptersRes = await fetch(`${BASE}/admin/adapters`, { headers });
       console.log('[loadData] Adapters response:', adaptersRes.ok);
-      const adaptersJson = await adaptersRes.json();
-      console.log('[loadData] Adapters parsed:', adaptersJson.adapters?.length);
+      const adaptersText = await adaptersRes.text();
+      console.log('[loadData] Adapters text length:', adaptersText.length);
+      const adaptersJson = JSON.parse(adaptersText);
       const adaptersData = adaptersJson.adapters || [];
+      console.log('[loadData] Adapters parsed:', adaptersData.length);
 
       console.log('[loadData] Fetching balances...');
       const balancesRes = await fetch(`${BASE}/admin/adapters/balances`, { headers });
       console.log('[loadData] Balances response:', balancesRes.ok);
       const balancesJson = await balancesRes.json();
-      console.log('[loadData] Balances parsed:', balancesJson.balances?.length);
       const balancesData = balancesJson.balances || [];
+      console.log('[loadData] Balances parsed:', balancesData.length);
 
       console.log('[loadData] Fetching settings...');
       const settingsRes = await fetch(`${BASE}/admin/models/settings`, { headers });
       console.log('[loadData] Settings response:', settingsRes.ok);
       const settingsJson = await settingsRes.json();
-      console.log('[loadData] Settings parsed:', Object.keys(settingsJson.settings || {}).length);
       const settingsData = settingsJson.settings || {};
+      console.log('[loadData] Settings parsed:', Object.keys(settingsData).length);
 
       console.log('[loadData] Setting state...');
       setAdapters(adaptersData);
