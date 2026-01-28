@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { healthCheckAdapter, setProviderBalance } from '../api/client';
 import { Send, RefreshCw, Loader2, Save, Pencil, Check, X } from 'lucide-react';
 import axios from 'axios';
-import { flushSync } from 'react-dom';
 
 interface Adapter {
   name: string;
@@ -55,26 +54,6 @@ interface TestResult {
   error?: Record<string, unknown>;
 }
 
-const fetchWithTimeout = async (url: string, options: RequestInit, timeoutMs: number = 10000) => {
-  console.log('[fetchWithTimeout] START:', url, 'timeout:', timeoutMs);
-  const controller = new AbortController();
-  const timeout = setTimeout(() => {
-    console.log('[fetchWithTimeout] TIMEOUT TRIGGERED:', url);
-    controller.abort();
-  }, timeoutMs);
-  try {
-    const response = await fetch(url, { ...options, signal: controller.signal });
-    console.log('[fetchWithTimeout] RESPONSE:', url, 'status:', response.status, 'ok:', response.ok);
-    return response;
-  } catch (e) {
-    console.error('[fetchWithTimeout] ERROR:', url, e);
-    throw e;
-  } finally {
-    clearTimeout(timeout);
-    console.log('[fetchWithTimeout] FINALLY:', url);
-  }
-};
-
 export default function Adapters() {
   const [adapters, setAdapters] = useState<Adapter[]>([]);
   const [statuses, setStatuses] = useState<AdapterStatus[]>([]);
@@ -96,6 +75,9 @@ export default function Adapters() {
   const [testLoading, setTestLoading] = useState(false);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
 
+  const loadedRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
+
   const BASE = '/api/v1';
 
   const getHeaders = () => {
@@ -107,13 +89,18 @@ export default function Adapters() {
   };
 
   useEffect(() => {
-    const controller = new AbortController();
-    loadData(controller.signal);
-    return () => controller.abort();
+    if (loadedRef.current) return;
+    loadedRef.current = true;
+    
+    abortRef.current = new AbortController();
+    loadData(abortRef.current.signal);
+    
+    return () => {
+      abortRef.current?.abort();
+    };
   }, []);
 
-  const loadData = async (signal?: AbortSignal) => {
-    setLoading(true);
+  const loadData = async (signal: AbortSignal) => {
     const token = localStorage.getItem('token');
     const headers = { Authorization: `Bearer ${token}` };
     const t = Date.now();
@@ -125,6 +112,8 @@ export default function Adapters() {
         axios.get(`${BASE}/admin/models/settings?_t=${t}`, { headers, signal }),
       ]);
 
+      if (signal.aborted) return;
+
       const adaptersData = adaptersRes.data.adapters || [];
       const balancesData = balancesRes.data.balances || [];
       const settingsData = settingsRes.data.settings || {};
@@ -134,30 +123,41 @@ export default function Adapters() {
         inputs[b.provider] = b.balance_usd?.toString() || '0';
       });
 
-      flushSync(() => {
-        setAdapters(adaptersData);
-        setBalances(balancesData);
-        setModelSettings(settingsData);
-        setBalanceInputs(inputs);
-        if (adaptersData.length > 0) {
-          setSelectedAdapter(adaptersData[0].name);
-          if (adaptersData[0].models?.length > 0) {
-            setSelectedModel(adaptersData[0].models[0].id);
-          }
-        }
-        setLoading(false);
-      });
+      setAdapters(adaptersData);
+      setBalances(balancesData);
+      setModelSettings(settingsData);
+      setBalanceInputs(inputs);
       
-      axios.get(`${BASE}/admin/adapters/status?_t=${t}`, { headers })
-        .then(res => setStatuses(res.data.adapters || []))
-        .catch(console.error);
+      if (adaptersData.length > 0) {
+        setSelectedAdapter(adaptersData[0].name);
+        if (adaptersData[0].models?.length > 0) {
+          setSelectedModel(adaptersData[0].models[0].id);
+        }
+      }
+      setLoading(false);
+      
+      axios.get(`${BASE}/admin/adapters/status?_t=${t}`, { headers, timeout: 15000 })
+        .then(res => {
+          if (!signal.aborted) {
+            setStatuses(res.data.adapters || []);
+          }
+        })
+        .catch(() => {});
         
     } catch (e) {
-      if (axios.isCancel(e)) return;
+      if (axios.isCancel(e) || signal.aborted) return;
       console.error('[loadData] ERROR:', e);
       setLoading(false);
     }
   };
+
+  const handleRefresh = () => {
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
+    setLoading(true);
+    loadData(abortRef.current.signal);
+  };
+
   const handleSaveBalance = async (provider: string) => {
     const value = parseFloat(balanceInputs[provider] || '0');
     if (isNaN(value) || value < 0) return;
@@ -190,12 +190,12 @@ export default function Adapters() {
     
     setSavingSettings(prev => ({ ...prev, [key]: true }));
     try {
-      const res = await fetchWithTimeout(
+      const res = await axios.post(
         `${BASE}/admin/models/${adapterName}/${encodeURIComponent(modelId)}/settings`,
-        { method: 'POST', headers: getHeaders(), body: JSON.stringify({ credits_price: value }) },
-        10000
+        { credits_price: value },
+        { headers: getHeaders(), timeout: 10000 }
       );
-      if (res.ok) {
+      if (res.status === 200) {
         setModelSettings(prev => ({
           ...prev,
           [key]: { 
@@ -224,12 +224,12 @@ export default function Adapters() {
     
     setSavingSettings(prev => ({ ...prev, [key]: true }));
     try {
-      const res = await fetchWithTimeout(
+      const res = await axios.post(
         `${BASE}/admin/models/${adapterName}/${encodeURIComponent(modelId)}/settings`,
-        { method: 'POST', headers: getHeaders(), body: JSON.stringify({ is_enabled: newEnabled }) },
-        10000
+        { is_enabled: newEnabled },
+        { headers: getHeaders(), timeout: 10000 }
       );
-      if (res.ok) {
+      if (res.status === 200) {
         setModelSettings(prev => ({
           ...prev,
           [key]: { 
@@ -303,13 +303,12 @@ export default function Adapters() {
     setTestResult(null);
 
     try {
-      const res = await fetchWithTimeout(
+      const res = await axios.post(
         `${BASE}/admin/adapters/${selectedAdapter}/test`,
-        { method: 'POST', headers: getHeaders(), body: JSON.stringify({ message: testMessage, model: selectedModel || undefined }) },
-        60000
+        { message: testMessage, model: selectedModel || undefined },
+        { headers: getHeaders(), timeout: 60000 }
       );
-      const data = await res.json();
-      setTestResult(data);
+      setTestResult(res.data);
     } catch (e) {
       setTestResult({ ok: false, frontend_request: {}, provider_request: null, provider_response_raw: null, error: { message: 'Ошибка запроса или таймаут' } });
     } finally {
@@ -352,7 +351,6 @@ export default function Adapters() {
   };
 
   if (loading) {
-    console.log('[render] Loading state = true, showing spinner');
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="w-8 h-8 animate-spin text-white" />
@@ -360,17 +358,26 @@ export default function Adapters() {
     );
   }
 
-  console.log('[render] Loading state = false, rendering content. Adapters:', adapters.length, 'Balances:', balances.length);
-
   return (
     <div>
-      <h1 className="text-2xl font-bold text-white mb-6">Адаптеры</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-white">Адаптеры</h1>
+        <button
+          onClick={handleRefresh}
+          className="px-4 py-2 bg-[#3f3f3f] hover:bg-[#4f4f4f] text-white rounded-lg flex items-center gap-2"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Обновить
+        </button>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <div className="bg-[#2f2f2f] rounded-lg p-4">
           <h2 className="text-lg font-semibold text-white mb-4">Статус провайдеров</h2>
           <div className="space-y-2">
-            {statuses.map((s) => (
+            {statuses.length === 0 ? (
+              <div className="text-gray-500 text-center py-4">Загрузка статусов...</div>
+            ) : statuses.map((s) => (
               <div key={s.name} className="flex items-center justify-between bg-[#252525] px-4 py-2 rounded-lg">
                 <span className="text-gray-300">{s.name}</span>
                 <div className="flex items-center gap-2">
