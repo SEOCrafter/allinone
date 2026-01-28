@@ -118,9 +118,21 @@ export default function Adapters() {
 
     try {
       const [adaptersJson, balancesJson, settingsJson] = await Promise.all([
-        fetch(`${BASE}/admin/adapters`, { headers, signal }).then(r => r.json()),
-        fetch(`${BASE}/admin/adapters/balances`, { headers, signal }).then(r => r.json()),
-        fetch(`${BASE}/admin/models/settings`, { headers, signal }).then(r => r.json()),
+        fetch(`${BASE}/admin/adapters?_t=${t}`, { 
+          headers: { ...headers, 'Connection': 'close' }, 
+          signal, 
+          cache: 'no-store' 
+        }).then(r => r.json()),
+        fetch(`${BASE}/admin/adapters/balances?_t=${t}`, { 
+          headers: { ...headers, 'Connection': 'close' }, 
+          signal, 
+          cache: 'no-store' 
+        }).then(r => r.json()),
+        fetch(`${BASE}/admin/models/settings?_t=${t}`, { 
+          headers: { ...headers, 'Connection': 'close' }, 
+          signal, 
+          cache: 'no-store' 
+        }).then(r => r.json()),
       ]);
 
       console.log('[loadData] All fetched');
