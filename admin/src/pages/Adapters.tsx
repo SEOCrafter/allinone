@@ -115,27 +115,23 @@ export default function Adapters() {
     setLoading(true);
     const token = localStorage.getItem('token');
     const headers = { Authorization: `Bearer ${token}` };
+    const t = Date.now();
 
     try {
-      const [adaptersJson, balancesJson, settingsJson] = await Promise.all([
-        fetch(`${BASE}/admin/adapters?_t=${t}`, { 
-          headers: { ...headers, 'Connection': 'close' }, 
-          signal, 
-          cache: 'no-store' 
-        }).then(r => r.json()),
-        fetch(`${BASE}/admin/adapters/balances?_t=${t}`, { 
-          headers: { ...headers, 'Connection': 'close' }, 
-          signal, 
-          cache: 'no-store' 
-        }).then(r => r.json()),
-        fetch(`${BASE}/admin/models/settings?_t=${t}`, { 
-          headers: { ...headers, 'Connection': 'close' }, 
-          signal, 
-          cache: 'no-store' 
-        }).then(r => r.json()),
-      ]);
+      console.log('[loadData] Fetching adapters...');
+      const adaptersRes = await fetch(`${BASE}/admin/adapters?_t=${t}`, { headers, signal, cache: 'no-store' });
+      const adaptersJson = await adaptersRes.json();
+      console.log('[loadData] Adapters:', adaptersJson.adapters?.length);
 
-      console.log('[loadData] All fetched');
+      console.log('[loadData] Fetching balances...');
+      const balancesRes = await fetch(`${BASE}/admin/adapters/balances?_t=${t}`, { headers, signal, cache: 'no-store' });
+      const balancesJson = await balancesRes.json();
+      console.log('[loadData] Balances:', balancesJson.balances?.length);
+
+      console.log('[loadData] Fetching settings...');
+      const settingsRes = await fetch(`${BASE}/admin/models/settings?_t=${t}`, { headers, signal, cache: 'no-store' });
+      const settingsJson = await settingsRes.json();
+      console.log('[loadData] Settings:', Object.keys(settingsJson.settings || {}).length);
 
       const adaptersData = adaptersJson.adapters || [];
       const balancesData = balancesJson.balances || [];
@@ -157,7 +153,7 @@ export default function Adapters() {
           setSelectedModel(adaptersData[0].models[0].id);
         }
       }
-      console.log('[loadData] State set OK');
+      console.log('[loadData] Done');
     } catch (e) {
       if ((e as Error).name === 'AbortError') return;
       console.error('[loadData] ERROR:', e);
@@ -165,7 +161,7 @@ export default function Adapters() {
       setLoading(false);
     }
 
-    fetch(`${BASE}/admin/adapters/status`, { headers })
+    fetch(`${BASE}/admin/adapters/status?_t=${t}`, { headers, cache: 'no-store' })
       .then(r => r.json())
       .then(d => setStatuses(d.adapters || []))
       .catch(console.error);
