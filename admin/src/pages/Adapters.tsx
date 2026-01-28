@@ -77,6 +77,7 @@ export default function Adapters() {
 
   const loadedRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(true);
 
   const BASE = '/api/v1';
 
@@ -91,13 +92,14 @@ export default function Adapters() {
   useEffect(() => {
     if (loadedRef.current && adapters.length > 0) return;
     loadedRef.current = true;
+    mountedRef.current = true;
     
     abortRef.current = new AbortController();
     loadData(abortRef.current.signal);
     
     return () => {
+      mountedRef.current = false;
       abortRef.current?.abort();
-      loadedRef.current = false;
     };
   }, []);
 
@@ -113,7 +115,7 @@ export default function Adapters() {
         axios.get(`${BASE}/admin/models/settings?_t=${t}`, { headers, signal }),
       ]);
 
-      if (signal.aborted) return;
+      if (signal.aborted || !mountedRef.current) return;
 
       const adaptersData = adaptersRes.data.adapters || [];
       const balancesData = balancesRes.data.balances || [];
@@ -139,7 +141,7 @@ export default function Adapters() {
       
       axios.get(`${BASE}/admin/adapters/status?_t=${t}`, { headers, signal, timeout: 15000 })
         .then(res => {
-          if (!signal.aborted) {
+          if (mountedRef.current) {
             setStatuses(res.data.adapters || []);
           }
         })
