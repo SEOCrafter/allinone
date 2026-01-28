@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Activity, MessageSquare, Users, BarChart3, LogOut, Calculator } from 'lucide-react';
+import { LayoutDashboard, Activity, MessageSquare, Users, BarChart3, LogOut, Calculator, ArrowRightLeft } from 'lucide-react';
 
 export default function Layout() {
   const navigate = useNavigate();
@@ -14,6 +14,7 @@ export default function Layout() {
   const navItems = [
     { to: '/', icon: LayoutDashboard, label: 'Дашборд' },
     { to: '/adapters', icon: Activity, label: 'Адаптеры' },
+    { to: '/providers', icon: ArrowRightLeft, label: 'Провайдеры' },
     { to: '/requests', icon: MessageSquare, label: 'Запросы' },
     { to: '/users', icon: Users, label: 'Пользователи' },
     { to: '/stats', icon: BarChart3, label: 'Статистика' },
@@ -25,13 +26,8 @@ export default function Layout() {
       {/* Sidebar */}
       <aside className="w-52 bg-[#171717] flex flex-col">
         <div className="p-4 border-b border-gray-800">
-          <div className="flex items-center gap-3">
-            <img src="/logo.svg" alt="UmnikAI" className="w-10 h-10 object-contain" />
-            <div>
-              <h1 className="text-lg font-bold text-white">UmnikAI</h1>
-              <p className="text-xs text-gray-500">Админ-панель</p>
-            </div>
-          </div>
+          <h1 className="text-lg font-bold text-white">UmnikAI</h1>
+          <p className="text-xs text-gray-500">Админ-панель</p>
         </div>
 
         <nav className="flex-1 p-2">

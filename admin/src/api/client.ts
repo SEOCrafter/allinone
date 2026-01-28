@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: '/api/v1',
+  baseURL: 'http://95.140.153.151:8100/api/v1',
   headers: {
     'Cache-Control': 'no-cache',
     'Pragma': 'no-cache',
@@ -13,7 +13,6 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  // Добавляем timestamp чтобы избежать кеширования
   config.params = { ...config.params, _t: Date.now() };
   return config;
 });
@@ -96,3 +95,19 @@ export const updateUnitEconomics = (id: string, data: Record<string, unknown>) =
 
 export const deleteUnitEconomics = (id: string) =>
   api.delete(`/admin/unit-economics/${id}`);
+
+// Provider switching API
+export const getProviderModels = () => 
+  api.get('/admin/providers/models');
+
+export const getProviderPrices = (params?: { model_name?: string; provider?: string }) =>
+  api.get('/admin/providers/prices', { params });
+
+export const switchModelProvider = (model_name: string, new_provider: string) =>
+  api.post('/admin/providers/switch', { model_name, new_provider });
+
+export const updateProviderPrice = (id: string, data: { price_usd?: number; is_active?: boolean }) =>
+  api.put(`/admin/providers/prices/${id}`, data);
+
+export const getActiveProvider = (model_name: string) =>
+  api.get(`/admin/providers/active/${model_name}`);

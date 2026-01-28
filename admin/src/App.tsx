@@ -8,6 +8,7 @@ import Requests from './pages/Requests';
 import Users from './pages/Users';
 import Stats from './pages/Stats';
 import UnitEconomics from './pages/UnitEconomics';
+import Providers from './pages/Providers';
 
 const queryClient = new QueryClient();
 
@@ -32,6 +33,7 @@ function App() {
           >
             <Route index element={<Dashboard />} />
             <Route path="adapters" element={<Adapters />} />
+            <Route path="providers" element={<Providers />} />
             <Route path="requests" element={<Requests />} />
             <Route path="users" element={<Users />} />
             <Route path="stats" element={<Stats />} />
