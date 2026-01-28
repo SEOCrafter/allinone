@@ -54,13 +54,22 @@ interface TestResult {
 }
 
 const fetchWithTimeout = async (url: string, options: RequestInit, timeoutMs: number = 10000) => {
+  console.log('[fetchWithTimeout] START:', url, 'timeout:', timeoutMs);
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const timeout = setTimeout(() => {
+    console.log('[fetchWithTimeout] TIMEOUT TRIGGERED:', url);
+    controller.abort();
+  }, timeoutMs);
   try {
     const response = await fetch(url, { ...options, signal: controller.signal });
+    console.log('[fetchWithTimeout] RESPONSE:', url, 'status:', response.status, 'ok:', response.ok);
     return response;
+  } catch (e) {
+    console.error('[fetchWithTimeout] ERROR:', url, e);
+    throw e;
   } finally {
     clearTimeout(timeout);
+    console.log('[fetchWithTimeout] FINALLY:', url);
   }
 };
 
@@ -96,42 +105,58 @@ export default function Adapters() {
   };
 
   useEffect(() => {
+    console.log('[useEffect] Component mounted, calling loadData');
     loadData();
   }, []);
 
   const loadData = async () => {
+    console.log('[loadData] START');
     setLoading(true);
     const token = localStorage.getItem('token');
+    console.log('[loadData] Token exists:', !!token);
     const headers = { Authorization: `Bearer ${token}` };
 
     try {
+      console.log('[loadData] Starting Promise.allSettled...');
       const [adaptersRes, balancesRes, settingsRes] = await Promise.allSettled([
         fetchWithTimeout(`${BASE}/admin/adapters`, { headers }, 10000),
         fetchWithTimeout(`${BASE}/admin/adapters/balances`, { headers }, 10000),
         fetchWithTimeout(`${BASE}/admin/models/settings`, { headers }, 10000),
       ]);
+      console.log('[loadData] Promise.allSettled DONE');
+      console.log('[loadData] adaptersRes:', adaptersRes.status, adaptersRes.status === 'fulfilled' ? adaptersRes.value.ok : adaptersRes.reason);
+      console.log('[loadData] balancesRes:', balancesRes.status, balancesRes.status === 'fulfilled' ? balancesRes.value.ok : balancesRes.reason);
+      console.log('[loadData] settingsRes:', settingsRes.status, settingsRes.status === 'fulfilled' ? settingsRes.value.ok : settingsRes.reason);
 
       let adaptersData: Adapter[] = [];
       if (adaptersRes.status === 'fulfilled' && adaptersRes.value.ok) {
+        console.log('[loadData] Parsing adapters JSON...');
         const data = await adaptersRes.value.json();
+        console.log('[loadData] Adapters parsed, count:', data.adapters?.length);
         adaptersData = data.adapters || [];
       }
 
       let balancesData: AdapterBalance[] = [];
       if (balancesRes.status === 'fulfilled' && balancesRes.value.ok) {
+        console.log('[loadData] Parsing balances JSON...');
         const data = await balancesRes.value.json();
+        console.log('[loadData] Balances parsed, count:', data.balances?.length);
         balancesData = data.balances || [];
       }
 
       let settingsData: Record<string, ModelSettingData> = {};
       if (settingsRes.status === 'fulfilled' && settingsRes.value.ok) {
+        console.log('[loadData] Parsing settings JSON...');
         const data = await settingsRes.value.json();
+        console.log('[loadData] Settings parsed, keys:', Object.keys(data.settings || {}).length);
         settingsData = data.settings || {};
       }
 
+      console.log('[loadData] Setting state...');
       setAdapters(adaptersData);
       setBalances(balancesData);
       setModelSettings(settingsData);
+      console.log('[loadData] State set!');
 
       const inputs: Record<string, string> = {};
       balancesData.forEach((b) => {
@@ -145,20 +170,27 @@ export default function Adapters() {
           setSelectedModel(adaptersData[0].models[0].id);
         }
       }
+      console.log('[loadData] TRY block complete');
     } catch (e) {
-      console.error('Load data failed:', e);
+      console.error('[loadData] CATCH error:', e);
     } finally {
+      console.log('[loadData] FINALLY - setting loading=false');
       setLoading(false);
     }
 
+    console.log('[loadData] Fetching status in background...');
     fetchWithTimeout(`${BASE}/admin/adapters/status`, { headers: { Authorization: `Bearer ${token}` } }, 15000)
       .then(async (res) => {
+        console.log('[loadData] Status response ok:', res.ok);
         if (res.ok) {
           const data = await res.json();
+          console.log('[loadData] Status parsed, count:', data.adapters?.length);
           setStatuses(data.adapters || []);
         }
       })
-      .catch((e) => console.error('Status failed:', e));
+      .catch((e) => console.error('[loadData] Status failed:', e));
+    
+    console.log('[loadData] END');
   };
 
   const handleSaveBalance = async (provider: string) => {
@@ -355,12 +387,15 @@ export default function Adapters() {
   };
 
   if (loading) {
+    console.log('[render] Loading state = true, showing spinner');
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="w-8 h-8 animate-spin text-white" />
       </div>
     );
   }
+
+  console.log('[render] Loading state = false, rendering content. Adapters:', adapters.length, 'Balances:', balances.length);
 
   return (
     <div>
