@@ -25,8 +25,13 @@ export default function Layout() {
       {/* Sidebar */}
       <aside className="w-52 bg-[#171717] flex flex-col">
         <div className="p-4 border-b border-gray-800">
-          <h1 className="text-lg font-bold text-white">AI Aggregator</h1>
-          <p className="text-xs text-gray-500">Админ-панель</p>
+          <div className="flex items-center gap-3">
+            <img src="/logo.svg" alt="UmnikAI" className="w-10 h-10 object-contain" />
+            <div>
+              <h1 className="text-lg font-bold text-white">UmnikAI</h1>
+              <p className="text-xs text-gray-500">Админ-панель</p>
+            </div>
+          </div>
         </div>
 
         <nav className="flex-1 p-2">
