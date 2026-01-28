@@ -120,17 +120,22 @@ export default function Adapters() {
     try {
       console.log('[loadData] Fetching adapters...');
       const adaptersRes = await fetch(`${BASE}/admin/adapters?_t=${t}`, { headers, signal, cache: 'no-store' });
-      const adaptersJson = await adaptersRes.json();
+      console.log('[loadData] Adapters status:', adaptersRes.status);
+      const adaptersText = await adaptersRes.clone().text();
+      console.log('[loadData] Adapters text:', adaptersText.length);
+      const adaptersJson = JSON.parse(adaptersText);
       console.log('[loadData] Adapters:', adaptersJson.adapters?.length);
 
       console.log('[loadData] Fetching balances...');
       const balancesRes = await fetch(`${BASE}/admin/adapters/balances?_t=${t}`, { headers, signal, cache: 'no-store' });
-      const balancesJson = await balancesRes.json();
+      const balancesText = await balancesRes.clone().text();
+      const balancesJson = JSON.parse(balancesText);
       console.log('[loadData] Balances:', balancesJson.balances?.length);
 
       console.log('[loadData] Fetching settings...');
       const settingsRes = await fetch(`${BASE}/admin/models/settings?_t=${t}`, { headers, signal, cache: 'no-store' });
-      const settingsJson = await settingsRes.json();
+      const settingsText = await settingsRes.clone().text();
+      const settingsJson = JSON.parse(settingsText);
       console.log('[loadData] Settings:', Object.keys(settingsJson.settings || {}).length);
 
       const adaptersData = adaptersJson.adapters || [];
