@@ -292,7 +292,7 @@ export default function UnitEconomics() {
           <div className="bg-[#2f2f2f] rounded-lg p-4">
             <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-green-400" />
-              Параметры тарифа конкурента
+              Параметры тарифа
             </h2>
 
             <div className="space-y-3">
