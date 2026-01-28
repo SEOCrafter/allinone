@@ -1,11 +1,12 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'http://95.140.153.151:8100/api/v1',
+  baseURL: '/api/v1',
   headers: {
     'Cache-Control': 'no-cache',
     'Pragma': 'no-cache',
   },
+  timeout: 30000,
 });
 
 api.interceptors.request.use((config) => {
@@ -34,10 +35,11 @@ export default api;
 export const login = (email: string, password: string) =>
   api.post('/auth/login', { email, password });
 
-export const getStats = () => api.get('/admin/stats');
+export const getStats = (config?: { signal?: AbortSignal }) => 
+  api.get('/admin/stats', config);
 
-export const getUsers = (page = 1, limit = 50) =>
-  api.get('/admin/users', { params: { page, limit } });
+export const getUsers = (page = 1, limit = 50, config?: { signal?: AbortSignal }) =>
+  api.get('/admin/users', { params: { page, limit }, ...config });
 
 export const setUserRole = (userId: string, role: string) =>
   api.post(`/admin/users/${userId}/set-role`, { role });
@@ -51,17 +53,20 @@ export const blockUser = (userId: string) =>
 export const unblockUser = (userId: string) =>
   api.post(`/admin/users/${userId}/unblock`);
 
-export const getRequests = (page = 1, limit = 20) =>
-  api.get(`/admin/requests?page=${page}&limit=${limit}`);
+export const getRequests = (page = 1, limit = 20, config?: { signal?: AbortSignal }) =>
+  api.get('/admin/requests', { params: { page, limit }, ...config });
 
 export const getRequest = (id: string) =>
   api.get(`/admin/requests/${id}`);
 
-export const getAdapters = () => api.get('/admin/adapters');
+export const getAdapters = (config?: { signal?: AbortSignal }) => 
+  api.get('/admin/adapters', config);
 
-export const getAdaptersStatus = () => api.get('/admin/adapters/status');
+export const getAdaptersStatus = (config?: { signal?: AbortSignal }) => 
+  api.get('/admin/adapters/status', config);
 
-export const getAdaptersBalances = () => api.get('/admin/adapters/balances');
+export const getAdaptersBalances = (config?: { signal?: AbortSignal }) => 
+  api.get('/admin/adapters/balances', config);
 
 export const testAdapter = (name: string, message: string, model?: string) =>
   api.post(`/admin/adapters/${name}/test`, { message, model });
@@ -96,9 +101,8 @@ export const updateUnitEconomics = (id: string, data: Record<string, unknown>) =
 export const deleteUnitEconomics = (id: string) =>
   api.delete(`/admin/unit-economics/${id}`);
 
-// Provider switching API
-export const getProviderModels = () => 
-  api.get('/admin/providers/models');
+export const getProviderModels = (config?: { signal?: AbortSignal }) => 
+  api.get('/admin/providers/models', config);
 
 export const getProviderPrices = (params?: { model_name?: string; provider?: string }) =>
   api.get('/admin/providers/prices', { params });
@@ -111,3 +115,6 @@ export const updateProviderPrice = (id: string, data: { price_usd?: number; is_a
 
 export const getActiveProvider = (model_name: string) =>
   api.get(`/admin/providers/active/${model_name}`);
+
+export const getModelSettings = (config?: { signal?: AbortSignal }) =>
+  api.get('/admin/models/settings', config);

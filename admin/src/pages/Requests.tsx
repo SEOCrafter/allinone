@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useState, useCallback } from 'react';
 import { getRequests, getRequest } from '../api/client';
-import { X } from 'lucide-react';
-import { flushSync } from 'react-dom';
+import { X, Loader2 } from 'lucide-react';
+import { useLoadData } from '../hooks/useLoadData';
 
 interface RequestItem {
   id: string;
@@ -14,9 +14,6 @@ interface RequestItem {
   credits_spent: number;
   provider_cost: number;
   created_at: string;
-  prompt?: string;
-  response?: string;
-  error_message?: string;
 }
 
 interface RequestDetail {
@@ -25,58 +22,28 @@ interface RequestDetail {
   provider: string;
   model: string;
   status: string;
-  input: {
-    prompt: string;
-    params: Record<string, unknown>;
-  };
-  output: {
-    content: string | null;
-    tokens_input: number;
-    tokens_output: number;
-  };
-  costs: {
-    credits_spent: number;
-    provider_cost_usd: number;
-  };
-  error?: {
-    code: string;
-    message: string;
-  } | null;
+  input: { prompt: string; params: Record<string, unknown> };
+  output: { content: string | null; tokens_input: number; tokens_output: number };
+  costs: { credits_spent: number; provider_cost_usd: number };
+  error?: { code: string; message: string } | null;
 }
 
 export default function Requests() {
-  const [requests, setRequests] = useState<RequestItem[]>([]);
-  const [loading, setLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] = useState<RequestDetail | null>(null);
   const [modalLoading, setModalLoading] = useState(false);
   const [filter, setFilter] = useState('all');
 
-  useEffect(() => {
-    loadRequests();
+  const loadFn = useCallback(async (signal: AbortSignal) => {
+    const res = await getRequests(1, 100, { signal });
+    return Array.isArray(res.data?.data) ? res.data.data : [];
   }, []);
 
-    const loadRequests = async () => {
-    try {
-      const response = await getRequests(1, 100);
-      const items = response.data?.data;
-      flushSync(() => {
-        setRequests(Array.isArray(items) ? items : []);
-        setLoading(false);
-      });
-    } catch (err) {
-      console.error('Ошибка загрузки запросов:', err);
-      flushSync(() => {
-        setRequests([]);
-        setLoading(false);
-      });
-    }
-  };
+  const { data: requests, loading } = useLoadData<RequestItem[]>(loadFn, []);
 
   const openDetail = async (id: string) => {
     setModalLoading(true);
     try {
       const response = await getRequest(id);
-      // Бэкенд возвращает { ok: true, request: {...} }
       setSelectedRequest(response.data?.request || null);
     } catch (err) {
       console.error('Ошибка загрузки деталей:', err);
@@ -98,13 +65,14 @@ export default function Requests() {
     }
   };
 
-  const filteredRequests = (requests || []).filter(r => {
-    if (filter === 'all') return true;
-    return r.status === filter;
-  });
+  const filteredRequests = requests.filter(r => filter === 'all' || r.status === filter);
 
   if (loading) {
-    return <div className="p-6 text-gray-400">Загрузка...</div>;
+    return (
+      <div className="p-6 flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-white" />
+      </div>
+    );
   }
 
   return (
@@ -149,41 +117,31 @@ export default function Requests() {
                 <td className="p-4 text-gray-300">{r.model}</td>
                 <td className="p-4 text-gray-300">{r.tokens_input} / {r.tokens_output}</td>
                 <td className="p-4 text-gray-300">${(r.provider_cost || 0).toFixed(6)}</td>
-                <td className="p-4 text-gray-500">
-                  {new Date(r.created_at).toLocaleString('ru')}
-                </td>
+                <td className="p-4 text-gray-500">{new Date(r.created_at).toLocaleString('ru')}</td>
               </tr>
             ))}
             {filteredRequests.length === 0 && (
               <tr>
-                <td colSpan={7} className="p-4 text-center text-gray-500">
-                  Нет запросов
-                </td>
+                <td colSpan={7} className="p-4 text-center text-gray-500">Нет запросов</td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
 
-      {/* Модальное окно с деталями */}
       {selectedRequest && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-[#2f2f2f] rounded-lg w-full max-w-4xl max-h-[90vh] overflow-auto m-4">
             <div className="flex justify-between items-center p-4 border-b border-gray-700">
               <h2 className="text-lg font-semibold text-white">Детали запроса</h2>
-              <button
-                onClick={() => setSelectedRequest(null)}
-                className="p-1 hover:bg-[#3f3f3f] rounded"
-              >
+              <button onClick={() => setSelectedRequest(null)} className="p-1 hover:bg-[#3f3f3f] rounded">
                 <X className="w-5 h-5 text-gray-400" />
               </button>
             </div>
-
             {modalLoading ? (
-              <div className="p-4 text-gray-400">Загрузка...</div>
+              <div className="p-4 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-white" /></div>
             ) : (
               <div className="p-4 space-y-4">
-                {/* Информация */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="bg-[#252525] p-3 rounded">
                     <p className="text-xs text-gray-500">Статус</p>
@@ -202,8 +160,6 @@ export default function Requests() {
                     <p className="text-white">${(selectedRequest.costs?.provider_cost_usd || 0).toFixed(6)}</p>
                   </div>
                 </div>
-
-                {/* Токены */}
                 <div className="grid grid-cols-3 gap-4">
                   <div className="bg-[#252525] p-3 rounded">
                     <p className="text-xs text-gray-500">Токены (вход)</p>
@@ -218,14 +174,10 @@ export default function Requests() {
                     <p className="text-white">{(selectedRequest.costs?.credits_spent || 0).toFixed(4)}</p>
                   </div>
                 </div>
-
-                {/* Промпт */}
                 <div className="bg-[#252525] p-3 rounded">
                   <p className="text-xs text-gray-500 mb-2">Запрос (промпт)</p>
                   <p className="text-white whitespace-pre-wrap">{selectedRequest.input?.prompt || 'Нет данных'}</p>
                 </div>
-
-                {/* Ответ */}
                 <div className="bg-[#252525] p-3 rounded">
                   <p className="text-xs text-gray-500 mb-2">Ответ</p>
                   <p className="text-white whitespace-pre-wrap">

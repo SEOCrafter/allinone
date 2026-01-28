@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { getAdapters } from '../api/client';
 import { Calculator, TrendingUp, DollarSign, Percent, Save, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 
@@ -64,27 +64,36 @@ export default function UnitEconomics() {
   const [avgTokensOutput, setAvgTokensOutput] = useState<number>(1000);
   const [overheadPercent, setOverheadPercent] = useState<number>(15);
   const [selectedModel, setSelectedModel] = useState<string>('');
-
   const [usdRate, setUsdRate] = useState<number>(95);
 
+  const loadedRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
+
   useEffect(() => {
-    loadData();
+    if (loadedRef.current) return;
+    loadedRef.current = true;
+
+    abortRef.current = new AbortController();
+    loadData(abortRef.current.signal);
     loadSavedCalculations();
+
+    return () => {
+      abortRef.current?.abort();
+      loadedRef.current = false;
+    };
   }, []);
 
-  const loadData = async () => {
+  const loadData = async (signal: AbortSignal) => {
     try {
-      const response = await getAdapters();
-      const adapters: Adapter[] = response.data.adapters || [];
+      const response = await getAdapters({ signal });
+      if (signal.aborted) return;
       
+      const adapters: Adapter[] = response.data.adapters || [];
       const allModels: Model[] = [];
       adapters.forEach(adapter => {
         if (adapter.models) {
           adapter.models.forEach(model => {
-            allModels.push({
-              ...model,
-              provider: adapter.display_name,
-            });
+            allModels.push({ ...model, provider: adapter.display_name });
           });
         }
       });
@@ -94,6 +103,7 @@ export default function UnitEconomics() {
         setSelectedModel(allModels[0].id);
       }
     } catch (err) {
+      if ((err as Error).name === 'CanceledError') return;
       console.error('Ошибка загрузки:', err);
     } finally {
       setLoading(false);
