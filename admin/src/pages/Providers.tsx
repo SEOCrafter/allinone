@@ -25,16 +25,18 @@ export default function Providers() {
   const [filter, setFilter] = useState<'all' | 'dual' | 'replicate_only'>('all');
   const [search, setSearch] = useState('');
   const loadedRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (loadedRef.current) return;
     loadedRef.current = true;
     
-    const controller = new AbortController();
-    loadData(controller.signal);
+    abortRef.current = new AbortController();
+    loadData(abortRef.current.signal);
     
     return () => {
-      controller.abort();
+      abortRef.current?.abort();
+      loadedRef.current = false; 
     };
   }, []);
 

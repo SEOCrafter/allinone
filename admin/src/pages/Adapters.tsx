@@ -97,6 +97,7 @@ export default function Adapters() {
     
     return () => {
       abortRef.current?.abort();
+      loadedRef.current = false;
     };
   }, []);
 
