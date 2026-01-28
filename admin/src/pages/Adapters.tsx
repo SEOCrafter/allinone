@@ -137,7 +137,7 @@ export default function Adapters() {
       }
       setLoading(false);
       
-      axios.get(`${BASE}/admin/adapters/status?_t=${t}`, { headers, timeout: 15000 })
+      axios.get(`${BASE}/admin/adapters/status?_t=${t}`, { headers, signal, timeout: 15000 })
         .then(res => {
           if (!signal.aborted) {
             setStatuses(res.data.adapters || []);
