@@ -13,19 +13,24 @@ from app.adapters.hailuo import HailuoAdapter
 from app.adapters.runway import RunwayAdapter
 from app.adapters.seedance import SeedanceAdapter
 from app.adapters.flux import FluxAdapter
+from app.adapters.replicate import ReplicateAdapter
 
 
 class AdapterRegistry:
+    """Реестр всех доступных адаптеров."""
+
     _adapters: Dict[str, Type[BaseAdapter]] = {}
     _instances: Dict[str, BaseAdapter] = {}
 
     @classmethod
     def register(cls, adapter_class: Type[BaseAdapter]):
+        """Регистрация адаптера."""
         cls._adapters[adapter_class.name] = adapter_class
         return adapter_class
 
     @classmethod
     def get_adapter(cls, name: str, api_key: str, **kwargs) -> Optional[BaseAdapter]:
+        """Получение инстанса адаптера."""
         if name not in cls._adapters:
             return None
 
@@ -36,47 +41,8 @@ class AdapterRegistry:
         return cls._instances[cache_key]
 
     @classmethod
-    def _extract_pricing(cls, pricing: dict, provider_type: ProviderType) -> dict:
-        if provider_type == ProviderType.TEXT:
-            return {
-                "input_per_1k": pricing.get("input", 0),
-                "output_per_1k": pricing.get("output", 0),
-                "per_request": 0,
-            }
-
-        per_request = 0
-
-        if "per_image" in pricing:
-            per_request = pricing["per_image"]
-        elif "per_video" in pricing:
-            per_request = pricing["per_video"]
-        elif "per_request" in pricing:
-            per_request = pricing["per_request"]
-        elif "per_second" in pricing:
-            per_request = pricing["per_second"] * 5
-        elif "per_10s" in pricing:
-            per_request = pricing["per_10s"]
-        elif "5s" in pricing:
-            per_request = pricing["5s"]
-        elif "10s" in pricing:
-            per_request = pricing["10s"]
-        elif "1K" in pricing:
-            per_request = pricing["1K"]
-        elif "fast" in pricing:
-            per_request = pricing["fast"]
-        elif "720p_per_sec" in pricing:
-            per_request = pricing["720p_per_sec"] * 5
-        elif "5s_720p" in pricing:
-            per_request = pricing["5s_720p"]
-
-        return {
-            "input_per_1k": per_request,
-            "output_per_1k": per_request,
-            "per_request": per_request,
-        }
-
-    @classmethod
     def list_adapters(cls, provider_type: Optional[ProviderType] = None, include_models: bool = False) -> list:
+        """Список всех адаптеров."""
         adapters = []
         for name, adapter_class in cls._adapters.items():
             if provider_type and adapter_class.provider_type != provider_type:
@@ -94,7 +60,10 @@ class AdapterRegistry:
                         "id": model_id,
                         "display_name": pricing.get("display_name", model_id),
                         "type": adapter_class.provider_type.value,
-                        "pricing": cls._extract_pricing(pricing, adapter_class.provider_type),
+                        "pricing": {
+                            "input_per_1k": pricing.get("input", 0),
+                            "output_per_1k": pricing.get("output", 0),
+                        }
                     }
                     for model_id, pricing in adapter_class.PRICING.items()
                 ]
@@ -105,6 +74,7 @@ class AdapterRegistry:
 
     @classmethod
     async def health_check_all(cls, api_keys: dict) -> Dict[str, ProviderHealth]:
+        """Проверка всех провайдеров."""
         results = {}
         for name in cls._adapters:
             if name in api_keys and api_keys[name]:
@@ -128,3 +98,4 @@ AdapterRegistry.register(HailuoAdapter)
 AdapterRegistry.register(RunwayAdapter)
 AdapterRegistry.register(SeedanceAdapter)
 AdapterRegistry.register(FluxAdapter)
+AdapterRegistry.register(ReplicateAdapter)

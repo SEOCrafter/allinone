@@ -14,19 +14,15 @@ class MidjourneyAdapter(BaseAdapter):
 
     PRICING = {
         "mj_txt2img": {
-            "fast": 0.04,
-            "turbo": 0.08,
-            "relax": 0.015,
+            "per_image": 0.08,
             "display_name": "Text to Image",
         },
         "mj_img2img": {
-            "fast": 0.04,
-            "turbo": 0.08,
-            "relax": 0.015,
+            "per_image": 0.10,
             "display_name": "Image to Image",
         },
         "mj_video": {
-            "per_request": 0.30,
+            "per_video": 0.20,
             "display_name": "Image to Video",
         },
     }
@@ -135,7 +131,7 @@ class MidjourneyAdapter(BaseAdapter):
         return GenerationResult(
             success=True,
             content=result.result_url,
-            provider_cost=self.calculate_cost(task_type=task_type, speed=speed),
+            provider_cost=self.calculate_cost(task_type=task_type),
             raw_response=result.raw_response,
         )
 
@@ -390,14 +386,11 @@ class MidjourneyAdapter(BaseAdapter):
         except Exception as e:
             return ProviderHealth(status=ProviderStatus.DOWN, error=str(e))
 
-    def calculate_cost(self, task_type: str = "mj_txt2img", speed: str = "fast", num_images: int = 4, **params) -> float:
+    def calculate_cost(self, task_type: str = "mj_txt2img", num_images: int = 4, **params) -> float:
         pricing = self.PRICING.get(task_type, self.PRICING["mj_txt2img"])
-        
-        if task_type == "mj_video":
-            return pricing.get("per_request", 0.30)
-        
-        speed_price = pricing.get(speed, pricing.get("fast", 0.04))
-        return speed_price * num_images
+        if "per_video" in pricing:
+            return pricing["per_video"]
+        return pricing["per_image"] * num_images
 
     def get_capabilities(self) -> dict:
         return {

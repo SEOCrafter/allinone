@@ -29,9 +29,6 @@ class DepositRequest(BaseModel):
     amount_usd: float
 
 
-KIE_ADAPTERS = ["nano_banana", "kling", "midjourney", "veo", "sora", "hailuo", "runway", "seedance", "flux"]
-
-
 @router.get("")
 async def list_adapters(
     admin: User = Depends(get_admin_user),
@@ -130,7 +127,7 @@ async def adapters_status(
             latency = None
             kie_status = "unhealthy"
             kie_error = str(e)
-        for name in KIE_ADAPTERS:
+        for name in ["nano_banana", "kling", "midjourney", "veo", "sora", "hailuo", "runway", "seedance", "flux"]:
             results.append({"name": name, "status": kie_status, "latency_ms": latency, "error": kie_error})
 
     return {"ok": True, "adapters": results}
@@ -215,25 +212,7 @@ async def adapter_health(
     adapter = AdapterRegistry.get_adapter(adapter_name, api_key)
     if not adapter:
         raise HTTPException(status_code=404, detail=f"Adapter {adapter_name} not found")
-
     import time
-
-    if adapter_name in KIE_ADAPTERS:
-        start = time.time()
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.get(
-                    "https://api.kie.ai/api/v1/chat/credit",
-                    headers={"Authorization": f"Bearer {api_key}"},
-                )
-                latency = int((time.time() - start) * 1000)
-                if response.status_code == 200:
-                    return {"ok": True, "adapter": adapter_name, "status": "healthy", "latency_ms": latency, "error": None}
-                else:
-                    return {"ok": False, "adapter": adapter_name, "status": "degraded", "latency_ms": latency, "error": response.text}
-        except Exception as e:
-            return {"ok": False, "adapter": adapter_name, "status": "unhealthy", "latency_ms": None, "error": str(e)}
-
     start = time.time()
     result = await adapter.generate("Hi", model=health_models.get(adapter_name), max_tokens=5)
     latency = int((time.time() - start) * 1000)
@@ -304,7 +283,7 @@ async def test_adapter(
 
     if result.success and result.provider_cost and result.provider_cost > 0:
         balance_provider = adapter_name
-        if adapter_name in KIE_ADAPTERS:
+        if adapter_name in ("midjourney", "nano_banana", "kling", "veo", "sora", "hailuo", "runway", "seedance", "flux"):
             balance_provider = "kie"
         balance_result = await db.execute(select(ProviderBalance).where(ProviderBalance.provider == balance_provider))
         balance = balance_result.scalar_one_or_none()

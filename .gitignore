@@ -42,5 +42,3 @@ build/
 Thumbs.db
 google-credentials.json
 backend/google-credentials.json
-*.zip
-*.rar

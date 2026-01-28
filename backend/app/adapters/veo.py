@@ -12,19 +12,11 @@ class VeoAdapter(BaseAdapter, KieBaseAdapter):
     provider_type = ProviderType.VIDEO
 
     PRICING = {
-        "veo3.1-fast-t2v": {"per_video": 0.30, "display_name": "Veo 3.1 Fast T2V"},
-        "veo3.1-fast-i2v": {"per_video": 0.30, "display_name": "Veo 3.1 Fast I2V"},
-        "veo3.1-fast-ref": {"per_video": 0.30, "display_name": "Veo 3.1 Fast Ref"},
-        "veo3.1-quality-t2v": {"per_video": 1.25, "display_name": "Veo 3.1 Quality T2V"},
-        "veo3.1-quality-i2v": {"per_video": 1.25, "display_name": "Veo 3.1 Quality I2V"},
-        "veo3.1-extend": {"per_video": 0.30, "display_name": "Veo 3.1 Extend"},
-        "veo3.1-1080p": {"per_video": 0.025, "display_name": "Veo 3.1 1080P Upscale"},
-        "veo3.1-4k": {"per_video": 0.60, "display_name": "Veo 3.1 4K Upscale"},
-        "veo3_fast": {"per_video": 0.30, "display_name": "Veo 3 Fast"},
-        "veo3": {"per_video": 1.25, "display_name": "Veo 3"},
+        "veo3_fast": {"per_video": 0.50, "display_name": "Veo 3 Fast"},
+        "veo3": {"per_video": 1.00, "display_name": "Veo 3"},
     }
 
-    def __init__(self, api_key: str, default_model: str = "veo3.1-fast-t2v", **kwargs):
+    def __init__(self, api_key: str, default_model: str = "veo3_fast", **kwargs):
         BaseAdapter.__init__(self, api_key, **kwargs)
         KieBaseAdapter.__init__(self, api_key, **kwargs)
         self.default_model = default_model
@@ -214,7 +206,7 @@ class VeoAdapter(BaseAdapter, KieBaseAdapter):
         start = time.time()
         try:
             result = await self.create_veo_task(
-                "veo3.1-fast-t2v",
+                "veo3_fast",
                 {"prompt": "test", "aspect_ratio": "16:9"},
             )
             latency = int((time.time() - start) * 1000)
@@ -226,8 +218,8 @@ class VeoAdapter(BaseAdapter, KieBaseAdapter):
 
     def calculate_cost(self, model: Optional[str] = None, **params) -> float:
         model = model or self.default_model
-        pricing = self.PRICING.get(model, self.PRICING["veo3.1-fast-t2v"])
-        return pricing.get("per_video", 0.30)
+        pricing = self.PRICING.get(model, self.PRICING["veo3_fast"])
+        return pricing.get("per_video", 0.50)
 
     def get_capabilities(self) -> dict:
         return {
@@ -235,6 +227,4 @@ class VeoAdapter(BaseAdapter, KieBaseAdapter):
             "aspect_ratios": ["16:9", "9:16", "1:1"],
             "supports_text_to_video": True,
             "supports_image_to_video": True,
-            "supports_extend": True,
-            "supports_upscale": True,
         }

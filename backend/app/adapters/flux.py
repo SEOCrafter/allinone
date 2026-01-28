@@ -9,42 +9,12 @@ class FluxAdapter(BaseAdapter, KieBaseAdapter):
     provider_type = ProviderType.IMAGE
 
     PRICING = {
-        "flux-2/pro-text-to-image": {
-            "1K": 0.025,
-            "2K": 0.035,
-            "display_name": "Flux 2 Pro T2I",
-        },
-        "flux-2/pro-image-to-image": {
-            "1K": 0.025,
-            "2K": 0.035,
-            "display_name": "Flux 2 Pro I2I",
-        },
-        "flux-kontext/pro": {
-            "per_image": 0.025,
-            "display_name": "Flux Kontext Pro",
-        },
-        "flux-kontext/max": {
-            "per_image": 0.05,
-            "display_name": "Flux Kontext Max",
-        },
-        "flux-kontext/pro-text-to-image": {
-            "per_image": 0.025,
-            "display_name": "Flux Kontext Pro T2I",
-        },
-        "flux-kontext/pro-image-to-image": {
-            "per_image": 0.025,
-            "display_name": "Flux Kontext Pro I2I",
-        },
-        "flux-2/flex-text-to-image": {
-            "1K": 0.025,
-            "2K": 0.035,
-            "display_name": "Flux 2 Flex T2I",
-        },
-        "flux-2/flex-image-to-image": {
-            "1K": 0.025,
-            "2K": 0.035,
-            "display_name": "Flux 2 Flex I2I",
-        },
+        "flux-2/pro-text-to-image": {"per_image": 0.05, "display_name": "Flux 2 Pro"},
+        "flux-2/pro-image-to-image": {"per_image": 0.05, "display_name": "Flux 2 Pro I2I"},
+        "flux-2/flex-text-to-image": {"per_image": 0.03, "display_name": "Flux 2 Flex"},
+        "flux-2/flex-image-to-image": {"per_image": 0.03, "display_name": "Flux 2 Flex I2I"},
+        "flux-kontext/pro-text-to-image": {"per_image": 0.04, "display_name": "Flux Kontext Pro"},
+        "flux-kontext/pro-image-to-image": {"per_image": 0.04, "display_name": "Flux Kontext Pro I2I"},
     }
 
     def __init__(self, api_key: str, default_model: str = "flux-2/pro-text-to-image", **kwargs):
@@ -87,7 +57,7 @@ class FluxAdapter(BaseAdapter, KieBaseAdapter):
         return GenerationResult(
             success=True,
             content=result.result_url,
-            provider_cost=self.calculate_cost(model=model, resolution=resolution),
+            provider_cost=self.calculate_cost(model=model),
             raw_response=result.raw_response,
         )
 
@@ -106,14 +76,10 @@ class FluxAdapter(BaseAdapter, KieBaseAdapter):
         except Exception as e:
             return ProviderHealth(status=ProviderStatus.DOWN, error=str(e))
 
-    def calculate_cost(self, model: Optional[str] = None, resolution: str = "1K", **params) -> float:
+    def calculate_cost(self, model: Optional[str] = None, **params) -> float:
         model = model or self.default_model
         pricing = self.PRICING.get(model, self.PRICING["flux-2/pro-text-to-image"])
-        
-        if "per_image" in pricing:
-            return pricing["per_image"]
-        
-        return pricing.get(resolution, pricing.get("1K", 0.025))
+        return pricing.get("per_image", 0.05)
 
     def get_capabilities(self) -> dict:
         return {

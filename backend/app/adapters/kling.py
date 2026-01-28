@@ -13,57 +13,41 @@ class KlingAdapter(BaseAdapter, KieBaseAdapter):
     provider_type = ProviderType.VIDEO
 
     PRICING = {
+        "kling-2.6/motion-control": {
+            "per_second": 0.07,
+            "display_name": "Kling 2.6 Motion Control",
+        },
         "kling-2.6/text-to-video": {
-            "5s": 0.275,
-            "10s": 0.55,
-            "5s_audio": 0.55,
-            "10s_audio": 1.10,
+            "per_second": 0.056,
             "display_name": "Kling 2.6 Text to Video",
         },
         "kling-2.6/image-to-video": {
-            "5s": 0.275,
-            "10s": 0.55,
-            "5s_audio": 0.55,
-            "10s_audio": 1.10,
+            "per_second": 0.056,
             "display_name": "Kling 2.6 Image to Video",
         },
-        "kling-2.6/motion-control": {
-            "720p_per_sec": 0.03,
-            "1080p_per_sec": 0.045,
-            "display_name": "Kling 2.6 Motion Control",
-        },
-        "kling/v2-5-turbo": {
-            "5s": 0.21,
-            "10s": 0.42,
-            "display_name": "Kling 2.5 Turbo",
-        },
-        "kling/v2-1-standard": {
-            "5s": 0.125,
-            "10s": 0.25,
-            "display_name": "Kling 2.1 Standard",
-        },
-        "kling/v2-1-pro": {
-            "5s": 0.25,
-            "10s": 0.50,
-            "display_name": "Kling 2.1 Pro",
-        },
-        "kling/v2-1-master-text-to-video": {
-            "5s": 0.80,
-            "10s": 1.60,
-            "display_name": "Kling 2.1 Master T2V",
-        },
-        "kling/v2-1-master-image-to-video": {
-            "5s": 0.80,
-            "10s": 1.60,
-            "display_name": "Kling 2.1 Master I2V",
-        },
         "kling/ai-avatar-standard": {
-            "per_second": 0.04,
+            "per_video": 0.50,
             "display_name": "Kling AI Avatar Standard",
         },
         "kling/ai-avatar-pro": {
-            "per_second": 0.08,
+            "per_video": 1.00,
             "display_name": "Kling AI Avatar Pro",
+        },
+        "kling/v2-1-master-image-to-video": {
+            "per_second": 0.16,
+            "display_name": "Kling v2.1 Master I2V",
+        },
+        "kling/v2-1-master-text-to-video": {
+            "per_second": 0.16,
+            "display_name": "Kling v2.1 Master T2V",
+        },
+        "kling/v2-1-pro": {
+            "per_second": 0.05,
+            "display_name": "Kling v2.1 Pro",
+        },
+        "kling/v2-1-standard": {
+            "per_second": 0.025,
+            "display_name": "Kling v2.1 Standard",
         },
     }
 
@@ -156,7 +140,7 @@ class KlingAdapter(BaseAdapter, KieBaseAdapter):
         return GenerationResult(
             success=True,
             content=result.result_url,
-            provider_cost=self.calculate_cost(model=model, duration=duration_int, sound=sound, **params),
+            provider_cost=self.calculate_cost(model=model, duration=duration_int),
             raw_response=result.raw_response,
         )
 
@@ -228,32 +212,13 @@ class KlingAdapter(BaseAdapter, KieBaseAdapter):
         except Exception as e:
             return ProviderHealth(status=ProviderStatus.DOWN, error=str(e))
 
-    def calculate_cost(self, model: Optional[str] = None, duration: int = 5, sound: bool = False, mode: str = "720p", **params) -> float:
+    def calculate_cost(self, model: Optional[str] = None, duration: int = 5, **params) -> float:
         model = model or self.default_model
-        pricing = self.PRICING.get(model)
-        
-        if not pricing:
-            return 0.275
+        pricing = self.PRICING.get(model, self.PRICING["kling-2.6/text-to-video"])
 
-        if "ai-avatar" in model:
-            return pricing.get("per_second", 0.04) * duration
-
-        if "motion-control" in model:
-            if mode == "1080p":
-                return pricing.get("1080p_per_sec", 0.045) * duration
-            return pricing.get("720p_per_sec", 0.03) * duration
-
-        duration_key = f"{duration}s"
-        if sound:
-            duration_key = f"{duration}s_audio"
-        
-        if duration_key in pricing:
-            return pricing[duration_key]
-        
-        if f"{duration}s" in pricing:
-            return pricing[f"{duration}s"]
-        
-        return pricing.get("5s", 0.275)
+        if "per_video" in pricing:
+            return pricing["per_video"]
+        return pricing.get("per_second", 0.056) * duration
 
     def get_capabilities(self) -> dict:
         return {

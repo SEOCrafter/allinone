@@ -9,26 +9,12 @@ class HailuoAdapter(BaseAdapter, KieBaseAdapter):
     provider_type = ProviderType.VIDEO
 
     PRICING = {
-        "hailuo/02-text-to-video-standard-768p-6s": {"per_video": 0.15, "display_name": "Hailuo 02 T2V Standard 768p 6s"},
-        "hailuo/02-text-to-video-standard-768p-10s": {"per_video": 0.25, "display_name": "Hailuo 02 T2V Standard 768p 10s"},
-        "hailuo/02-text-to-video-pro-1080p-6s": {"per_video": 0.285, "display_name": "Hailuo 02 T2V Pro 1080p 6s"},
-        "hailuo/02-image-to-video-standard-512p-6s": {"per_video": 0.06, "display_name": "Hailuo 02 I2V Standard 512p 6s"},
-        "hailuo/02-image-to-video-standard-512p-10s": {"per_video": 0.10, "display_name": "Hailuo 02 I2V Standard 512p 10s"},
-        "hailuo/02-image-to-video-standard-768p-6s": {"per_video": 0.15, "display_name": "Hailuo 02 I2V Standard 768p 6s"},
-        "hailuo/02-image-to-video-standard-768p-10s": {"per_video": 0.25, "display_name": "Hailuo 02 I2V Standard 768p 10s"},
-        "hailuo/02-image-to-video-pro-1080p-6s": {"per_video": 0.285, "display_name": "Hailuo 02 I2V Pro 1080p 6s"},
-        "hailuo/2-3-image-to-video-standard-768p-6s": {"per_video": 0.15, "display_name": "Hailuo 2.3 I2V Standard 768p 6s"},
-        "hailuo/2-3-image-to-video-standard-768p-10s": {"per_video": 0.25, "display_name": "Hailuo 2.3 I2V Standard 768p 10s"},
-        "hailuo/2-3-image-to-video-standard-1080p-6s": {"per_video": 0.25, "display_name": "Hailuo 2.3 I2V Standard 1080p 6s"},
-        "hailuo/2-3-image-to-video-pro-768p-6s": {"per_video": 0.225, "display_name": "Hailuo 2.3 I2V Pro 768p 6s"},
-        "hailuo/2-3-image-to-video-pro-768p-10s": {"per_video": 0.45, "display_name": "Hailuo 2.3 I2V Pro 768p 10s"},
-        "hailuo/2-3-image-to-video-pro-1080p-6s": {"per_video": 0.40, "display_name": "Hailuo 2.3 I2V Pro 1080p 6s"},
-        "hailuo/02-text-to-video-standard": {"per_video": 0.15, "display_name": "Hailuo 02 Standard"},
-        "hailuo/02-text-to-video-pro": {"per_video": 0.285, "display_name": "Hailuo 02 Pro"},
-        "hailuo/02-image-to-video-standard": {"per_video": 0.15, "display_name": "Hailuo 02 I2V Standard"},
-        "hailuo/02-image-to-video-pro": {"per_video": 0.285, "display_name": "Hailuo 02 I2V Pro"},
-        "hailuo/2-3-image-to-video-standard": {"per_video": 0.15, "display_name": "Hailuo 2.3 I2V Standard"},
-        "hailuo/2-3-image-to-video-pro": {"per_video": 0.225, "display_name": "Hailuo 2.3 I2V Pro"},
+        "hailuo/02-text-to-video-standard": {"per_video": 0.35, "display_name": "Hailuo 02 Standard"},
+        "hailuo/02-text-to-video-pro": {"per_video": 0.50, "display_name": "Hailuo 02 Pro"},
+        "hailuo/02-image-to-video-standard": {"per_video": 0.35, "display_name": "Hailuo 02 I2V Standard"},
+        "hailuo/02-image-to-video-pro": {"per_video": 0.50, "display_name": "Hailuo 02 I2V Pro"},
+        "hailuo/2-3-image-to-video-standard": {"per_video": 0.40, "display_name": "Hailuo 2.3 I2V Standard"},
+        "hailuo/2-3-image-to-video-pro": {"per_video": 0.60, "display_name": "Hailuo 2.3 I2V Pro"},
     }
 
     def __init__(self, api_key: str, default_model: str = "hailuo/02-text-to-video-standard", **kwargs):
@@ -43,17 +29,11 @@ class HailuoAdapter(BaseAdapter, KieBaseAdapter):
         prompt: str,
         model: Optional[str] = None,
         image_url: Optional[str] = None,
-        duration: str = "6",
-        resolution: str = "768p",
         **params
     ) -> GenerationResult:
         model = model or self.default_model
 
-        input_data = {
-            "prompt": prompt,
-            "duration": duration,
-            "resolution": resolution,
-        }
+        input_data = {"prompt": prompt}
 
         if image_url:
             input_data["image_url"] = image_url
@@ -93,13 +73,11 @@ class HailuoAdapter(BaseAdapter, KieBaseAdapter):
     def calculate_cost(self, model: Optional[str] = None, **params) -> float:
         model = model or self.default_model
         pricing = self.PRICING.get(model, self.PRICING["hailuo/02-text-to-video-standard"])
-        return pricing.get("per_video", 0.15)
+        return pricing.get("per_video", 0.35)
 
     def get_capabilities(self) -> dict:
         return {
             "models": list(self.PRICING.keys()),
-            "durations": ["6", "10"],
-            "resolutions": ["512p", "768p", "1080p"],
             "supports_text_to_video": True,
             "supports_image_to_video": True,
         }

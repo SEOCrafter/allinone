@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     DEEPSEEK_API_KEY: str = ""
     KIE_API_KEY: str = ""
+    REPLICATE_API_KEY: str = ""
 
 @lru_cache
 def get_settings() -> Settings:

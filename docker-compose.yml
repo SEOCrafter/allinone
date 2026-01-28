@@ -1,3 +1,7 @@
+# ===========================================
+# AI Aggregator "Все нейросети внутри"
+# Стек для Dockge - Production
+# ===========================================
 
 services:
   # ─────────────────────────────────────────
@@ -131,22 +135,6 @@ services:
     ports:
       - "9200:9000"
       - "9201:9001"
-    networks:
-      - ai-network
-
-  # ─────────────────────────────────────────
-  # Admin Panel (React + Vite)
-  # ─────────────────────────────────────────
-  frontend:
-    build:
-      context: ./admin
-      dockerfile: Dockerfile
-    container_name: ai-frontend
-    restart: unless-stopped
-    ports:
-      - "3000:80"
-    depends_on:
-      - api
     networks:
       - ai-network
 
