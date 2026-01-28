@@ -8,7 +8,7 @@ from decimal import Decimal
 
 from app.database import get_db
 from app.models.model_provider_price import ModelProviderPrice
-from app.api.deps import get_current_admin_user
+from app.api.deps import get_admin_user
 
 router = APIRouter(prefix="/providers", tags=["providers"])
 
@@ -48,7 +48,7 @@ async def list_provider_prices(
     provider: Optional[str] = None,
     is_active: Optional[bool] = None,
     db: AsyncSession = Depends(get_db),
-    admin = Depends(get_current_admin_user),
+    admin = Depends(get_admin_user),
 ):
     query = select(ModelProviderPrice)
     
@@ -81,7 +81,7 @@ async def list_provider_prices(
 @router.get("/models", response_model=List[ModelProvidersResponse])
 async def list_models_with_providers(
     db: AsyncSession = Depends(get_db),
-    admin = Depends(get_current_admin_user),
+    admin = Depends(get_admin_user),
 ):
     query = select(ModelProviderPrice).order_by(ModelProviderPrice.model_name, ModelProviderPrice.provider)
     result = await db.execute(query)
@@ -125,7 +125,7 @@ async def update_provider_price(
     price_id: UUID,
     data: ProviderPriceUpdate,
     db: AsyncSession = Depends(get_db),
-    admin = Depends(get_current_admin_user),
+    admin = Depends(get_admin_user),
 ):
     result = await db.execute(
         select(ModelProviderPrice).where(ModelProviderPrice.id == price_id)
@@ -158,7 +158,7 @@ async def update_provider_price(
 async def switch_model_provider(
     data: SwitchProviderRequest,
     db: AsyncSession = Depends(get_db),
-    admin = Depends(get_current_admin_user),
+    admin = Depends(get_admin_user),
 ):
     result = await db.execute(
         select(ModelProviderPrice).where(
@@ -225,7 +225,7 @@ async def create_provider_price(
     price_usd: float,
     replicate_model_id: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    admin = Depends(get_current_admin_user),
+    admin = Depends(get_admin_user),
 ):
     existing = await db.execute(
         select(ModelProviderPrice).where(
