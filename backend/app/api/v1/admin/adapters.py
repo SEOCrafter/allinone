@@ -48,17 +48,19 @@ async def list_adapters(
                 "price_type": p.price_type,
                 "price_usd": float(p.price_usd),
             }
-    
+
     MODEL_NAME_MAPPING = {
         "kling-2.6/text-to-video": "kling-2.6-t2v",
         "kling-2.6/image-to-video": "kling-2.6-i2v",
         "kling-2.6/motion-control": "kling-2.6-motion",
-        "kling/ai-avatar-standard": "kling-avatar-standard",
-        "kling/ai-avatar-pro": "kling-avatar-pro",
-        "kling/v2-1-master-image-to-video": "kling-2.1-master-i2v",
-        "kling/v2-1-master-text-to-video": "kling-2.1-master-t2v",
-        "kling/v2-1-pro": "kling-2.1-pro",
-        "kling/v2-1-standard": "kling-2.1-standard",
+        "kling/ai-avatar-standard": "kling-2.6-t2v",
+        "kling/ai-avatar-pro": "kling-2.6-t2v",
+        "kling/v2-1-master-image-to-video": "kling-2.6-i2v",
+        "kling/v2-1-master-text-to-video": "kling-2.6-t2v",
+        "kling/v2-1-pro": "kling-2.6-t2v",
+        "kling/v2-1-standard": "kling-2.6-t2v",
+        "kwaivgi/kling-v2.6": "kling-2.6-t2v",
+        "kwaivgi/kling-v2.6-motion-control": "kling-2.6-motion",
         "hailuo/02-text-to-video-standard": "hailuo-02",
         "hailuo/02-text-to-video-pro": "hailuo-02",
         "hailuo/02-image-to-video-standard": "hailuo-02",
@@ -95,6 +97,10 @@ async def list_adapters(
         "runwayml/gen4-image": "runway-gen4-image",
         "runwayml/gen4-image-turbo": "runway-gen4-image",
         "runwayml/gen4-turbo": "runway-gen4-turbo",
+        "gen4": "runway-gen4-video",
+        "gen4-turbo": "runway-gen4-turbo",
+        "gen3-alpha": "runway-gen4-video",
+        "gen3-alpha-turbo": "runway-gen4-turbo",
         "luma/ray": "luma-ray",
         "luma/ray-flash-2-540p": "luma-ray-flash",
         "luma/photon-flash": "luma-photon-flash",
@@ -109,19 +115,18 @@ async def list_adapters(
         "black-forest-labs/flux-dev": "flux-dev",
         "stability-ai/stable-diffusion-3.5-large": "sd-3.5-large",
         "stability-ai/stable-diffusion-3.5-large-turbo": "sd-3.5-large-turbo",
-        "bytedance/seedance-1-pro": "seedance-1-pro",
-        "bytedance/seedance-1-pro-fast": "seedance-1-pro",
-        "bytedance/seedance-1-lite": "seedance-1-lite",
-        "bytedance/seedance-1.5-pro": "seedance-1.5-pro",
-        "bytedance/seedance-1.5-standard": "seedance-1.5-standard",
-        "bytedance/v1-lite-image-to-video": "seedance-1-lite",
-        "gen4": "runway-gen4-video",
-        "gen4-turbo": "runway-gen4-turbo",
-        "gen3-alpha": "runway-gen3-alpha",
-        "gen3-alpha-turbo": "runway-gen3-alpha-turbo",
-        "kwaivgi/kling-v2.6": "kling-2.6-t2v",
-    }
-    
+        "bytedance/seedance-1-pro": "seedance-pro",
+        "bytedance/seedance-1-pro-fast": "seedance-pro-fast",
+        "bytedance/seedance-1-lite": "seedance-lite",
+        "bytedance/seedance-1.5-pro": "seedance-pro",
+        "bytedance/seedance-1.5-standard": "seedance-pro",
+        "bytedance/v1-lite-image-to-video": "seedance-lite",
+        "seedance-1-pro": "seedance-pro",
+        "seedance-1-lite": "seedance-lite",
+        "seedance-1.5-pro": "seedance-pro",
+        "seedance-1.5-standard": "seedance-pro",
+    }    
+   
     def normalize_model_id(model_id: str) -> str:
         if "/" in model_id:
             return model_id.split("/")[-1]
