@@ -283,9 +283,10 @@ async def generate_video_async(
                 "prompt": data.prompt,
                 "duration": str(data.duration),
                 "aspect_ratio": data.aspect_ratio,
+                "sound": data.sound,
             }
             if data.image_urls:
-                input_data["image"] = data.image_urls[0]
+                input_data["image_urls"] = [data.image_urls[0]]
             
             result = await adapter.create_task(actual_model, input_data)
         else:
