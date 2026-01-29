@@ -28,6 +28,21 @@ MODEL_NAME_ALIASES = {
     "luma-ray-flash-2-540p/text-to-video": "luma-ray-flash",
     "runway-gen4/text-to-video": "runway-gen4-turbo",
     "minimax-video-01/text-to-video": "minimax-video",
+    "flux-2/pro-text-to-image": "flux-2-pro",
+    "flux-2/pro-image-to-image": "flux-2-pro",
+    "flux-2/flex-text-to-image": "flux-2-flex",
+    "flux-2/flex-image-to-image": "flux-2-flex",
+    "flux-kontext/pro-text-to-image": "flux-kontext-pro",
+    "flux-kontext/pro-image-to-image": "flux-kontext-pro",
+}
+
+MODEL_TO_KIE_MODEL = {
+    "flux-2-pro": "flux-2/pro-text-to-image",
+    "flux-2-flex": "flux-2/flex-text-to-image",
+    "flux-kontext-pro": "flux-kontext/pro-text-to-image",
+    "kling-2.6-t2v": "kling-2.6/text-to-video",
+    "kling-2.6-i2v": "kling-2.6/image-to-video",
+    "kling-2.6-motion": "kling-2.6/motion-control",
 }
 
 
@@ -89,14 +104,23 @@ async def get_adapter_for_model(
     fallback_provider: str = "kie",
 ) -> Tuple[BaseAdapter, str, str, float]:
     provider_price = await get_active_provider_for_model(db, model_name)
+    normalized = normalize_model_name(model_name)
     
     if provider_price:
         provider = provider_price.provider
-        actual_model = provider_price.replicate_model_id if provider == "replicate" and provider_price.replicate_model_id else model_name
+        if provider == "replicate" and provider_price.replicate_model_id:
+            actual_model = provider_price.replicate_model_id
+        elif provider == "kie" and normalized in MODEL_TO_KIE_MODEL:
+            actual_model = MODEL_TO_KIE_MODEL[normalized]
+        else:
+            actual_model = model_name
         price_usd = float(provider_price.price_usd)
     else:
         provider = fallback_provider
-        actual_model = model_name
+        if normalized in MODEL_TO_KIE_MODEL:
+            actual_model = MODEL_TO_KIE_MODEL[normalized]
+        else:
+            actual_model = model_name
         price_usd = 0.0
     
     api_key = get_api_key_for_provider(provider)
