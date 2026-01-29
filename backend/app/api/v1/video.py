@@ -12,6 +12,7 @@ from app.models.user import User
 from app.models.request import Request
 from app.models.provider import Provider
 from app.models.provider_balance import ProviderBalance
+from app.services.provider_routing import get_adapter_for_model, normalize_model_name
 from app.adapters import AdapterRegistry
 from app.config import settings
 
@@ -20,8 +21,7 @@ router = APIRouter()
 
 class VideoGenerateRequest(BaseModel):
     prompt: str
-    provider: str = "kling"
-    model: str = "kling-2.6/text-to-video"
+    model: str = "kling-2.6-t2v"
     image_urls: Optional[List[str]] = None
     video_urls: Optional[List[str]] = None
     duration: str = "5"
@@ -35,6 +35,7 @@ class VideoGenerateResponse(BaseModel):
     task_id: Optional[str] = None
     request_id: Optional[str] = None
     credits_spent: Optional[float] = None
+    provider_used: Optional[str] = None
     error: Optional[str] = None
 
 
@@ -44,39 +45,31 @@ class MidjourneyVideoRequest(BaseModel):
     model: str = "mj_video"
 
 
-def get_api_key(provider: str) -> Optional[str]:
-    key_map = {
-        "kling": settings.KIE_API_KEY,
-        "midjourney": settings.KIE_API_KEY,
-        "nano_banana": settings.KIE_API_KEY,
-    }
-    return key_map.get(provider)
-
-
 @router.post("/generate", response_model=VideoGenerateResponse)
 async def generate_video(
     data: VideoGenerateRequest,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    api_key = get_api_key(data.provider)
-    if not api_key:
-        raise HTTPException(status_code=400, detail=f"Provider {data.provider} not configured")
-
-    adapter = AdapterRegistry.get_adapter(data.provider, api_key)
-    if not adapter:
-        raise HTTPException(status_code=400, detail=f"Unknown provider: {data.provider}")
+    try:
+        adapter, actual_model, provider, price_usd = await get_adapter_for_model(
+            db=db,
+            model_name=data.model,
+            fallback_provider="kie",
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     provider_result = await db.execute(
-        select(Provider).where(Provider.name == data.provider)
+        select(Provider).where(Provider.name == provider)
     )
     provider_record = provider_result.scalar_one_or_none()
 
     if not provider_record:
         provider_record = Provider(
             id=str(uuid.uuid4()),
-            name=data.provider,
-            display_name=adapter.display_name,
+            name=provider,
+            display_name=provider.upper(),
             type="video",
             is_active=True,
         )
@@ -84,6 +77,7 @@ async def generate_video(
         await db.flush()
 
     request_id = str(uuid.uuid4())
+    normalized_model = normalize_model_name(data.model)
 
     request_record = Request(
         id=request_id,
@@ -91,7 +85,7 @@ async def generate_video(
         provider_id=provider_record.id,
         type="video",
         endpoint="/api/v1/video/generate",
-        model=data.model,
+        model=normalized_model,
         prompt=data.prompt,
         status="processing",
     )
@@ -100,7 +94,7 @@ async def generate_video(
 
     try:
         params = {
-            "model": data.model,
+            "model": actual_model,
             "duration": data.duration,
             "aspect_ratio": data.aspect_ratio,
             "sound": data.sound,
@@ -114,21 +108,22 @@ async def generate_video(
         result = await adapter.generate(data.prompt, **params)
 
         if result.success:
-            credits_spent = result.provider_cost * 1000
+            provider_cost = result.provider_cost if result.provider_cost > 0 else price_usd
+            credits_spent = provider_cost * 1000
 
             balance_result = await db.execute(
-                select(ProviderBalance).where(ProviderBalance.provider == data.provider)
+                select(ProviderBalance).where(ProviderBalance.provider == provider)
             )
             provider_balance = balance_result.scalar_one_or_none()
             if provider_balance:
-                provider_balance.balance_usd = provider_balance.balance_usd - Decimal(str(result.provider_cost))
-                provider_balance.total_spent_usd = provider_balance.total_spent_usd + Decimal(str(result.provider_cost))
+                provider_balance.balance_usd = provider_balance.balance_usd - Decimal(str(provider_cost))
+                provider_balance.total_spent_usd = provider_balance.total_spent_usd + Decimal(str(provider_cost))
 
             user.credits_balance = user.credits_balance - Decimal(str(credits_spent))
 
             request_record.status = "completed"
             request_record.credits_spent = Decimal(str(credits_spent))
-            request_record.provider_cost = Decimal(str(result.provider_cost))
+            request_record.provider_cost = Decimal(str(provider_cost))
 
             await db.commit()
 
@@ -137,6 +132,7 @@ async def generate_video(
                 video_url=result.content,
                 request_id=request_id,
                 credits_spent=credits_spent,
+                provider_used=provider,
             )
         else:
             request_record.status = "failed"
@@ -147,6 +143,7 @@ async def generate_video(
             return VideoGenerateResponse(
                 ok=False,
                 error=result.error_message,
+                provider_used=provider,
             )
 
     except Exception as e:
@@ -157,6 +154,7 @@ async def generate_video(
         return VideoGenerateResponse(
             ok=False,
             error=str(e),
+            provider_used=provider,
         )
 
 
@@ -166,23 +164,24 @@ async def generate_midjourney_video(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    api_key = settings.KIE_API_KEY
-    if not api_key:
-        raise HTTPException(status_code=400, detail="Midjourney not configured")
-
-    adapter = AdapterRegistry.get_adapter("midjourney", api_key)
-    if not adapter:
-        raise HTTPException(status_code=400, detail="Midjourney adapter not found")
+    try:
+        adapter, actual_model, provider, price_usd = await get_adapter_for_model(
+            db=db,
+            model_name="midjourney",
+            fallback_provider="kie",
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     provider_result = await db.execute(
-        select(Provider).where(Provider.name == "midjourney")
+        select(Provider).where(Provider.name == provider)
     )
     provider_record = provider_result.scalar_one_or_none()
 
     if not provider_record:
         provider_record = Provider(
             id=str(uuid.uuid4()),
-            name="midjourney",
+            name=provider,
             display_name="Midjourney",
             type="image",
             is_active=True,
@@ -206,27 +205,35 @@ async def generate_midjourney_video(
     await db.flush()
 
     try:
-        result = await adapter.image_to_video(
-            image_url=data.image_url,
-            prompt=data.prompt,
-        )
+        if hasattr(adapter, 'image_to_video'):
+            result = await adapter.image_to_video(
+                image_url=data.image_url,
+                prompt=data.prompt,
+            )
+        else:
+            result = await adapter.generate(
+                prompt=data.prompt,
+                image_urls=[data.image_url],
+                model=actual_model,
+            )
 
         if result.success:
-            credits_spent = result.provider_cost * 1000
+            provider_cost = result.provider_cost if result.provider_cost > 0 else price_usd
+            credits_spent = provider_cost * 1000
 
             balance_result = await db.execute(
-                select(ProviderBalance).where(ProviderBalance.provider == "midjourney")
+                select(ProviderBalance).where(ProviderBalance.provider == provider)
             )
             provider_balance = balance_result.scalar_one_or_none()
             if provider_balance:
-                provider_balance.balance_usd = provider_balance.balance_usd - Decimal(str(result.provider_cost))
-                provider_balance.total_spent_usd = provider_balance.total_spent_usd + Decimal(str(result.provider_cost))
+                provider_balance.balance_usd = provider_balance.balance_usd - Decimal(str(provider_cost))
+                provider_balance.total_spent_usd = provider_balance.total_spent_usd + Decimal(str(provider_cost))
 
             user.credits_balance = user.credits_balance - Decimal(str(credits_spent))
 
             request_record.status = "completed"
             request_record.credits_spent = Decimal(str(credits_spent))
-            request_record.provider_cost = Decimal(str(result.provider_cost))
+            request_record.provider_cost = Decimal(str(provider_cost))
 
             await db.commit()
 
@@ -235,6 +242,7 @@ async def generate_midjourney_video(
                 video_url=result.content,
                 request_id=request_id,
                 credits_spent=credits_spent,
+                provider_used=provider,
             )
         else:
             request_record.status = "failed"
@@ -245,6 +253,7 @@ async def generate_midjourney_video(
             return VideoGenerateResponse(
                 ok=False,
                 error=result.error_message,
+                provider_used=provider,
             )
 
     except Exception as e:
@@ -255,4 +264,5 @@ async def generate_midjourney_video(
         return VideoGenerateResponse(
             ok=False,
             error=str(e),
+            provider_used=provider,
         )

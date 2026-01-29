@@ -12,6 +12,7 @@ from app.models.user import User
 from app.models.request import Request
 from app.models.provider import Provider
 from app.models.provider_balance import ProviderBalance
+from app.services.provider_routing import get_adapter_for_model, normalize_model_name
 from app.adapters import AdapterRegistry
 from app.config import settings
 
@@ -20,8 +21,7 @@ router = APIRouter()
 
 class GenerateRequest(BaseModel):
     prompt: str
-    provider: str = "nano_banana"
-    model: Optional[str] = None
+    model: str = "nano-banana-pro"
     negative_prompt: Optional[str] = None
     width: int = 1024
     height: int = 1024
@@ -38,13 +38,13 @@ class GenerateResponse(BaseModel):
     image_urls: Optional[List[str]] = None
     request_id: Optional[str] = None
     credits_spent: Optional[float] = None
+    provider_used: Optional[str] = None
     error: Optional[str] = None
 
 
 class ImageToImageRequest(BaseModel):
     prompt: str
-    provider: str = "midjourney"
-    model: Optional[str] = None
+    model: str = "midjourney"
     image_url: str
     aspect_ratio: str = "1:1"
     version: str = "7"
@@ -72,40 +72,31 @@ class MidjourneyRequest(BaseModel):
     weirdness: int = 0
 
 
-def get_api_key(provider: str) -> Optional[str]:
-    key_map = {
-        "openai": settings.OPENAI_API_KEY,
-        "nano_banana": settings.KIE_API_KEY,
-        "midjourney": settings.KIE_API_KEY,
-        "kling": settings.KIE_API_KEY,
-    }
-    return key_map.get(provider)
-
-
 @router.post("/generate", response_model=GenerateResponse)
 async def generate_image(
     data: GenerateRequest,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    api_key = get_api_key(data.provider)
-    if not api_key:
-        raise HTTPException(status_code=400, detail=f"Provider {data.provider} not configured")
-
-    adapter = AdapterRegistry.get_adapter(data.provider, api_key)
-    if not adapter:
-        raise HTTPException(status_code=400, detail=f"Unknown provider: {data.provider}")
+    try:
+        adapter, actual_model, provider, price_usd = await get_adapter_for_model(
+            db=db,
+            model_name=data.model,
+            fallback_provider="kie",
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     provider_result = await db.execute(
-        select(Provider).where(Provider.name == data.provider)
+        select(Provider).where(Provider.name == provider)
     )
     provider_record = provider_result.scalar_one_or_none()
 
     if not provider_record:
         provider_record = Provider(
             id=str(uuid.uuid4()),
-            name=data.provider,
-            display_name=adapter.display_name,
+            name=provider,
+            display_name=provider.upper(),
             type="image",
             is_active=True,
         )
@@ -113,7 +104,7 @@ async def generate_image(
         await db.flush()
 
     request_id = str(uuid.uuid4())
-    model = data.model or getattr(adapter, 'default_model', 'default')
+    normalized_model = normalize_model_name(data.model)
 
     request_record = Request(
         id=request_id,
@@ -121,7 +112,7 @@ async def generate_image(
         provider_id=provider_record.id,
         type="image",
         endpoint="/api/v1/images/generate",
-        model=model,
+        model=normalized_model,
         prompt=data.prompt,
         status="processing",
     )
@@ -129,16 +120,13 @@ async def generate_image(
     await db.flush()
 
     try:
-        params = {}
-        if data.model:
-            params["model"] = data.model
-        if data.aspect_ratio:
-            params["aspect_ratio"] = data.aspect_ratio
-        if data.resolution:
-            params["resolution"] = data.resolution
-        if data.width and data.height:
-            params["width"] = data.width
-            params["height"] = data.height
+        params = {
+            "model": actual_model,
+            "aspect_ratio": data.aspect_ratio,
+            "resolution": data.resolution,
+            "width": data.width,
+            "height": data.height,
+        }
         if data.negative_prompt:
             params["negative_prompt"] = data.negative_prompt
         if data.steps:
@@ -154,31 +142,35 @@ async def generate_image(
             result = await adapter.generate(data.prompt, **params)
 
         if result.success:
-            credits_spent = result.provider_cost * 1000
+            provider_cost = result.provider_cost if result.provider_cost > 0 else price_usd
+            credits_spent = provider_cost * 1000
 
             balance_result = await db.execute(
-                select(ProviderBalance).where(ProviderBalance.provider == data.provider)
+                select(ProviderBalance).where(ProviderBalance.provider == provider)
             )
             provider_balance = balance_result.scalar_one_or_none()
             if provider_balance:
-                provider_balance.balance_usd = provider_balance.balance_usd - Decimal(str(result.provider_cost))
-                provider_balance.total_spent_usd = provider_balance.total_spent_usd + Decimal(str(result.provider_cost))
+                provider_balance.balance_usd = provider_balance.balance_usd - Decimal(str(provider_cost))
+                provider_balance.total_spent_usd = provider_balance.total_spent_usd + Decimal(str(provider_cost))
 
             user.credits_balance = user.credits_balance - Decimal(str(credits_spent))
 
             request_record.status = "completed"
             request_record.credits_spent = Decimal(str(credits_spent))
-            request_record.provider_cost = Decimal(str(result.provider_cost))
+            request_record.provider_cost = Decimal(str(provider_cost))
 
             await db.commit()
 
-            image_url = result.content if isinstance(result.content, str) else result.content.get('url', '')
+            image_url = result.content if isinstance(result.content, str) else result.content.get('url', '') if result.content else ''
+            image_urls = result.result_urls if hasattr(result, 'result_urls') and result.result_urls else None
 
             return GenerateResponse(
                 ok=True,
                 image_url=image_url,
+                image_urls=image_urls,
                 request_id=request_id,
                 credits_spent=credits_spent,
+                provider_used=provider,
             )
         else:
             request_record.status = "failed"
@@ -189,6 +181,7 @@ async def generate_image(
             return GenerateResponse(
                 ok=False,
                 error=result.error_message,
+                provider_used=provider,
             )
 
     except Exception as e:
@@ -199,6 +192,7 @@ async def generate_image(
         return GenerateResponse(
             ok=False,
             error=str(e),
+            provider_used=provider,
         )
 
 
@@ -208,23 +202,24 @@ async def generate_nano_banana(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    api_key = settings.KIE_API_KEY
-    if not api_key:
-        raise HTTPException(status_code=400, detail="NanoBanana not configured")
-
-    adapter = AdapterRegistry.get_adapter("nano_banana", api_key)
-    if not adapter:
-        raise HTTPException(status_code=400, detail="NanoBanana adapter not found")
+    try:
+        adapter, actual_model, provider, price_usd = await get_adapter_for_model(
+            db=db,
+            model_name=data.model,
+            fallback_provider="kie",
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     provider_result = await db.execute(
-        select(Provider).where(Provider.name == "nano_banana")
+        select(Provider).where(Provider.name == provider)
     )
     provider_record = provider_result.scalar_one_or_none()
 
     if not provider_record:
         provider_record = Provider(
             id=str(uuid.uuid4()),
-            name="nano_banana",
+            name=provider,
             display_name="Nano Banana Pro",
             type="image",
             is_active=True,
@@ -248,31 +243,35 @@ async def generate_nano_banana(
     await db.flush()
 
     try:
-        result = await adapter.generate(
-            prompt=data.prompt,
-            model=data.model,
-            aspect_ratio=data.aspect_ratio,
-            resolution=data.resolution,
-            output_format=data.output_format,
-            image_input=data.image_input,
-        )
+        params = {
+            "model": actual_model,
+            "aspect_ratio": data.aspect_ratio,
+            "resolution": data.resolution,
+            "output_format": data.output_format,
+        }
+        if data.image_input:
+            params["image_input"] = data.image_input
+            params["image_urls"] = data.image_input
+
+        result = await adapter.generate(data.prompt, **params)
 
         if result.success:
-            credits_spent = result.provider_cost * 1000
+            provider_cost = result.provider_cost if result.provider_cost > 0 else price_usd
+            credits_spent = provider_cost * 1000
 
             balance_result = await db.execute(
-                select(ProviderBalance).where(ProviderBalance.provider == "nano_banana")
+                select(ProviderBalance).where(ProviderBalance.provider == provider)
             )
             provider_balance = balance_result.scalar_one_or_none()
             if provider_balance:
-                provider_balance.balance_usd = provider_balance.balance_usd - Decimal(str(result.provider_cost))
-                provider_balance.total_spent_usd = provider_balance.total_spent_usd + Decimal(str(result.provider_cost))
+                provider_balance.balance_usd = provider_balance.balance_usd - Decimal(str(provider_cost))
+                provider_balance.total_spent_usd = provider_balance.total_spent_usd + Decimal(str(provider_cost))
 
             user.credits_balance = user.credits_balance - Decimal(str(credits_spent))
 
             request_record.status = "completed"
             request_record.credits_spent = Decimal(str(credits_spent))
-            request_record.provider_cost = Decimal(str(result.provider_cost))
+            request_record.provider_cost = Decimal(str(provider_cost))
 
             await db.commit()
 
@@ -281,6 +280,7 @@ async def generate_nano_banana(
                 image_url=result.content,
                 request_id=request_id,
                 credits_spent=credits_spent,
+                provider_used=provider,
             )
         else:
             request_record.status = "failed"
@@ -291,6 +291,7 @@ async def generate_nano_banana(
             return GenerateResponse(
                 ok=False,
                 error=result.error_message,
+                provider_used=provider,
             )
 
     except Exception as e:
@@ -301,6 +302,7 @@ async def generate_nano_banana(
         return GenerateResponse(
             ok=False,
             error=str(e),
+            provider_used=provider,
         )
 
 
@@ -310,23 +312,24 @@ async def generate_midjourney(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    api_key = settings.KIE_API_KEY
-    if not api_key:
-        raise HTTPException(status_code=400, detail="Midjourney not configured")
-
-    adapter = AdapterRegistry.get_adapter("midjourney", api_key)
-    if not adapter:
-        raise HTTPException(status_code=400, detail="Midjourney adapter not found")
+    try:
+        adapter, actual_model, provider, price_usd = await get_adapter_for_model(
+            db=db,
+            model_name="midjourney",
+            fallback_provider="kie",
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     provider_result = await db.execute(
-        select(Provider).where(Provider.name == "midjourney")
+        select(Provider).where(Provider.name == provider)
     )
     provider_record = provider_result.scalar_one_or_none()
 
     if not provider_record:
         provider_record = Provider(
             id=str(uuid.uuid4()),
-            name="midjourney",
+            name=provider,
             display_name="Midjourney",
             type="image",
             is_active=True,
@@ -350,33 +353,43 @@ async def generate_midjourney(
     await db.flush()
 
     try:
-        result = await adapter.generate(
-            prompt=data.prompt,
-            task_type=data.task_type,
-            file_url=data.file_url,
-            aspect_ratio=data.aspect_ratio,
-            version=data.version,
-            speed=data.speed,
-            stylization=data.stylization,
-            weirdness=data.weirdness,
-        )
+        if provider == "kie":
+            result = await adapter.generate(
+                prompt=data.prompt,
+                task_type=data.task_type,
+                file_url=data.file_url,
+                aspect_ratio=data.aspect_ratio,
+                version=data.version,
+                speed=data.speed,
+                stylization=data.stylization,
+                weirdness=data.weirdness,
+            )
+        else:
+            params = {
+                "model": actual_model,
+                "aspect_ratio": data.aspect_ratio,
+            }
+            if data.file_url:
+                params["image_urls"] = [data.file_url]
+            result = await adapter.generate(data.prompt, **params)
 
         if result.success:
-            credits_spent = result.provider_cost * 1000
+            provider_cost = result.provider_cost if result.provider_cost > 0 else price_usd
+            credits_spent = provider_cost * 1000
 
             balance_result = await db.execute(
-                select(ProviderBalance).where(ProviderBalance.provider == "midjourney")
+                select(ProviderBalance).where(ProviderBalance.provider == provider)
             )
             provider_balance = balance_result.scalar_one_or_none()
             if provider_balance:
-                provider_balance.balance_usd = provider_balance.balance_usd - Decimal(str(result.provider_cost))
-                provider_balance.total_spent_usd = provider_balance.total_spent_usd + Decimal(str(result.provider_cost))
+                provider_balance.balance_usd = provider_balance.balance_usd - Decimal(str(provider_cost))
+                provider_balance.total_spent_usd = provider_balance.total_spent_usd + Decimal(str(provider_cost))
 
             user.credits_balance = user.credits_balance - Decimal(str(credits_spent))
 
             request_record.status = "completed"
             request_record.credits_spent = Decimal(str(credits_spent))
-            request_record.provider_cost = Decimal(str(result.provider_cost))
+            request_record.provider_cost = Decimal(str(provider_cost))
 
             await db.commit()
 
@@ -385,6 +398,7 @@ async def generate_midjourney(
                 image_url=result.content,
                 request_id=request_id,
                 credits_spent=credits_spent,
+                provider_used=provider,
             )
         else:
             request_record.status = "failed"
@@ -395,6 +409,7 @@ async def generate_midjourney(
             return GenerateResponse(
                 ok=False,
                 error=result.error_message,
+                provider_used=provider,
             )
 
     except Exception as e:
@@ -405,6 +420,7 @@ async def generate_midjourney(
         return GenerateResponse(
             ok=False,
             error=str(e),
+            provider_used=provider,
         )
 
 
@@ -414,24 +430,25 @@ async def image_to_image(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    api_key = get_api_key(data.provider)
-    if not api_key:
-        raise HTTPException(status_code=400, detail=f"Provider {data.provider} not configured")
-
-    adapter = AdapterRegistry.get_adapter(data.provider, api_key)
-    if not adapter:
-        raise HTTPException(status_code=400, detail=f"Unknown provider: {data.provider}")
+    try:
+        adapter, actual_model, provider, price_usd = await get_adapter_for_model(
+            db=db,
+            model_name=data.model,
+            fallback_provider="kie",
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     provider_result = await db.execute(
-        select(Provider).where(Provider.name == data.provider)
+        select(Provider).where(Provider.name == provider)
     )
     provider_record = provider_result.scalar_one_or_none()
 
     if not provider_record:
         provider_record = Provider(
             id=str(uuid.uuid4()),
-            name=data.provider,
-            display_name=adapter.display_name,
+            name=provider,
+            display_name=provider.upper(),
             type="image",
             is_active=True,
         )
@@ -446,7 +463,7 @@ async def image_to_image(
         provider_id=provider_record.id,
         type="image",
         endpoint="/api/v1/images/image-to-image",
-        model=data.model or "img2img",
+        model=data.model,
         prompt=data.prompt,
         status="processing",
     )
@@ -454,7 +471,7 @@ async def image_to_image(
     await db.flush()
 
     try:
-        if hasattr(adapter, 'image_to_image'):
+        if provider == "kie" and hasattr(adapter, 'image_to_image'):
             result = await adapter.image_to_image(
                 prompt=data.prompt,
                 image_url=data.image_url,
@@ -464,27 +481,30 @@ async def image_to_image(
                 stylization=data.stylization,
             )
         else:
-            request_record.status = "failed"
-            request_record.error_message = "Provider does not support image-to-image"
-            await db.commit()
-            return GenerateResponse(ok=False, error="Provider does not support image-to-image")
+            result = await adapter.generate(
+                prompt=data.prompt,
+                model=actual_model,
+                image_urls=[data.image_url],
+                aspect_ratio=data.aspect_ratio,
+            )
 
         if result.success:
-            credits_spent = result.provider_cost * 1000
+            provider_cost = result.provider_cost if result.provider_cost > 0 else price_usd
+            credits_spent = provider_cost * 1000
 
             balance_result = await db.execute(
-                select(ProviderBalance).where(ProviderBalance.provider == data.provider)
+                select(ProviderBalance).where(ProviderBalance.provider == provider)
             )
             provider_balance = balance_result.scalar_one_or_none()
             if provider_balance:
-                provider_balance.balance_usd = provider_balance.balance_usd - Decimal(str(result.provider_cost))
-                provider_balance.total_spent_usd = provider_balance.total_spent_usd + Decimal(str(result.provider_cost))
+                provider_balance.balance_usd = provider_balance.balance_usd - Decimal(str(provider_cost))
+                provider_balance.total_spent_usd = provider_balance.total_spent_usd + Decimal(str(provider_cost))
 
             user.credits_balance = user.credits_balance - Decimal(str(credits_spent))
 
             request_record.status = "completed"
             request_record.credits_spent = Decimal(str(credits_spent))
-            request_record.provider_cost = Decimal(str(result.provider_cost))
+            request_record.provider_cost = Decimal(str(provider_cost))
 
             await db.commit()
 
@@ -493,6 +513,7 @@ async def image_to_image(
                 image_url=result.content,
                 request_id=request_id,
                 credits_spent=credits_spent,
+                provider_used=provider,
             )
         else:
             request_record.status = "failed"
@@ -500,13 +521,22 @@ async def image_to_image(
             request_record.error_message = result.error_message
             await db.commit()
 
-            return GenerateResponse(ok=False, error=result.error_message)
+            return GenerateResponse(
+                ok=False,
+                error=result.error_message,
+                provider_used=provider,
+            )
 
     except Exception as e:
         request_record.status = "failed"
         request_record.error_message = str(e)
         await db.commit()
-        return GenerateResponse(ok=False, error=str(e))
+
+        return GenerateResponse(
+            ok=False,
+            error=str(e),
+            provider_used=provider,
+        )
 
 
 @router.post("/remove-background", response_model=GenerateResponse)
