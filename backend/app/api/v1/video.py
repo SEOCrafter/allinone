@@ -278,29 +278,17 @@ async def generate_video_async(
     await log_created(db, request_id, provider, normalized_model)
 
     try:
-        if provider == "kie":
-            input_data = {
-                "prompt": data.prompt,
-                "duration": str(data.duration),
-                "aspect_ratio": data.aspect_ratio,
-                "sound": data.sound,
-            }
-            if data.image_urls:
-                input_data["image_urls"] = [data.image_urls[0]]
-            
-            result = await adapter.create_task(actual_model, input_data)
-        else:
-            params = {
-                "model": actual_model,
-                "duration": data.duration,
-                "aspect_ratio": data.aspect_ratio,
-                "sound": data.sound,
-                "wait_for_result": False,
-            }
-            if data.image_urls:
-                params["image_urls"] = data.image_urls
-            
-            result = await adapter.generate(data.prompt, **params)
+        params = {
+            "model": actual_model,
+            "duration": data.duration,
+            "aspect_ratio": data.aspect_ratio,
+            "sound": data.sound,
+            "wait_for_result": False,
+        }
+        if data.image_urls:
+            params["image_urls"] = data.image_urls
+        
+        result = await adapter.generate(data.prompt, **params)
 
         external_task_id = extract_task_id(result.raw_response, provider)
         

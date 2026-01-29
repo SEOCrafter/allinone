@@ -71,6 +71,7 @@ class KlingAdapter(BaseAdapter, KieBaseAdapter):
         duration: str = "5",
         sound: bool = False,
         aspect_ratio: str = "16:9",
+        wait_for_result: bool = True,
         **params
     ) -> GenerationResult:
         model = model or self.default_model
@@ -126,23 +127,35 @@ class KlingAdapter(BaseAdapter, KieBaseAdapter):
                     )
                 input_data["image_urls"] = [clean_url(u) for u in image_urls]
 
-        result = await self.generate_and_wait(model, input_data)
+        if wait_for_result:
+            result = await self.generate_and_wait(model, input_data)
 
-        if not result.success:
+            if not result.success:
+                return GenerationResult(
+                    success=False,
+                    error_code=result.error_code,
+                    error_message=result.error_message,
+                    raw_response=result.raw_response,
+                )
+
+            duration_int = int(duration_str)
             return GenerationResult(
-                success=False,
-                error_code=result.error_code,
-                error_message=result.error_message,
+                success=True,
+                content=result.result_url,
+                provider_cost=self.calculate_cost(model=model, duration=duration_int),
                 raw_response=result.raw_response,
             )
-
-        duration_int = int(duration_str)
-        return GenerationResult(
-            success=True,
-            content=result.result_url,
-            provider_cost=self.calculate_cost(model=model, duration=duration_int),
-            raw_response=result.raw_response,
-        )
+        else:
+            result = await self.create_task(model, input_data)
+            
+            duration_int = int(duration_str)
+            return GenerationResult(
+                success=result.success,
+                error_code=result.error_code if not result.success else "ASYNC_TASK",
+                error_message=result.error_message if not result.success else "Task submitted",
+                provider_cost=self.calculate_cost(model=model, duration=duration_int),
+                raw_response=result.raw_response,
+            )
 
     async def generate_text_to_video(
         self,
