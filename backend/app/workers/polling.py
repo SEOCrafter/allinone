@@ -38,7 +38,7 @@ async def check_kie_status(task_id: str) -> dict:
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(
-                "https://api.kie.ai/api/v1/jobs/getTaskStatus",
+                "https://api.kie.ai/api/v1/jobs/recordInfo",
                 headers={
                     "Authorization": f"Bearer {KIE_API_KEY}",
                     "Content-Type": "application/json",
