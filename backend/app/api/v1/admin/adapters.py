@@ -8,6 +8,7 @@ from app.database import get_db
 from app.api.deps import get_admin_user
 from app.models.user import User
 from app.models.provider_balance import ProviderBalance
+from app.models.model_provider_price import ModelProviderPrice
 from app.adapters import AdapterRegistry
 from app.config import settings
 import httpx
@@ -32,8 +33,64 @@ class DepositRequest(BaseModel):
 @router.get("")
 async def list_adapters(
     admin: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
 ):
     adapters = AdapterRegistry.list_adapters(include_models=True)
+    
+    result = await db.execute(select(ModelProviderPrice))
+    db_prices = result.scalars().all()
+    
+    price_map = {}
+    for p in db_prices:
+        key = p.model_name
+        if key not in price_map:
+            price_map[key] = {
+                "price_type": p.price_type,
+                "price_usd": float(p.price_usd),
+            }
+    
+    for adapter in adapters:
+        if "models" in adapter:
+            for model in adapter["models"]:
+                model_id = model["id"]
+                if model_id in price_map:
+                    db_price = price_map[model_id]
+                    model["pricing"]["per_request"] = db_price["price_usd"]
+                    model["pricing"]["price_type"] = db_price["price_type"]
+    
+    db_only_models = []
+    adapter_model_ids = set()
+    for adapter in adapters:
+        if "models" in adapter:
+            for m in adapter["models"]:
+                adapter_model_ids.add(m["id"])
+    
+    for model_name, price_data in price_map.items():
+        if model_name not in adapter_model_ids:
+            model_type = "video"
+            if "flux" in model_name or "midjourney" in model_name or "nano" in model_name or "mj_" in model_name:
+                model_type = "image"
+            
+            db_only_models.append({
+                "id": model_name,
+                "display_name": model_name.replace("-", " ").replace("_", " ").title(),
+                "type": model_type,
+                "pricing": {
+                    "input_per_1k": 0,
+                    "output_per_1k": 0,
+                    "per_request": price_data["price_usd"],
+                    "price_type": price_data["price_type"],
+                }
+            })
+    
+    if db_only_models:
+        adapters.append({
+            "name": "other",
+            "display_name": "Other Models",
+            "type": "mixed",
+            "models": db_only_models
+        })
+    
     return {"ok": True, "adapters": adapters}
 
 
@@ -130,6 +187,22 @@ async def adapters_status(
         for name in ["nano_banana", "kling", "midjourney", "veo", "sora", "hailuo", "runway", "seedance", "flux"]:
             results.append({"name": name, "status": kie_status, "latency_ms": latency, "error": kie_error})
 
+    if settings.REPLICATE_API_KEY:
+        try:
+            start = time.time()
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    "https://api.replicate.com/v1/account",
+                    headers={"Authorization": f"Bearer {settings.REPLICATE_API_KEY}"},
+                )
+                latency = int((time.time() - start) * 1000)
+                if response.status_code == 200:
+                    results.append({"name": "replicate", "status": "healthy", "latency_ms": latency, "error": None})
+                else:
+                    results.append({"name": "replicate", "status": "degraded", "latency_ms": latency, "error": response.text})
+        except Exception as e:
+            results.append({"name": "replicate", "status": "unhealthy", "latency_ms": None, "error": str(e)})
+
     return {"ok": True, "adapters": results}
 
 
@@ -205,6 +278,7 @@ async def adapter_health(
         "nano_banana": settings.KIE_API_KEY, "kling": settings.KIE_API_KEY, "midjourney": settings.KIE_API_KEY,
         "veo": settings.KIE_API_KEY, "sora": settings.KIE_API_KEY, "hailuo": settings.KIE_API_KEY,
         "runway": settings.KIE_API_KEY, "seedance": settings.KIE_API_KEY, "flux": settings.KIE_API_KEY,
+        "replicate": settings.REPLICATE_API_KEY,
     }
     api_key = api_keys.get(adapter_name)
     if not api_key:
@@ -240,6 +314,7 @@ async def test_adapter(
         "nano_banana": settings.KIE_API_KEY, "kling": settings.KIE_API_KEY, "midjourney": settings.KIE_API_KEY,
         "veo": settings.KIE_API_KEY, "sora": settings.KIE_API_KEY, "hailuo": settings.KIE_API_KEY,
         "runway": settings.KIE_API_KEY, "seedance": settings.KIE_API_KEY, "flux": settings.KIE_API_KEY,
+        "replicate": settings.REPLICATE_API_KEY,
     }
     api_key = api_keys.get(adapter_name)
     if not api_key:
