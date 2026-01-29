@@ -56,7 +56,8 @@ def extract_task_id(raw_response: dict, provider: str) -> Optional[str]:
     if provider == "replicate":
         return raw_response.get("id")
     elif provider == "kie":
-        return raw_response.get("data", {}).get("taskId")
+        resp = raw_response.get("response", raw_response)
+        return resp.get("data", {}).get("taskId")
     return None
 
 
@@ -226,7 +227,6 @@ async def generate_video_async(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Асинхронная генерация — сразу возвращает task_id, результат через поллинг."""
     try:
         adapter, actual_model, provider, price_usd = await get_adapter_for_model(
             db=db,
@@ -255,7 +255,7 @@ async def generate_video_async(
     request_id = str(uuid.uuid4())
     normalized_model = normalize_model_name(data.model)
 
-    estimated_cost = price_usd * data.duration if "per_second" in str(price_usd) else price_usd
+    estimated_cost = price_usd * data.duration if price_usd > 0 else 0.05 * data.duration
     estimated_credits = estimated_cost * 1000
 
     request_record = Request(
@@ -278,13 +278,16 @@ async def generate_video_async(
     await log_created(db, request_id, provider, normalized_model)
 
     try:
-        if hasattr(adapter, 'create_task'):
-            result = await adapter.create_task(
-                prompt=data.prompt,
-                model=actual_model,
-                duration=data.duration,
-                aspect_ratio=data.aspect_ratio,
-            )
+        if provider == "kie":
+            input_data = {
+                "prompt": data.prompt,
+                "duration": str(data.duration),
+                "aspect_ratio": data.aspect_ratio,
+            }
+            if data.image_urls:
+                input_data["image"] = data.image_urls[0]
+            
+            result = await adapter.create_task(actual_model, input_data)
         else:
             params = {
                 "model": actual_model,
@@ -331,17 +334,17 @@ async def generate_video_async(
             )
         else:
             request_record.status = "failed"
-            request_record.error_code = "NO_TASK_ID"
-            request_record.error_message = "Provider did not return task ID"
+            request_record.error_code = result.error_code or "NO_TASK_ID"
+            request_record.error_message = result.error_message or "Provider did not return task ID"
             request_record.completed_at = datetime.utcnow()
 
-            await log_failed(db, request_id, "NO_TASK_ID", "Provider did not return task ID", result.raw_response)
+            await log_failed(db, request_id, "NO_TASK_ID", result.error_message or "Provider did not return task ID", result.raw_response)
             await db.commit()
 
             return VideoGenerateResponse(
                 ok=False,
                 request_id=request_id,
-                error="Provider did not return task ID",
+                error=result.error_message or "Provider did not return task ID",
                 provider_used=provider,
                 status="failed",
             )
