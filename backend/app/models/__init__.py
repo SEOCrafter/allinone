@@ -8,6 +8,7 @@ from app.models.plan import Plan, UserSubscription
 from app.models.promo import PromoCode, PromoActivation
 from app.models.unit_economics import UnitEconomics
 from app.models.model_provider_price import ModelProviderPrice
+from app.models.task_event import TaskEvent
 
 __all__ = [
     "Base",
@@ -25,4 +26,5 @@ __all__ = [
     "PromoActivation",
     "UnitEconomics",
     "ModelProviderPrice",
+    "TaskEvent",
 ]

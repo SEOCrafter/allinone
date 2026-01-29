@@ -50,6 +50,7 @@ class Request(Base, UUIDMixin, TimestampMixin):
     user: Mapped["User"] = relationship(back_populates="requests")
     results: Mapped[list["Result"]] = relationship(back_populates="request")
     files: Mapped[list["RequestFile"]] = relationship(back_populates="request")
+    events: Mapped[list["TaskEvent"]] = relationship(back_populates="request", cascade="all, delete-orphan")
 
 class RequestFile(Base, UUIDMixin):
     __tablename__ = "request_files"

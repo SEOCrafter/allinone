@@ -14,6 +14,7 @@ from app.models.request import Request
 from app.models.provider import Provider
 from app.models.provider_balance import ProviderBalance
 from app.services.provider_routing import get_adapter_for_model, normalize_model_name
+from app.services.task_events import log_created, log_sent_to_provider, log_completed, log_failed
 from app.adapters import AdapterRegistry
 from app.config import settings
 
@@ -105,6 +106,8 @@ async def generate_video(
     db.add(request_record)
     await db.flush()
 
+    await log_created(db, request_id, provider, normalized_model)
+
     try:
         params = {
             "model": actual_model,
@@ -123,6 +126,7 @@ async def generate_video(
         external_task_id = extract_task_id(result.raw_response, provider)
         if external_task_id:
             request_record.external_task_id = external_task_id
+            await log_sent_to_provider(db, request_id, external_task_id, provider, result.raw_response)
 
         if result.success:
             provider_cost = result.provider_cost if result.provider_cost > 0 else price_usd
@@ -145,6 +149,8 @@ async def generate_video(
             request_record.result_urls = result.result_urls
             request_record.completed_at = datetime.utcnow()
 
+            await log_completed(db, request_id, result.content, result.result_urls, result.raw_response)
+
             await db.commit()
 
             return VideoGenerateResponse(
@@ -160,6 +166,9 @@ async def generate_video(
             request_record.error_code = result.error_code
             request_record.error_message = result.error_message
             request_record.completed_at = datetime.utcnow()
+
+            await log_failed(db, request_id, result.error_code or "UNKNOWN", result.error_message or "Unknown error", result.raw_response)
+
             await db.commit()
 
             return VideoGenerateResponse(
@@ -174,6 +183,9 @@ async def generate_video(
         request_record.status = "failed"
         request_record.error_message = str(e)
         request_record.completed_at = datetime.utcnow()
+
+        await log_failed(db, request_id, "EXCEPTION", str(e))
+
         await db.commit()
 
         return VideoGenerateResponse(
@@ -232,6 +244,8 @@ async def generate_midjourney_video(
     db.add(request_record)
     await db.flush()
 
+    await log_created(db, request_id, provider, "mj_video")
+
     try:
         if hasattr(adapter, 'image_to_video'):
             result = await adapter.image_to_video(
@@ -248,6 +262,7 @@ async def generate_midjourney_video(
         external_task_id = extract_task_id(result.raw_response, provider)
         if external_task_id:
             request_record.external_task_id = external_task_id
+            await log_sent_to_provider(db, request_id, external_task_id, provider, result.raw_response)
 
         if result.success:
             provider_cost = result.provider_cost if result.provider_cost > 0 else price_usd
@@ -270,6 +285,8 @@ async def generate_midjourney_video(
             request_record.result_urls = result.result_urls
             request_record.completed_at = datetime.utcnow()
 
+            await log_completed(db, request_id, result.content, result.result_urls, result.raw_response)
+
             await db.commit()
 
             return VideoGenerateResponse(
@@ -285,6 +302,9 @@ async def generate_midjourney_video(
             request_record.error_code = result.error_code
             request_record.error_message = result.error_message
             request_record.completed_at = datetime.utcnow()
+
+            await log_failed(db, request_id, result.error_code or "UNKNOWN", result.error_message or "Unknown error", result.raw_response)
+
             await db.commit()
 
             return VideoGenerateResponse(
@@ -299,6 +319,9 @@ async def generate_midjourney_video(
         request_record.status = "failed"
         request_record.error_message = str(e)
         request_record.completed_at = datetime.utcnow()
+
+        await log_failed(db, request_id, "EXCEPTION", str(e))
+
         await db.commit()
 
         return VideoGenerateResponse(

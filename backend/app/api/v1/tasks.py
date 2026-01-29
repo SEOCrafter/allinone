@@ -11,12 +11,23 @@ from app.database import get_db
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.request import Request
+from app.models.task_event import TaskEvent
 from app.models.provider_balance import ProviderBalance
 from app.services.provider_routing import get_api_key_for_provider
+from app.services.task_events import get_task_events, log_poll, log_completed, log_failed, EventType
 from app.adapters import AdapterRegistry
 from app.config import settings
 
 router = APIRouter()
+
+
+class TaskEventResponse(BaseModel):
+    id: str
+    event_type: str
+    external_status: Optional[str] = None
+    response_data: Optional[dict] = None
+    error_message: Optional[str] = None
+    created_at: datetime
 
 
 class TaskStatusResponse(BaseModel):
@@ -34,6 +45,10 @@ class TaskStatusResponse(BaseModel):
     error_message: Optional[str] = None
     created_at: datetime
     completed_at: Optional[datetime] = None
+
+
+class TaskDetailResponse(TaskStatusResponse):
+    events: List[TaskEventResponse] = []
 
 
 class TaskListResponse(BaseModel):
@@ -77,7 +92,7 @@ async def check_kie_status(task_id: str, api_key: str) -> dict:
     return {}
 
 
-@router.get("/{request_id}", response_model=TaskStatusResponse)
+@router.get("/{request_id}", response_model=TaskDetailResponse)
 async def get_task_status(
     request_id: str,
     refresh: bool = Query(False, description="Force refresh status from provider"),
@@ -101,7 +116,9 @@ async def get_task_status(
             await db.commit()
             await db.refresh(request_record)
     
-    return TaskStatusResponse(
+    events = await get_task_events(db, request_id)
+    
+    return TaskDetailResponse(
         request_id=str(request_record.id),
         status=request_record.status,
         type=request_record.type,
@@ -116,7 +133,50 @@ async def get_task_status(
         error_message=request_record.error_message,
         created_at=request_record.created_at,
         completed_at=request_record.completed_at,
+        events=[
+            TaskEventResponse(
+                id=str(e.id),
+                event_type=e.event_type,
+                external_status=e.external_status,
+                response_data=e.response_data,
+                error_message=e.error_message,
+                created_at=e.created_at,
+            )
+            for e in events
+        ],
     )
+
+
+@router.get("/{request_id}/events", response_model=List[TaskEventResponse])
+async def get_task_events_endpoint(
+    request_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Request).where(
+            Request.id == request_id,
+            Request.user_id == user.id,
+        )
+    )
+    request_record = result.scalar_one_or_none()
+    
+    if not request_record:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    events = await get_task_events(db, request_id)
+    
+    return [
+        TaskEventResponse(
+            id=str(e.id),
+            event_type=e.event_type,
+            external_status=e.external_status,
+            response_data=e.response_data,
+            error_message=e.error_message,
+            created_at=e.created_at,
+        )
+        for e in events
+    ]
 
 
 @router.get("", response_model=TaskListResponse)
@@ -174,7 +234,7 @@ async def list_tasks(
     )
 
 
-@router.post("/{request_id}/refresh", response_model=TaskStatusResponse)
+@router.post("/{request_id}/refresh", response_model=TaskDetailResponse)
 async def refresh_task(
     request_id: str,
     user: User = Depends(get_current_user),
@@ -199,7 +259,9 @@ async def refresh_task(
         await db.commit()
         await db.refresh(request_record)
     
-    return TaskStatusResponse(
+    events = await get_task_events(db, request_id)
+    
+    return TaskDetailResponse(
         request_id=str(request_record.id),
         status=request_record.status,
         type=request_record.type,
@@ -214,6 +276,17 @@ async def refresh_task(
         error_message=request_record.error_message,
         created_at=request_record.created_at,
         completed_at=request_record.completed_at,
+        events=[
+            TaskEventResponse(
+                id=str(e.id),
+                event_type=e.event_type,
+                external_status=e.external_status,
+                response_data=e.response_data,
+                error_message=e.error_message,
+                created_at=e.created_at,
+            )
+            for e in events
+        ],
     )
 
 
@@ -232,6 +305,7 @@ async def refresh_task_status(request_record: Request, db: AsyncSession) -> bool
     
     provider = request_record.external_provider
     task_id = request_record.external_task_id
+    request_id = str(request_record.id)
     
     if provider == "replicate":
         api_key = settings.REPLICATE_API_KEY
@@ -241,6 +315,8 @@ async def refresh_task_status(request_record: Request, db: AsyncSession) -> bool
             return False
         
         status = data.get("status")
+        
+        await log_poll(db, request_id, 0, status, data)
         
         if status == "succeeded":
             output = data.get("output")
@@ -253,6 +329,8 @@ async def refresh_task_status(request_record: Request, db: AsyncSession) -> bool
             
             request_record.status = "completed"
             request_record.completed_at = datetime.utcnow()
+            
+            await log_completed(db, request_id, request_record.result_url, request_record.result_urls, data)
             return True
         
         elif status == "failed":
@@ -260,6 +338,8 @@ async def refresh_task_status(request_record: Request, db: AsyncSession) -> bool
             request_record.error_code = "REPLICATE_FAILED"
             request_record.error_message = data.get("error")
             request_record.completed_at = datetime.utcnow()
+            
+            await log_failed(db, request_id, "REPLICATE_FAILED", data.get("error", "Unknown error"), data)
             return True
         
         elif status == "canceled":
@@ -267,6 +347,8 @@ async def refresh_task_status(request_record: Request, db: AsyncSession) -> bool
             request_record.error_code = "CANCELED"
             request_record.error_message = "Task was canceled"
             request_record.completed_at = datetime.utcnow()
+            
+            await log_failed(db, request_id, "CANCELED", "Task was canceled", data)
             return True
     
     elif provider == "kie":
@@ -278,6 +360,8 @@ async def refresh_task_status(request_record: Request, db: AsyncSession) -> bool
         
         task_data = data.get("data", {})
         state = task_data.get("state", "").lower()
+        
+        await log_poll(db, request_id, 0, state, data)
         
         if state == "success":
             import json
@@ -294,6 +378,8 @@ async def refresh_task_status(request_record: Request, db: AsyncSession) -> bool
             request_record.result_urls = result_urls
             request_record.status = "completed"
             request_record.completed_at = datetime.utcnow()
+            
+            await log_completed(db, request_id, result_url, result_urls, data)
             return True
         
         elif state in ("failed", "fail"):
@@ -301,6 +387,8 @@ async def refresh_task_status(request_record: Request, db: AsyncSession) -> bool
             request_record.error_code = task_data.get("failCode") or "KIE_FAILED"
             request_record.error_message = task_data.get("failMsg") or "Task failed"
             request_record.completed_at = datetime.utcnow()
+            
+            await log_failed(db, request_id, request_record.error_code, request_record.error_message, data)
             return True
     
     return False
