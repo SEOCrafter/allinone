@@ -119,7 +119,7 @@ class ReplicateAdapter(BaseAdapter):
 
                 print(f"Replicate API Response: status={response.status_code}, body={response.text[:1000]}")
 
-                if response.status_code not in (200, 201):
+                if response.status_code not in (200, 201, 202):
                     error_data = response.json() if response.text else {}
                     return ReplicatePrediction(
                         success=False,
