@@ -75,11 +75,11 @@ async def update_task_in_db(
         try:
             event_id = str(uuid_module.uuid4())
             event_type = "poll" if status == "processing" else ("completed" if status == "completed" else "failed")
-            response_json = json.dumps({"poll_number": poll_number, "raw": raw_response}) if raw_response else "{}"
+            response_json = json.dumps({"poll_number": poll_number, "raw": raw_response}) if raw_response else None
             
             await db.execute(text("""
                 INSERT INTO task_events (id, request_id, event_type, external_status, response_data, error_message, created_at)
-                VALUES (:id, :request_id, :event_type, :external_status, :response_data::json, :error_message, NOW())
+                VALUES (:id, :request_id, :event_type, :external_status, CAST(:response_data AS json), :error_message, NOW())
             """), {
                 "id": event_id,
                 "request_id": request_id,
@@ -97,10 +97,10 @@ async def update_task_in_db(
                     SET status = :status,
                         completed_at = NOW(),
                         result_url = :result_url,
-                        result_urls = :result_urls::json,
+                        result_urls = CAST(:result_urls AS json),
                         error_code = :error_code,
                         error_message = :error_message
-                    WHERE id = :request_id
+                    WHERE id = CAST(:request_id AS uuid)
                 """), {
                     "status": status,
                     "result_url": result_url,
