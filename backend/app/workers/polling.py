@@ -65,48 +65,57 @@ async def update_task_in_db(
 ):
     from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
     from sqlalchemy.orm import sessionmaker
-    from sqlalchemy import select, text
+    from sqlalchemy import text
+    import uuid as uuid_module
     
     engine = create_async_engine(DATABASE_URL)
     async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     
     async with async_session() as db:
-        from app.models.request import Request
-        from app.models.task_event import TaskEvent
-        import uuid
-        
-        result = await db.execute(select(Request).where(Request.id == request_id))
-        request = result.scalar_one_or_none()
-        
-        if not request:
-            print(f"[Polling] Request {request_id} not found")
-            return
-        
-        event = TaskEvent(
-            id=uuid.uuid4(),
-            request_id=uuid.UUID(request_id),
-            event_type="poll" if status == "processing" else ("completed" if status == "completed" else "failed"),
-            external_status=external_status,
-            response_data={"poll_number": poll_number, "raw": raw_response},
-            error_message=error_message,
-        )
-        db.add(event)
-        
-        if status in ("completed", "failed"):
-            request.status = status
-            request.completed_at = datetime.utcnow()
+        try:
+            event_id = str(uuid_module.uuid4())
+            event_type = "poll" if status == "processing" else ("completed" if status == "completed" else "failed")
+            response_json = json.dumps({"poll_number": poll_number, "raw": raw_response}) if raw_response else "{}"
             
-            if result_url:
-                request.result_url = result_url
-            if result_urls:
-                request.result_urls = result_urls
-            if error_code:
-                request.error_code = error_code
-            if error_message:
-                request.error_message = error_message
-        
-        await db.commit()
-        print(f"[Polling] Request {request_id} updated: {status}")
+            await db.execute(text("""
+                INSERT INTO task_events (id, request_id, event_type, external_status, response_data, error_message, created_at)
+                VALUES (:id, :request_id, :event_type, :external_status, :response_data::json, :error_message, NOW())
+            """), {
+                "id": event_id,
+                "request_id": request_id,
+                "event_type": event_type,
+                "external_status": external_status,
+                "response_data": response_json,
+                "error_message": error_message,
+            })
+            
+            if status in ("completed", "failed"):
+                result_urls_json = json.dumps(result_urls) if result_urls else None
+                
+                await db.execute(text("""
+                    UPDATE requests 
+                    SET status = :status,
+                        completed_at = NOW(),
+                        result_url = :result_url,
+                        result_urls = :result_urls::json,
+                        error_code = :error_code,
+                        error_message = :error_message
+                    WHERE id = :request_id
+                """), {
+                    "status": status,
+                    "result_url": result_url,
+                    "result_urls": result_urls_json,
+                    "error_code": error_code,
+                    "error_message": error_message,
+                    "request_id": request_id,
+                })
+            
+            await db.commit()
+            print(f"[Polling] Request {request_id} updated: {status}")
+            
+        except Exception as e:
+            print(f"[Polling] DB error: {e}")
+            await db.rollback()
     
     await engine.dispose()
 
