@@ -24,7 +24,7 @@ class VideoGenerateRequest(BaseModel):
     model: str = "kling-2.6-t2v"
     image_urls: Optional[List[str]] = None
     video_urls: Optional[List[str]] = None
-    duration: str = "5"
+    duration: int = 5
     aspect_ratio: str = "16:9"
     sound: bool = False
 

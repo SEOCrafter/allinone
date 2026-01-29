@@ -331,7 +331,7 @@ class ReplicateAdapter(BaseAdapter):
             input_data["aspect_ratio"] = aspect_ratio
 
         elif "kling" in model.lower():
-            input_data["duration"] = str(duration)
+            input_data["duration"] = duration
             input_data["aspect_ratio"] = aspect_ratio
             if image_urls:
                 input_data["image"] = image_urls[0]
