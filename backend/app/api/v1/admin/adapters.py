@@ -49,6 +49,79 @@ async def list_adapters(
                 "price_usd": float(p.price_usd),
             }
     
+    MODEL_NAME_MAPPING = {
+        "kling-2.6/text-to-video": "kling-2.6-t2v",
+        "kling-2.6/image-to-video": "kling-2.6-i2v",
+        "kling-2.6/motion-control": "kling-2.6-motion",
+        "kling/ai-avatar-standard": "kling-avatar-standard",
+        "kling/ai-avatar-pro": "kling-avatar-pro",
+        "kling/v2-1-master-image-to-video": "kling-2.1-master-i2v",
+        "kling/v2-1-master-text-to-video": "kling-2.1-master-t2v",
+        "kling/v2-1-pro": "kling-2.1-pro",
+        "kling/v2-1-standard": "kling-2.1-standard",
+        "hailuo/02-text-to-video-standard": "hailuo-02",
+        "hailuo/02-text-to-video-pro": "hailuo-02",
+        "hailuo/02-image-to-video-standard": "hailuo-02",
+        "hailuo/02-image-to-video-pro": "hailuo-02",
+        "hailuo/2-3-image-to-video-standard": "hailuo-2.3",
+        "hailuo/2-3-image-to-video-pro": "hailuo-2.3",
+        "minimax/hailuo-02": "hailuo-02",
+        "minimax/hailuo-02-fast": "hailuo-02-fast",
+        "minimax/hailuo-2.3": "hailuo-2.3",
+        "sora-2-text-to-video": "sora-2",
+        "sora-2-image-to-video": "sora-2",
+        "sora-2-pro-text-to-video": "sora-2-pro",
+        "sora-2-pro-image-to-video": "sora-2-pro",
+        "openai/sora-2": "sora-2",
+        "openai/sora-2-pro": "sora-2-pro",
+        "mj_txt2img": "midjourney",
+        "mj_img2img": "midjourney",
+        "mj_video": "midjourney",
+        "google/nano-banana-pro": "nano-banana-pro",
+        "google/nano-banana": "nano-banana",
+        "google/nano-banana-edit": "nano-banana",
+        "google/imagen-4": "imagen-4",
+        "google/imagen-4-fast": "imagen-4-fast",
+        "google/imagen-4-ultra": "imagen-4-ultra",
+        "google/veo-3": "veo-3",
+        "google/veo-3.1": "veo-3.1",
+        "google/veo-3-fast": "veo-3-fast",
+        "google/veo-2": "veo-2",
+        "omniedgeio/face-swap": "face-swap",
+        "minimax/speech-02-turbo": "minimax-speech-turbo",
+        "minimax/speech-02-hd": "minimax-speech-hd",
+        "minimax/image-01": "minimax-image",
+        "minimax/video-01": "minimax-video",
+        "runwayml/gen4-image": "runway-gen4-image",
+        "runwayml/gen4-image-turbo": "runway-gen4-image",
+        "runwayml/gen4-turbo": "runway-gen4-turbo",
+        "luma/ray": "luma-ray",
+        "luma/ray-flash-2-540p": "luma-ray-flash",
+        "luma/photon-flash": "luma-photon-flash",
+        "flux-2/pro-text-to-image": "flux-2-pro",
+        "flux-2/pro-image-to-image": "flux-2-pro",
+        "flux-2/flex-text-to-image": "flux-2-flex",
+        "flux-2/flex-image-to-image": "flux-2-flex",
+        "flux-kontext/pro-text-to-image": "flux-kontext-pro",
+        "flux-kontext/pro-image-to-image": "flux-kontext-pro",
+        "black-forest-labs/flux-pro": "flux-pro",
+        "black-forest-labs/flux-schnell": "flux-schnell",
+        "black-forest-labs/flux-dev": "flux-dev",
+        "stability-ai/stable-diffusion-3.5-large": "sd-3.5-large",
+        "stability-ai/stable-diffusion-3.5-large-turbo": "sd-3.5-large-turbo",
+        "bytedance/seedance-1-pro": "seedance-1-pro",
+        "bytedance/seedance-1-pro-fast": "seedance-1-pro",
+        "bytedance/seedance-1-lite": "seedance-1-lite",
+        "bytedance/seedance-1.5-pro": "seedance-1.5-pro",
+        "bytedance/seedance-1.5-standard": "seedance-1.5-standard",
+        "bytedance/v1-lite-image-to-video": "seedance-1-lite",
+        "gen4": "runway-gen4-video",
+        "gen4-turbo": "runway-gen4-turbo",
+        "gen3-alpha": "runway-gen3-alpha",
+        "gen3-alpha-turbo": "runway-gen3-alpha-turbo",
+        "kwaivgi/kling-v2.6": "kling-2.6-t2v",
+    }
+    
     def normalize_model_id(model_id: str) -> str:
         if "/" in model_id:
             return model_id.split("/")[-1]
@@ -58,19 +131,25 @@ async def list_adapters(
         if model_id in price_map:
             return price_map[model_id]
         
+        if model_id in MODEL_NAME_MAPPING:
+            mapped = MODEL_NAME_MAPPING[model_id]
+            if mapped in price_map:
+                return price_map[mapped]
+        
         normalized = normalize_model_id(model_id)
         if normalized in price_map:
             return price_map[normalized]
         
+        if normalized in MODEL_NAME_MAPPING:
+            mapped = MODEL_NAME_MAPPING[normalized]
+            if mapped in price_map:
+                return price_map[mapped]
+        
         variations = [
-            normalized,
             normalized.replace("text-to-video", "t2v"),
             normalized.replace("image-to-video", "i2v"),
-            normalized.replace("t2v", "text-to-video"),
-            normalized.replace("i2v", "image-to-video"),
             normalized.replace("/", "-"),
             normalized.replace("_", "-"),
-            model_id.replace("/", "-"),
         ]
         
         for var in variations:
@@ -82,12 +161,9 @@ async def list_adapters(
             norm_model = normalized.replace("-", "").replace("_", "").replace("/", "").lower()
             if norm_db == norm_model:
                 return price_map[db_name]
-            if norm_db in norm_model or norm_model in norm_db:
-                if len(norm_db) > 5 and len(norm_model) > 5:
-                    return price_map[db_name]
         
-        return None
-    
+        return None    
+
     for adapter in adapters:
         if "models" in adapter:
             for model in adapter["models"]:
