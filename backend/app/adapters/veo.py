@@ -14,6 +14,14 @@ class VeoAdapter(BaseAdapter, KieBaseAdapter):
     PRICING = {
         "veo3_fast": {"per_video": 0.50, "display_name": "Veo 3 Fast"},
         "veo3": {"per_video": 1.00, "display_name": "Veo 3"},
+        "veo3.1": {"per_video": 1.00, "display_name": "Veo 3.1"},
+    }
+
+    MODEL_MAPPING = {
+        "veo-3": "veo3",
+        "veo-3-fast": "veo3_fast",
+        "veo-3.1": "veo3.1",
+        "veo-2": "veo3_fast",
     }
 
     def __init__(self, api_key: str, default_model: str = "veo3_fast", **kwargs):
@@ -23,7 +31,12 @@ class VeoAdapter(BaseAdapter, KieBaseAdapter):
         self.max_poll_attempts = kwargs.get("max_poll_attempts", 180)
         self.poll_interval = kwargs.get("poll_interval", 10)
 
+    def _normalize_model(self, model: str) -> str:
+        return self.MODEL_MAPPING.get(model, model)
+
     async def create_veo_task(self, model: str, input_data: dict) -> KieTaskResult:
+        model = self._normalize_model(model)
+        
         payload = {
             "prompt": input_data.get("prompt"),
             "model": model,
@@ -33,6 +46,8 @@ class VeoAdapter(BaseAdapter, KieBaseAdapter):
         if input_data.get("imageUrls"):
             payload["imageUrls"] = input_data["imageUrls"]
 
+        print(f"Veo API Request: {json.dumps(payload)[:500]}")
+
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
                 response = await client.post(
@@ -41,11 +56,14 @@ class VeoAdapter(BaseAdapter, KieBaseAdapter):
                     json=payload,
                 )
 
+                print(f"Veo API Response: status={response.status_code}, body={response.text[:500]}")
+
                 if response.status_code != 200:
                     return KieTaskResult(
                         success=False,
                         error_code=f"HTTP_{response.status_code}",
                         error_message=response.text,
+                        raw_response={"request": payload, "response": response.text},
                     )
 
                 data = response.json()
@@ -54,6 +72,7 @@ class VeoAdapter(BaseAdapter, KieBaseAdapter):
                         success=False,
                         error_code=str(data.get("code")),
                         error_message=data.get("msg", "Unknown error"),
+                        raw_response={"request": payload, "response": data},
                     )
 
                 task_id = data.get("data", {}).get("taskId")
@@ -61,7 +80,7 @@ class VeoAdapter(BaseAdapter, KieBaseAdapter):
                     success=True,
                     task_id=task_id,
                     status="pending",
-                    raw_response=data,
+                    raw_response={"request": payload, "response": data},
                 )
 
         except Exception as e:
@@ -69,6 +88,7 @@ class VeoAdapter(BaseAdapter, KieBaseAdapter):
                 success=False,
                 error_code="EXCEPTION",
                 error_message=str(e),
+                raw_response={"request": payload},
             )
 
     async def get_veo_task_status(self, task_id: str) -> KieTaskResult:
@@ -162,6 +182,7 @@ class VeoAdapter(BaseAdapter, KieBaseAdapter):
         model: Optional[str] = None,
         image_urls: Optional[List[str]] = None,
         aspect_ratio: str = "16:9",
+        wait_for_result: bool = True,
         **params
     ) -> GenerationResult:
         model = model or self.default_model
@@ -181,6 +202,15 @@ class VeoAdapter(BaseAdapter, KieBaseAdapter):
                 success=False,
                 error_code=create_result.error_code,
                 error_message=create_result.error_message,
+                raw_response=create_result.raw_response,
+            )
+
+        if not wait_for_result:
+            return GenerationResult(
+                success=True,
+                error_code="ASYNC_TASK",
+                error_message="Task submitted",
+                provider_cost=self.calculate_cost(model=model),
                 raw_response=create_result.raw_response,
             )
 
@@ -218,6 +248,7 @@ class VeoAdapter(BaseAdapter, KieBaseAdapter):
 
     def calculate_cost(self, model: Optional[str] = None, **params) -> float:
         model = model or self.default_model
+        model = self._normalize_model(model)
         pricing = self.PRICING.get(model, self.PRICING["veo3_fast"])
         return pricing.get("per_video", 0.50)
 
