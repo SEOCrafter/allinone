@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List
 from decimal import Decimal
+from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import uuid
@@ -43,6 +44,16 @@ class MidjourneyVideoRequest(BaseModel):
     prompt: str
     image_url: str
     model: str = "mj_video"
+
+
+def extract_task_id(raw_response: dict, provider: str) -> Optional[str]:
+    if not raw_response:
+        return None
+    if provider == "replicate":
+        return raw_response.get("id")
+    elif provider == "kie":
+        return raw_response.get("data", {}).get("taskId")
+    return None
 
 
 @router.post("/generate", response_model=VideoGenerateResponse)
@@ -88,6 +99,8 @@ async def generate_video(
         model=normalized_model,
         prompt=data.prompt,
         status="processing",
+        external_provider=provider,
+        started_at=datetime.utcnow(),
     )
     db.add(request_record)
     await db.flush()
@@ -107,6 +120,10 @@ async def generate_video(
 
         result = await adapter.generate(data.prompt, **params)
 
+        external_task_id = extract_task_id(result.raw_response, provider)
+        if external_task_id:
+            request_record.external_task_id = external_task_id
+
         if result.success:
             provider_cost = result.provider_cost if result.provider_cost > 0 else price_usd
             credits_spent = provider_cost * 1000
@@ -124,12 +141,16 @@ async def generate_video(
             request_record.status = "completed"
             request_record.credits_spent = Decimal(str(credits_spent))
             request_record.provider_cost = Decimal(str(provider_cost))
+            request_record.result_url = result.content
+            request_record.result_urls = result.result_urls
+            request_record.completed_at = datetime.utcnow()
 
             await db.commit()
 
             return VideoGenerateResponse(
                 ok=True,
                 video_url=result.content,
+                task_id=external_task_id,
                 request_id=request_id,
                 credits_spent=credits_spent,
                 provider_used=provider,
@@ -138,10 +159,13 @@ async def generate_video(
             request_record.status = "failed"
             request_record.error_code = result.error_code
             request_record.error_message = result.error_message
+            request_record.completed_at = datetime.utcnow()
             await db.commit()
 
             return VideoGenerateResponse(
                 ok=False,
+                task_id=external_task_id,
+                request_id=request_id,
                 error=result.error_message,
                 provider_used=provider,
             )
@@ -149,10 +173,12 @@ async def generate_video(
     except Exception as e:
         request_record.status = "failed"
         request_record.error_message = str(e)
+        request_record.completed_at = datetime.utcnow()
         await db.commit()
 
         return VideoGenerateResponse(
             ok=False,
+            request_id=request_id,
             error=str(e),
             provider_used=provider,
         )
@@ -200,6 +226,8 @@ async def generate_midjourney_video(
         model="mj_video",
         prompt=data.prompt,
         status="processing",
+        external_provider=provider,
+        started_at=datetime.utcnow(),
     )
     db.add(request_record)
     await db.flush()
@@ -216,6 +244,10 @@ async def generate_midjourney_video(
                 image_urls=[data.image_url],
                 model=actual_model,
             )
+
+        external_task_id = extract_task_id(result.raw_response, provider)
+        if external_task_id:
+            request_record.external_task_id = external_task_id
 
         if result.success:
             provider_cost = result.provider_cost if result.provider_cost > 0 else price_usd
@@ -234,12 +266,16 @@ async def generate_midjourney_video(
             request_record.status = "completed"
             request_record.credits_spent = Decimal(str(credits_spent))
             request_record.provider_cost = Decimal(str(provider_cost))
+            request_record.result_url = result.content
+            request_record.result_urls = result.result_urls
+            request_record.completed_at = datetime.utcnow()
 
             await db.commit()
 
             return VideoGenerateResponse(
                 ok=True,
                 video_url=result.content,
+                task_id=external_task_id,
                 request_id=request_id,
                 credits_spent=credits_spent,
                 provider_used=provider,
@@ -248,10 +284,13 @@ async def generate_midjourney_video(
             request_record.status = "failed"
             request_record.error_code = result.error_code
             request_record.error_message = result.error_message
+            request_record.completed_at = datetime.utcnow()
             await db.commit()
 
             return VideoGenerateResponse(
                 ok=False,
+                task_id=external_task_id,
+                request_id=request_id,
                 error=result.error_message,
                 provider_used=provider,
             )
@@ -259,10 +298,12 @@ async def generate_midjourney_video(
     except Exception as e:
         request_record.status = "failed"
         request_record.error_message = str(e)
+        request_record.completed_at = datetime.utcnow()
         await db.commit()
 
         return VideoGenerateResponse(
             ok=False,
+            request_id=request_id,
             error=str(e),
             provider_used=provider,
         )

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from typing import Optional, List
 from decimal import Decimal
+from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import uuid
@@ -36,6 +37,7 @@ class GenerateResponse(BaseModel):
     ok: bool
     image_url: Optional[str] = None
     image_urls: Optional[List[str]] = None
+    task_id: Optional[str] = None
     request_id: Optional[str] = None
     credits_spent: Optional[float] = None
     provider_used: Optional[str] = None
@@ -70,6 +72,16 @@ class MidjourneyRequest(BaseModel):
     speed: str = "fast"
     stylization: int = 100
     weirdness: int = 0
+
+
+def extract_task_id(raw_response: dict, provider: str) -> Optional[str]:
+    if not raw_response:
+        return None
+    if provider == "replicate":
+        return raw_response.get("id")
+    elif provider == "kie":
+        return raw_response.get("data", {}).get("taskId")
+    return None
 
 
 @router.post("/generate", response_model=GenerateResponse)
@@ -115,6 +127,8 @@ async def generate_image(
         model=normalized_model,
         prompt=data.prompt,
         status="processing",
+        external_provider=provider,
+        started_at=datetime.utcnow(),
     )
     db.add(request_record)
     await db.flush()
@@ -141,6 +155,10 @@ async def generate_image(
         else:
             result = await adapter.generate(data.prompt, **params)
 
+        external_task_id = extract_task_id(result.raw_response, provider)
+        if external_task_id:
+            request_record.external_task_id = external_task_id
+
         if result.success:
             provider_cost = result.provider_cost if result.provider_cost > 0 else price_usd
             credits_spent = provider_cost * 1000
@@ -155,19 +173,23 @@ async def generate_image(
 
             user.credits_balance = user.credits_balance - Decimal(str(credits_spent))
 
+            image_url = result.content if isinstance(result.content, str) else result.content.get('url', '') if result.content else ''
+            image_urls = result.result_urls if hasattr(result, 'result_urls') and result.result_urls else None
+
             request_record.status = "completed"
             request_record.credits_spent = Decimal(str(credits_spent))
             request_record.provider_cost = Decimal(str(provider_cost))
+            request_record.result_url = image_url
+            request_record.result_urls = image_urls
+            request_record.completed_at = datetime.utcnow()
 
             await db.commit()
-
-            image_url = result.content if isinstance(result.content, str) else result.content.get('url', '') if result.content else ''
-            image_urls = result.result_urls if hasattr(result, 'result_urls') and result.result_urls else None
 
             return GenerateResponse(
                 ok=True,
                 image_url=image_url,
                 image_urls=image_urls,
+                task_id=external_task_id,
                 request_id=request_id,
                 credits_spent=credits_spent,
                 provider_used=provider,
@@ -176,10 +198,13 @@ async def generate_image(
             request_record.status = "failed"
             request_record.error_code = result.error_code
             request_record.error_message = result.error_message
+            request_record.completed_at = datetime.utcnow()
             await db.commit()
 
             return GenerateResponse(
                 ok=False,
+                task_id=external_task_id,
+                request_id=request_id,
                 error=result.error_message,
                 provider_used=provider,
             )
@@ -187,10 +212,12 @@ async def generate_image(
     except Exception as e:
         request_record.status = "failed"
         request_record.error_message = str(e)
+        request_record.completed_at = datetime.utcnow()
         await db.commit()
 
         return GenerateResponse(
             ok=False,
+            request_id=request_id,
             error=str(e),
             provider_used=provider,
         )
@@ -238,6 +265,8 @@ async def generate_nano_banana(
         model=data.model,
         prompt=data.prompt,
         status="processing",
+        external_provider=provider,
+        started_at=datetime.utcnow(),
     )
     db.add(request_record)
     await db.flush()
@@ -254,6 +283,10 @@ async def generate_nano_banana(
             params["image_urls"] = data.image_input
 
         result = await adapter.generate(data.prompt, **params)
+
+        external_task_id = extract_task_id(result.raw_response, provider)
+        if external_task_id:
+            request_record.external_task_id = external_task_id
 
         if result.success:
             provider_cost = result.provider_cost if result.provider_cost > 0 else price_usd
@@ -272,12 +305,16 @@ async def generate_nano_banana(
             request_record.status = "completed"
             request_record.credits_spent = Decimal(str(credits_spent))
             request_record.provider_cost = Decimal(str(provider_cost))
+            request_record.result_url = result.content
+            request_record.result_urls = result.result_urls
+            request_record.completed_at = datetime.utcnow()
 
             await db.commit()
 
             return GenerateResponse(
                 ok=True,
                 image_url=result.content,
+                task_id=external_task_id,
                 request_id=request_id,
                 credits_spent=credits_spent,
                 provider_used=provider,
@@ -286,10 +323,13 @@ async def generate_nano_banana(
             request_record.status = "failed"
             request_record.error_code = result.error_code
             request_record.error_message = result.error_message
+            request_record.completed_at = datetime.utcnow()
             await db.commit()
 
             return GenerateResponse(
                 ok=False,
+                task_id=external_task_id,
+                request_id=request_id,
                 error=result.error_message,
                 provider_used=provider,
             )
@@ -297,10 +337,12 @@ async def generate_nano_banana(
     except Exception as e:
         request_record.status = "failed"
         request_record.error_message = str(e)
+        request_record.completed_at = datetime.utcnow()
         await db.commit()
 
         return GenerateResponse(
             ok=False,
+            request_id=request_id,
             error=str(e),
             provider_used=provider,
         )
@@ -348,6 +390,8 @@ async def generate_midjourney(
         model=data.task_type,
         prompt=data.prompt,
         status="processing",
+        external_provider=provider,
+        started_at=datetime.utcnow(),
     )
     db.add(request_record)
     await db.flush()
@@ -373,6 +417,10 @@ async def generate_midjourney(
                 params["image_urls"] = [data.file_url]
             result = await adapter.generate(data.prompt, **params)
 
+        external_task_id = extract_task_id(result.raw_response, provider)
+        if external_task_id:
+            request_record.external_task_id = external_task_id
+
         if result.success:
             provider_cost = result.provider_cost if result.provider_cost > 0 else price_usd
             credits_spent = provider_cost * 1000
@@ -390,12 +438,16 @@ async def generate_midjourney(
             request_record.status = "completed"
             request_record.credits_spent = Decimal(str(credits_spent))
             request_record.provider_cost = Decimal(str(provider_cost))
+            request_record.result_url = result.content
+            request_record.result_urls = result.result_urls
+            request_record.completed_at = datetime.utcnow()
 
             await db.commit()
 
             return GenerateResponse(
                 ok=True,
                 image_url=result.content,
+                task_id=external_task_id,
                 request_id=request_id,
                 credits_spent=credits_spent,
                 provider_used=provider,
@@ -404,10 +456,13 @@ async def generate_midjourney(
             request_record.status = "failed"
             request_record.error_code = result.error_code
             request_record.error_message = result.error_message
+            request_record.completed_at = datetime.utcnow()
             await db.commit()
 
             return GenerateResponse(
                 ok=False,
+                task_id=external_task_id,
+                request_id=request_id,
                 error=result.error_message,
                 provider_used=provider,
             )
@@ -415,10 +470,12 @@ async def generate_midjourney(
     except Exception as e:
         request_record.status = "failed"
         request_record.error_message = str(e)
+        request_record.completed_at = datetime.utcnow()
         await db.commit()
 
         return GenerateResponse(
             ok=False,
+            request_id=request_id,
             error=str(e),
             provider_used=provider,
         )
@@ -466,6 +523,8 @@ async def image_to_image(
         model=data.model,
         prompt=data.prompt,
         status="processing",
+        external_provider=provider,
+        started_at=datetime.utcnow(),
     )
     db.add(request_record)
     await db.flush()
@@ -488,6 +547,10 @@ async def image_to_image(
                 aspect_ratio=data.aspect_ratio,
             )
 
+        external_task_id = extract_task_id(result.raw_response, provider)
+        if external_task_id:
+            request_record.external_task_id = external_task_id
+
         if result.success:
             provider_cost = result.provider_cost if result.provider_cost > 0 else price_usd
             credits_spent = provider_cost * 1000
@@ -505,12 +568,16 @@ async def image_to_image(
             request_record.status = "completed"
             request_record.credits_spent = Decimal(str(credits_spent))
             request_record.provider_cost = Decimal(str(provider_cost))
+            request_record.result_url = result.content
+            request_record.result_urls = result.result_urls
+            request_record.completed_at = datetime.utcnow()
 
             await db.commit()
 
             return GenerateResponse(
                 ok=True,
                 image_url=result.content,
+                task_id=external_task_id,
                 request_id=request_id,
                 credits_spent=credits_spent,
                 provider_used=provider,
@@ -519,10 +586,13 @@ async def image_to_image(
             request_record.status = "failed"
             request_record.error_code = result.error_code
             request_record.error_message = result.error_message
+            request_record.completed_at = datetime.utcnow()
             await db.commit()
 
             return GenerateResponse(
                 ok=False,
+                task_id=external_task_id,
+                request_id=request_id,
                 error=result.error_message,
                 provider_used=provider,
             )
@@ -530,10 +600,12 @@ async def image_to_image(
     except Exception as e:
         request_record.status = "failed"
         request_record.error_message = str(e)
+        request_record.completed_at = datetime.utcnow()
         await db.commit()
 
         return GenerateResponse(
             ok=False,
+            request_id=request_id,
             error=str(e),
             provider_used=provider,
         )

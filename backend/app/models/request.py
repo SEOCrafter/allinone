@@ -1,7 +1,7 @@
 import uuid
 from decimal import Decimal
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from sqlalchemy import String, Text, Integer, Boolean, DECIMAL, DateTime, ForeignKey, JSON
 from sqlalchemy.dialects.postgresql import INET
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -14,7 +14,7 @@ class Request(Base, UUIDMixin, TimestampMixin):
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
     api_key_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("api_keys.id"), nullable=True)
     
-    type: Mapped[str] = mapped_column(String(20))  # chat, image, audio, video
+    type: Mapped[str] = mapped_column(String(20))
     endpoint: Mapped[str] = mapped_column(String(100))
     provider_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("providers.id"))
     model: Mapped[str] = mapped_column(String(100))
@@ -42,7 +42,11 @@ class Request(Base, UUIDMixin, TimestampMixin):
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     
-    # Relationships
+    external_task_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    external_provider: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    result_url: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
+    result_urls: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
+    
     user: Mapped["User"] = relationship(back_populates="requests")
     results: Mapped[list["Result"]] = relationship(back_populates="request")
     files: Mapped[list["RequestFile"]] = relationship(back_populates="request")
