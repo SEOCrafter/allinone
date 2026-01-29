@@ -86,18 +86,21 @@ class ReplicateAdapter(BaseAdapter):
         self.max_poll_attempts = kwargs.get("max_poll_attempts", 180)
         self.poll_interval = kwargs.get("poll_interval", 5)
 
-    def _get_headers(self) -> dict:
-        return {
+    def _get_headers(self, wait: bool = True) -> dict:
+        headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
-            "Prefer": "wait=60",
         }
+        if wait:
+            headers["Prefer"] = "wait=60"
+        return headers
 
     async def create_prediction(
         self,
         model: str,
         input_data: dict,
-        webhook: Optional[str] = None
+        webhook: Optional[str] = None,
+        wait: bool = True,
     ) -> ReplicatePrediction:
         payload = {
             "input": input_data,
@@ -106,14 +109,14 @@ class ReplicateAdapter(BaseAdapter):
             payload["webhook"] = webhook
             payload["webhook_events_filter"] = ["completed"]
 
-        print(f"Replicate API Request: model={model}, input={json.dumps(input_data)[:500]}")
+        print(f"Replicate API Request: model={model}, input={json.dumps(input_data)[:500]}, wait={wait}")
 
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
                 url = f"{self.BASE_URL}/models/{model}/predictions"
                 response = await client.post(
                     url,
-                    headers=self._get_headers(),
+                    headers=self._get_headers(wait=wait),
                     json=payload,
                 )
 
@@ -173,7 +176,7 @@ class ReplicateAdapter(BaseAdapter):
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.get(
                     f"{self.BASE_URL}/predictions/{prediction_id}",
-                    headers=self._get_headers(),
+                    headers=self._get_headers(wait=False),
                 )
 
                 if response.status_code != 200:
@@ -251,6 +254,7 @@ class ReplicateAdapter(BaseAdapter):
         image_urls: Optional[List[str]] = None,
         duration: int = 5,
         aspect_ratio: str = "16:9",
+        wait_for_result: bool = True,
         **params
     ) -> GenerationResult:
         model = model or self.default_model
@@ -267,13 +271,23 @@ class ReplicateAdapter(BaseAdapter):
             **params
         )
 
-        result = await self.create_prediction(model, input_data)
+        result = await self.create_prediction(model, input_data, wait=wait_for_result)
 
-        if not result.success:
+        if not result.success and not result.prediction_id:
             return GenerationResult(
                 success=False,
                 error_code="REPLICATE_ERROR",
                 error_message=result.error,
+                raw_response=result.raw_response,
+            )
+
+        if not wait_for_result and result.prediction_id:
+            cost = self.calculate_cost(model=model, duration=duration)
+            return GenerationResult(
+                success=False,
+                error_code="ASYNC_TASK",
+                error_message="Task submitted for async processing",
+                provider_cost=cost,
                 raw_response=result.raw_response,
             )
 
@@ -380,7 +394,7 @@ class ReplicateAdapter(BaseAdapter):
             input_data.pop("prompt", None)
 
         for key, value in params.items():
-            if key not in input_data and value is not None:
+            if key not in input_data and value is not None and key not in ("wait_for_result",):
                 input_data[key] = value
 
         return input_data
