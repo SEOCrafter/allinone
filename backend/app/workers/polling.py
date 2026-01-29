@@ -10,6 +10,11 @@ DATABASE_URL = os.getenv("DATABASE_URL", "")
 KIE_API_KEY = os.getenv("KIE_API_KEY", "")
 REPLICATE_API_KEY = os.getenv("REPLICATE_API_KEY", "")
 
+KIE_STATUS_ENDPOINTS = {
+    "veo": "/veo/record-info",
+    "default": "/jobs/recordInfo",
+}
+
 
 def run_async(coro):
     loop = asyncio.new_event_loop()
@@ -34,11 +39,14 @@ async def check_replicate_status(task_id: str) -> dict:
     return {}
 
 
-async def check_kie_status(task_id: str) -> dict:
+async def check_kie_status(task_id: str, adapter_type: str = "default") -> dict:
+    endpoint = KIE_STATUS_ENDPOINTS.get(adapter_type, KIE_STATUS_ENDPOINTS["default"])
+    url = f"https://api.kie.ai/api/v1{endpoint}"
+    
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(
-                "https://api.kie.ai/api/v1/jobs/recordInfo",
+                url,
                 headers={
                     "Authorization": f"Bearer {KIE_API_KEY}",
                     "Content-Type": "application/json",
@@ -50,6 +58,56 @@ async def check_kie_status(task_id: str) -> dict:
     except Exception as e:
         print(f"[Polling] KIE error: {e}")
     return {}
+
+
+def parse_kie_result(data: dict, adapter_type: str = "default") -> dict:
+    if not data or data.get("code") != 200:
+        return {"status": "processing"}
+    
+    task_data = data.get("data", {})
+    
+    if adapter_type == "veo":
+        success_flag = task_data.get("successFlag")
+        if success_flag == 1:
+            response = task_data.get("response", {})
+            result_urls = response.get("resultUrls", [])
+            return {
+                "status": "success",
+                "result_url": result_urls[0] if result_urls else None,
+                "result_urls": result_urls,
+            }
+        elif task_data.get("errorCode"):
+            return {
+                "status": "failed",
+                "error_code": task_data.get("errorCode"),
+                "error_message": task_data.get("errorMessage"),
+            }
+        else:
+            return {"status": "processing"}
+    else:
+        state = task_data.get("state", "").lower()
+        if state == "success":
+            result_json_str = task_data.get("resultJson", "{}")
+            try:
+                result_json = json.loads(result_json_str) if isinstance(result_json_str, str) else result_json_str
+                result_url = result_json.get("resultUrl") or result_json.get("url")
+                result_urls = result_json.get("resultUrls") or ([result_url] if result_url else None)
+            except:
+                result_url = None
+                result_urls = None
+            return {
+                "status": "success",
+                "result_url": result_url,
+                "result_urls": result_urls,
+            }
+        elif state in ("failed", "fail"):
+            return {
+                "status": "failed",
+                "error_code": task_data.get("failCode") or "KIE_FAILED",
+                "error_message": task_data.get("failMsg") or "Task failed",
+            }
+        else:
+            return {"status": "processing"}
 
 
 async def update_task_in_db(
@@ -126,8 +184,9 @@ async def poll_task_async(
     provider: str,
     poll_number: int = 1,
     max_polls: int = 120,
+    adapter_type: str = "default",
 ):
-    print(f"[Polling] Poll #{poll_number} for {provider}:{external_task_id}")
+    print(f"[Polling] Poll #{poll_number} for {provider}:{external_task_id} (adapter: {adapter_type})")
     
     if poll_number > max_polls:
         await update_task_in_db(
@@ -145,7 +204,7 @@ async def poll_task_async(
         
         if not data:
             poll_task.send_with_options(
-                args=(request_id, external_task_id, provider, poll_number + 1, max_polls),
+                args=(request_id, external_task_id, provider, poll_number + 1, max_polls, adapter_type),
                 delay=5000,
             )
             return
@@ -202,51 +261,41 @@ async def poll_task_async(
                 raw_response=data,
             )
             poll_task.send_with_options(
-                args=(request_id, external_task_id, provider, poll_number + 1, max_polls),
+                args=(request_id, external_task_id, provider, poll_number + 1, max_polls, adapter_type),
                 delay=5000,
             )
     
     elif provider == "kie":
-        data = await check_kie_status(external_task_id)
+        data = await check_kie_status(external_task_id, adapter_type)
         
         if not data or data.get("code") != 200:
             poll_task.send_with_options(
-                args=(request_id, external_task_id, provider, poll_number + 1, max_polls),
+                args=(request_id, external_task_id, provider, poll_number + 1, max_polls, adapter_type),
                 delay=5000,
             )
             return
         
-        task_data = data.get("data", {})
-        state = task_data.get("state", "").lower()
+        parsed = parse_kie_result(data, adapter_type)
         
-        if state == "success":
-            result_json_str = task_data.get("resultJson", "{}")
-            try:
-                result_json = json.loads(result_json_str) if isinstance(result_json_str, str) else result_json_str
-                result_url = result_json.get("resultUrl") or result_json.get("url")
-                result_urls = result_json.get("resultUrls") or ([result_url] if result_url else None)
-            except:
-                result_url = None
-                result_urls = None
-            
+        if parsed["status"] == "success":
             await update_task_in_db(
                 request_id=request_id,
                 status="completed",
-                result_url=result_url,
-                result_urls=result_urls,
+                result_url=parsed.get("result_url"),
+                result_urls=parsed.get("result_urls"),
                 poll_number=poll_number,
                 external_status="success",
                 raw_response=data,
             )
         
-        elif state in ("failed", "fail"):
+        elif parsed["status"] == "failed":
             await update_task_in_db(
                 request_id=request_id,
                 status="failed",
-                error_code=task_data.get("failCode") or "KIE_FAILED",
-                error_message=task_data.get("failMsg") or "Task failed",
+                error_code=parsed.get("error_code", "KIE_FAILED"),
+                error_message=parsed.get("error_message", "Task failed"),
                 poll_number=poll_number,
-                external_status=state,
+                external_status="failed",
                 raw_response=data,
             )
         
@@ -255,11 +304,11 @@ async def poll_task_async(
                 request_id=request_id,
                 status="processing",
                 poll_number=poll_number,
-                external_status=state,
+                external_status="processing",
                 raw_response=data,
             )
             poll_task.send_with_options(
-                args=(request_id, external_task_id, provider, poll_number + 1, max_polls),
+                args=(request_id, external_task_id, provider, poll_number + 1, max_polls, adapter_type),
                 delay=5000,
             )
 
@@ -271,5 +320,6 @@ def poll_task(
     provider: str,
     poll_number: int = 1,
     max_polls: int = 120,
+    adapter_type: str = "default",
 ):
-    run_async(poll_task_async(request_id, external_task_id, provider, poll_number, max_polls))
+    run_async(poll_task_async(request_id, external_task_id, provider, poll_number, max_polls, adapter_type))

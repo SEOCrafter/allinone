@@ -57,7 +57,7 @@ services:
       dockerfile: Dockerfile
     container_name: ai-worker
     restart: unless-stopped
-    command: python -m dramatiq app.workers --processes 1 --threads 2
+    command: python -m dramatiq app.workers --processes 3 --threads 6
     environment:
       APP_ENV: production
       DATABASE_URL: postgresql+asyncpg://ai_user:${DB_PASSWORD}@ai-postgres:5432/ai_aggregator

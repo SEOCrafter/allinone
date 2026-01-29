@@ -60,6 +60,18 @@ def extract_task_id(raw_response: dict, provider: str) -> Optional[str]:
         return resp.get("data", {}).get("taskId")
     return None
 
+def get_adapter_type(model: str) -> str:
+    model_lower = model.lower()
+    if "veo" in model_lower:
+        return "veo"
+    elif "hailuo" in model_lower:
+        return "hailuo"
+    elif "sora" in model_lower:
+        return "sora"
+    elif "runway" in model_lower:
+        return "runway"
+    return "default"
+
 
 @router.post("/generate", response_model=VideoGenerateResponse)
 async def generate_video(
@@ -173,7 +185,7 @@ async def generate_video(
                 await db.commit()
                 
                 poll_task.send_with_options(
-                    args=(request_id, external_task_id, provider, 1, 120),
+                    args=(request_id, external_task_id, provider, 1, 120, get_adapter_type(normalized_model)),
                     delay=5000,
                 )
                 
@@ -309,7 +321,7 @@ async def generate_video_async(
             await db.commit()
 
             poll_task.send_with_options(
-                args=(request_id, external_task_id, provider, 1, 120),
+                args=(request_id, external_task_id, provider, 1, 120, get_adapter_type(normalized_model)),
                 delay=5000,
             )
 
