@@ -15,6 +15,7 @@ from app.models.provider import Provider
 from app.models.provider_balance import ProviderBalance
 from app.services.provider_routing import get_adapter_for_model, normalize_model_name
 from app.services.task_events import log_created, log_sent_to_provider, log_completed, log_failed
+from app.workers.polling import poll_task
 from app.adapters import AdapterRegistry
 from app.config import settings
 
@@ -29,6 +30,7 @@ class VideoGenerateRequest(BaseModel):
     duration: int = 5
     aspect_ratio: str = "16:9"
     sound: bool = False
+    wait_for_result: bool = True
 
 
 class VideoGenerateResponse(BaseModel):
@@ -38,6 +40,7 @@ class VideoGenerateResponse(BaseModel):
     request_id: Optional[str] = None
     credits_spent: Optional[float] = None
     provider_used: Optional[str] = None
+    status: Optional[str] = None
     error: Optional[str] = None
 
 
@@ -114,6 +117,7 @@ async def generate_video(
             "duration": data.duration,
             "aspect_ratio": data.aspect_ratio,
             "sound": data.sound,
+            "wait_for_result": data.wait_for_result,
         }
 
         if data.image_urls:
@@ -160,8 +164,26 @@ async def generate_video(
                 request_id=request_id,
                 credits_spent=credits_spent,
                 provider_used=provider,
+                status="completed",
             )
         else:
+            if external_task_id and not data.wait_for_result:
+                request_record.status = "processing"
+                await db.commit()
+                
+                poll_task.send_with_options(
+                    args=(request_id, external_task_id, provider, 1, 120),
+                    delay=5000,
+                )
+                
+                return VideoGenerateResponse(
+                    ok=True,
+                    task_id=external_task_id,
+                    request_id=request_id,
+                    provider_used=provider,
+                    status="processing",
+                )
+            
             request_record.status = "failed"
             request_record.error_code = result.error_code
             request_record.error_message = result.error_message
@@ -177,6 +199,7 @@ async def generate_video(
                 request_id=request_id,
                 error=result.error_message,
                 provider_used=provider,
+                status="failed",
             )
 
     except Exception as e:
@@ -193,6 +216,150 @@ async def generate_video(
             request_id=request_id,
             error=str(e),
             provider_used=provider,
+            status="failed",
+        )
+
+
+@router.post("/generate-async", response_model=VideoGenerateResponse)
+async def generate_video_async(
+    data: VideoGenerateRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Асинхронная генерация — сразу возвращает task_id, результат через поллинг."""
+    try:
+        adapter, actual_model, provider, price_usd = await get_adapter_for_model(
+            db=db,
+            model_name=data.model,
+            fallback_provider="kie",
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    provider_result = await db.execute(
+        select(Provider).where(Provider.name == provider)
+    )
+    provider_record = provider_result.scalar_one_or_none()
+
+    if not provider_record:
+        provider_record = Provider(
+            id=str(uuid.uuid4()),
+            name=provider,
+            display_name=provider.upper(),
+            type="video",
+            is_active=True,
+        )
+        db.add(provider_record)
+        await db.flush()
+
+    request_id = str(uuid.uuid4())
+    normalized_model = normalize_model_name(data.model)
+
+    estimated_cost = price_usd * data.duration if "per_second" in str(price_usd) else price_usd
+    estimated_credits = estimated_cost * 1000
+
+    request_record = Request(
+        id=request_id,
+        user_id=user.id,
+        provider_id=provider_record.id,
+        type="video",
+        endpoint="/api/v1/video/generate-async",
+        model=normalized_model,
+        prompt=data.prompt,
+        status="processing",
+        external_provider=provider,
+        credits_spent=Decimal(str(estimated_credits)),
+        provider_cost=Decimal(str(estimated_cost)),
+        started_at=datetime.utcnow(),
+    )
+    db.add(request_record)
+    await db.flush()
+
+    await log_created(db, request_id, provider, normalized_model)
+
+    try:
+        if hasattr(adapter, 'create_task'):
+            result = await adapter.create_task(
+                prompt=data.prompt,
+                model=actual_model,
+                duration=data.duration,
+                aspect_ratio=data.aspect_ratio,
+            )
+        else:
+            params = {
+                "model": actual_model,
+                "duration": data.duration,
+                "aspect_ratio": data.aspect_ratio,
+                "sound": data.sound,
+                "wait_for_result": False,
+            }
+            if data.image_urls:
+                params["image_urls"] = data.image_urls
+            
+            result = await adapter.generate(data.prompt, **params)
+
+        external_task_id = extract_task_id(result.raw_response, provider)
+        
+        if external_task_id:
+            request_record.external_task_id = external_task_id
+            await log_sent_to_provider(db, request_id, external_task_id, provider, result.raw_response)
+            
+            balance_result = await db.execute(
+                select(ProviderBalance).where(ProviderBalance.provider == provider)
+            )
+            provider_balance = balance_result.scalar_one_or_none()
+            if provider_balance:
+                provider_balance.balance_usd = provider_balance.balance_usd - Decimal(str(estimated_cost))
+                provider_balance.total_spent_usd = provider_balance.total_spent_usd + Decimal(str(estimated_cost))
+            
+            user.credits_balance = user.credits_balance - Decimal(str(estimated_credits))
+            
+            await db.commit()
+
+            poll_task.send_with_options(
+                args=(request_id, external_task_id, provider, 1, 120),
+                delay=5000,
+            )
+
+            return VideoGenerateResponse(
+                ok=True,
+                task_id=external_task_id,
+                request_id=request_id,
+                credits_spent=estimated_credits,
+                provider_used=provider,
+                status="processing",
+            )
+        else:
+            request_record.status = "failed"
+            request_record.error_code = "NO_TASK_ID"
+            request_record.error_message = "Provider did not return task ID"
+            request_record.completed_at = datetime.utcnow()
+
+            await log_failed(db, request_id, "NO_TASK_ID", "Provider did not return task ID", result.raw_response)
+            await db.commit()
+
+            return VideoGenerateResponse(
+                ok=False,
+                request_id=request_id,
+                error="Provider did not return task ID",
+                provider_used=provider,
+                status="failed",
+            )
+
+    except Exception as e:
+        request_record.status = "failed"
+        request_record.error_message = str(e)
+        request_record.completed_at = datetime.utcnow()
+
+        await log_failed(db, request_id, "EXCEPTION", str(e))
+        await db.commit()
+
+        return VideoGenerateResponse(
+            ok=False,
+            request_id=request_id,
+            error=str(e),
+            provider_used=provider,
+            status="failed",
         )
 
 
@@ -296,6 +463,7 @@ async def generate_midjourney_video(
                 request_id=request_id,
                 credits_spent=credits_spent,
                 provider_used=provider,
+                status="completed",
             )
         else:
             request_record.status = "failed"
@@ -313,6 +481,7 @@ async def generate_midjourney_video(
                 request_id=request_id,
                 error=result.error_message,
                 provider_used=provider,
+                status="failed",
             )
 
     except Exception as e:
@@ -329,4 +498,5 @@ async def generate_midjourney_video(
             request_id=request_id,
             error=str(e),
             provider_used=provider,
+            status="failed",
         )
