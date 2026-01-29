@@ -57,16 +57,35 @@ async def list_adapters(
     def find_price(model_id: str) -> dict:
         if model_id in price_map:
             return price_map[model_id]
+        
         normalized = normalize_model_id(model_id)
         if normalized in price_map:
             return price_map[normalized]
+        
+        variations = [
+            normalized,
+            normalized.replace("text-to-video", "t2v"),
+            normalized.replace("image-to-video", "i2v"),
+            normalized.replace("t2v", "text-to-video"),
+            normalized.replace("i2v", "image-to-video"),
+            normalized.replace("/", "-"),
+            normalized.replace("_", "-"),
+            model_id.replace("/", "-"),
+        ]
+        
+        for var in variations:
+            if var in price_map:
+                return price_map[var]
+        
         for db_name in price_map:
-            if db_name in model_id or model_id in db_name:
-                return price_map[db_name]
-            norm_db = db_name.replace("-", "").replace("_", "").lower()
-            norm_model = normalized.replace("-", "").replace("_", "").lower()
+            norm_db = db_name.replace("-", "").replace("_", "").replace("/", "").lower()
+            norm_model = normalized.replace("-", "").replace("_", "").replace("/", "").lower()
             if norm_db == norm_model:
                 return price_map[db_name]
+            if norm_db in norm_model or norm_model in norm_db:
+                if len(norm_db) > 5 and len(norm_model) > 5:
+                    return price_map[db_name]
+        
         return None
     
     for adapter in adapters:
