@@ -49,14 +49,34 @@ async def list_adapters(
                 "price_usd": float(p.price_usd),
             }
     
+    def normalize_model_id(model_id: str) -> str:
+        if "/" in model_id:
+            return model_id.split("/")[-1]
+        return model_id
+    
+    def find_price(model_id: str) -> dict:
+        if model_id in price_map:
+            return price_map[model_id]
+        normalized = normalize_model_id(model_id)
+        if normalized in price_map:
+            return price_map[normalized]
+        for db_name in price_map:
+            if db_name in model_id or model_id in db_name:
+                return price_map[db_name]
+            norm_db = db_name.replace("-", "").replace("_", "").lower()
+            norm_model = normalized.replace("-", "").replace("_", "").lower()
+            if norm_db == norm_model:
+                return price_map[db_name]
+        return None
+    
     for adapter in adapters:
         if "models" in adapter:
             for model in adapter["models"]:
                 model_id = model["id"]
-                if model_id in price_map:
-                    db_price = price_map[model_id]
-                    model["pricing"]["per_request"] = db_price["price_usd"]
-                    model["pricing"]["price_type"] = db_price["price_type"]
+                price_data = find_price(model_id)
+                if price_data:
+                    model["pricing"]["per_request"] = price_data["price_usd"]
+                    model["pricing"]["price_type"] = price_data["price_type"]
     
     db_only_models = []
     adapter_model_ids = set()
@@ -64,11 +84,12 @@ async def list_adapters(
         if "models" in adapter:
             for m in adapter["models"]:
                 adapter_model_ids.add(m["id"])
+                adapter_model_ids.add(normalize_model_id(m["id"]))
     
     for model_name, price_data in price_map.items():
         if model_name not in adapter_model_ids:
             model_type = "video"
-            if "flux" in model_name or "midjourney" in model_name or "nano" in model_name or "mj_" in model_name:
+            if "flux" in model_name or "midjourney" in model_name or "nano" in model_name or "mj_" in model_name or "imagen" in model_name:
                 model_type = "image"
             
             db_only_models.append({
@@ -92,7 +113,6 @@ async def list_adapters(
         })
     
     return {"ok": True, "adapters": adapters}
-
 
 @router.get("/status")
 async def adapters_status(
