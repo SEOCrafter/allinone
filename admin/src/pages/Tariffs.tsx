@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, GripVertical, Save, X, Pencil, Loader2 } from 'lucide-react';
+import { Plus, Trash2, GripVertical, Save, X, Pencil, Loader2, ChevronDown, ChevronRight } from 'lucide-react';
 import api from '../api/client';
 
 interface TariffItem {
@@ -40,6 +40,14 @@ interface Adapter {
   models: AdapterModel[];
 }
 
+interface ModelSetting {
+  id: string;
+  provider: string;
+  model_id: string;
+  credits_price: number | null;
+  is_enabled: boolean;
+}
+
 const ITEM_TYPE_GROUPS = [
   { id: 'all_text', label: 'Все текстовые', icon: '📝' },
   { id: 'all_images', label: 'Все изображения', icon: '🖼️' },
@@ -53,12 +61,14 @@ export default function Tariffs() {
   const [activeTab, setActiveTab] = useState<'list' | 'constructor'>('list');
   const [tariffs, setTariffs] = useState<Tariff[]>([]);
   const [adapters, setAdapters] = useState<Adapter[]>([]);
+  const [modelSettings, setModelSettings] = useState<Record<string, ModelSetting>>({});
   const [loading, setLoading] = useState(true);
   const [editingTariff, setEditingTariff] = useState<Tariff | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [editingItemDesc, setEditingItemDesc] = useState<number | null>(null);
+  const [expandedAdapters, setExpandedAdapters] = useState<Record<string, boolean>>({});
   
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
@@ -82,17 +92,38 @@ export default function Tariffs() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [tariffsRes, adaptersRes] = await Promise.all([
+      const [tariffsRes, adaptersRes, settingsRes] = await Promise.all([
         api.get('/admin/tariffs'),
-        api.get('/admin/adapters')
+        api.get('/admin/adapters'),
+        api.get('/admin/models/settings')
       ]);
       setTariffs(tariffsRes.data);
       setAdapters(adaptersRes.data.adapters || []);
+      setModelSettings(settingsRes.data.settings || {});
+      
+      // Expand all adapters by default
+      const expanded: Record<string, boolean> = {};
+      (adaptersRes.data.adapters || []).forEach((a: Adapter) => {
+        expanded[a.name] = false;
+      });
+      setExpandedAdapters(expanded);
     } catch (error) {
       console.error('Failed to load data:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const getModelPrice = (adapterName: string, modelId: string): number | null => {
+    const key = `${adapterName}:${modelId}`;
+    return modelSettings[key]?.credits_price ?? null;
+  };
+
+  const toggleAdapter = (adapterName: string) => {
+    setExpandedAdapters(prev => ({
+      ...prev,
+      [adapterName]: !prev[adapterName]
+    }));
   };
 
   const handleToggle = async (tariff: Tariff) => {
@@ -143,6 +174,15 @@ export default function Tariffs() {
         const res = await api.put(`/admin/tariffs/${editingTariff.id}`, editingTariff);
         setTariffs(tariffs.map(t => t.id === editingTariff.id ? res.data : t));
       }
+      
+      const hasGlobalChanges = editingTariff.items.some(
+        item => item.credits_scope === 'global' && item.credits_override
+      );
+      if (hasGlobalChanges) {
+        const settingsRes = await api.get('/admin/models/settings');
+        setModelSettings(settingsRes.data.settings || {});
+      }
+      
       setEditingTariff(null);
       setActiveTab('list');
     } catch (error) {
@@ -161,11 +201,20 @@ export default function Tariffs() {
   const addItem = (item_type: string, adapter_name?: string, model_id?: string) => {
     if (!editingTariff) return;
     
+    let currentPrice: number | undefined = undefined;
+    if (adapter_name && model_id) {
+      const price = getModelPrice(adapter_name, model_id);
+      if (price !== null) {
+        currentPrice = price;
+      }
+    }
+    
     const newItem: TariffItem = {
       item_type,
       adapter_name,
       model_id,
       custom_description: '',
+      credits_override: currentPrice,
       credits_scope: 'plan_only',
       is_enabled: true,
       sort_order: editingTariff.items.length
@@ -234,6 +283,13 @@ export default function Tariffs() {
       return getModelDisplayName(item.adapter_name, item.model_id);
     }
     return item.item_type;
+  };
+
+  const getItemCurrentPrice = (item: TariffItem): number | null => {
+    if (item.adapter_name && item.model_id) {
+      return getModelPrice(item.adapter_name, item.model_id);
+    }
+    return null;
   };
 
   if (loading) {
@@ -458,90 +514,97 @@ export default function Tariffs() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {editingTariff.items.map((item, index) => (
-                    <div
-                      key={index}
-                      draggable
-                      onDragStart={() => handleDragStart(index)}
-                      onDragEnter={() => handleDragEnter(index)}
-                      onDragEnd={handleDragEnd}
-                      onDragOver={(e) => e.preventDefault()}
-                      className={`bg-[#252525] rounded-lg ${!item.is_enabled ? 'opacity-50' : ''} cursor-move`}
-                    >
-                      <div className="flex items-center gap-3 p-3">
-                        <GripVertical className="w-5 h-5 text-gray-500 flex-shrink-0" />
-                        
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-white">{getItemLabel(item)}</div>
-                          {item.custom_description && (
-                            <div className="text-sm text-gray-400 truncate">{item.custom_description}</div>
-                          )}
-                        </div>
+                  {editingTariff.items.map((item, index) => {
+                    const currentPrice = getItemCurrentPrice(item);
+                    return (
+                      <div
+                        key={index}
+                        draggable
+                        onDragStart={() => handleDragStart(index)}
+                        onDragEnter={() => handleDragEnter(index)}
+                        onDragEnd={handleDragEnd}
+                        onDragOver={(e) => e.preventDefault()}
+                        className={`bg-[#252525] rounded-lg ${!item.is_enabled ? 'opacity-50' : ''} cursor-move`}
+                      >
+                        <div className="flex items-center gap-3 p-3">
+                          <GripVertical className="w-5 h-5 text-gray-500 flex-shrink-0" />
+                          
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-white">{getItemLabel(item)}</div>
+                            {item.custom_description && (
+                              <div className="text-sm text-gray-400 truncate">{item.custom_description}</div>
+                            )}
+                            {currentPrice !== null && !item.credits_override && (
+                              <div className="text-xs text-gray-500">Текущая цена: {currentPrice}</div>
+                            )}
+                          </div>
 
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <button
-                            onClick={() => setEditingItemDesc(editingItemDesc === index ? null : index)}
-                            className="p-1 text-gray-400 hover:text-blue-400"
-                            title="Редактировать описание"
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          
-                          <input
-                            type="number"
-                            value={item.credits_override || ''}
-                            onChange={(e) => updateItem(index, { credits_override: parseFloat(e.target.value) || undefined })}
-                            className="w-20 px-2 py-1 bg-[#1a1a1a] border border-gray-700 rounded text-white text-sm"
-                            placeholder="Цена"
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                          
-                          <select
-                            value={item.credits_scope}
-                            onChange={(e) => updateItem(index, { credits_scope: e.target.value })}
-                            className="px-2 py-1 bg-[#1a1a1a] border border-gray-700 rounded text-white text-sm"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <option value="plan_only">Только для тарифа</option>
-                            <option value="global">Глобально</option>
-                          </select>
-                          
-                          <button
-                            onClick={(e) => { e.stopPropagation(); updateItem(index, { is_enabled: !item.is_enabled }); }}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                              item.is_enabled ? 'bg-green-600' : 'bg-gray-600'
-                            }`}
-                          >
-                            <span
-                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                item.is_enabled ? 'translate-x-6' : 'translate-x-1'
-                              }`}
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <button
+                              onClick={() => setEditingItemDesc(editingItemDesc === index ? null : index)}
+                              className="p-1 text-gray-400 hover:text-blue-400"
+                              title="Редактировать описание"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            
+                            <input
+                              type="number"
+                              step="0.0001"
+                              value={item.credits_override ?? ''}
+                              onChange={(e) => updateItem(index, { credits_override: e.target.value ? parseFloat(e.target.value) : undefined })}
+                              className="w-24 px-2 py-1 bg-[#1a1a1a] border border-gray-700 rounded text-white text-sm"
+                              placeholder={currentPrice?.toString() || 'Цена'}
+                              onClick={(e) => e.stopPropagation()}
                             />
-                          </button>
-                          
-                          <button
-                            onClick={(e) => { e.stopPropagation(); removeItem(index); }}
-                            className="p-1 text-gray-400 hover:text-red-500"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
+                            
+                            <select
+                              value={item.credits_scope}
+                              onChange={(e) => updateItem(index, { credits_scope: e.target.value })}
+                              className="px-2 py-1 bg-[#1a1a1a] border border-gray-700 rounded text-white text-sm"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <option value="plan_only">Только для тарифа</option>
+                              <option value="global">Глобально</option>
+                            </select>
+                            
+                            <button
+                              onClick={(e) => { e.stopPropagation(); updateItem(index, { is_enabled: !item.is_enabled }); }}
+                              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                item.is_enabled ? 'bg-green-600' : 'bg-gray-600'
+                              }`}
+                            >
+                              <span
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                  item.is_enabled ? 'translate-x-6' : 'translate-x-1'
+                                }`}
+                              />
+                            </button>
+                            
+                            <button
+                              onClick={(e) => { e.stopPropagation(); removeItem(index); }}
+                              className="p-1 text-gray-400 hover:text-red-500"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
+                        
+                        {editingItemDesc === index && (
+                          <div className="px-3 pb-3">
+                            <input
+                              type="text"
+                              value={item.custom_description || ''}
+                              onChange={(e) => updateItem(index, { custom_description: e.target.value })}
+                              className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded text-white text-sm"
+                              placeholder="Описание для этого блока..."
+                              autoFocus
+                            />
+                          </div>
+                        )}
                       </div>
-                      
-                      {editingItemDesc === index && (
-                        <div className="px-3 pb-3">
-                          <input
-                            type="text"
-                            value={item.custom_description || ''}
-                            onChange={(e) => updateItem(index, { custom_description: e.target.value })}
-                            className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded text-white text-sm"
-                            placeholder="Описание для этого блока..."
-                            autoFocus
-                          />
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -587,32 +650,47 @@ export default function Tariffs() {
 
             <div className="bg-[#1a1a1a] rounded-xl p-4">
               <h3 className="text-lg font-medium text-white mb-4">Модели</h3>
-              <div className="space-y-4 max-h-[400px] overflow-y-auto">
-                {adapters.map((adapter) => (
-                  <div key={adapter.name}>
-                    <div className="text-sm font-medium text-gray-400 mb-2">{adapter.display_name}</div>
-                    <div className="space-y-1">
-                      {adapter.models.slice(0, 5).map((model) => (
-                        <button
-                          key={model.id}
-                          onClick={() => addItem('single_model', adapter.name, model.id)}
-                          className="w-full flex items-center gap-2 p-2 bg-[#252525] rounded hover:bg-[#2f2f2f] text-left text-sm"
-                        >
-                          <span className="text-white truncate flex-1">{model.display_name}</span>
-                          {model.credits_price && (
-                            <span className="text-gray-500">{model.credits_price}</span>
-                          )}
-                          <Plus className="w-3 h-3 text-gray-500" />
-                        </button>
-                      ))}
-                      {adapter.models.length > 5 && (
-                        <div className="text-xs text-gray-500 text-center py-1">
-                          +{adapter.models.length - 5} моделей
+              <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                {adapters.map((adapter) => {
+                  const isExpanded = expandedAdapters[adapter.name];
+                  return (
+                    <div key={adapter.name} className="border border-gray-700 rounded-lg overflow-hidden">
+                      <button
+                        onClick={() => toggleAdapter(adapter.name)}
+                        className="w-full flex items-center gap-2 p-3 bg-[#252525] hover:bg-[#2f2f2f] text-left"
+                      >
+                        {isExpanded ? (
+                          <ChevronDown className="w-4 h-4 text-gray-400" />
+                        ) : (
+                          <ChevronRight className="w-4 h-4 text-gray-400" />
+                        )}
+                        <span className="text-white font-medium">{adapter.display_name}</span>
+                        <span className="text-gray-500 text-sm ml-auto">{adapter.models.length}</span>
+                      </button>
+                      
+                      {isExpanded && (
+                        <div className="bg-[#1a1a1a] p-2 space-y-1">
+                          {adapter.models.map((model) => {
+                            const price = getModelPrice(adapter.name, model.id);
+                            return (
+                              <button
+                                key={model.id}
+                                onClick={() => addItem('single_model', adapter.name, model.id)}
+                                className="w-full flex items-center gap-2 p-2 rounded hover:bg-[#252525] text-left text-sm"
+                              >
+                                <span className="text-white truncate flex-1">{model.display_name}</span>
+                                {price !== null && (
+                                  <span className="text-green-400 text-xs">{price}</span>
+                                )}
+                                <Plus className="w-3 h-3 text-gray-500 flex-shrink-0" />
+                              </button>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
