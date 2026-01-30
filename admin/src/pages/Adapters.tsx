@@ -464,8 +464,13 @@ export default function Adapters() {
   };
 
   const calculateAvgCost = (model: UnifiedModel): { cost: number | null; count: number } => {
-    const statsKey = `${model.provider}:${model.modelId}`;
-    const stat = modelStats[statsKey];
+    let statsKey = `${model.provider}:${model.modelId}`;
+    let stat = modelStats[statsKey];
+    
+    if (!stat && model.type === 'text') {
+      statsKey = `direct:${model.modelId}`;
+      stat = modelStats[statsKey];
+    }
     
     if (!stat || stat.request_count === 0) {
       return { cost: null, count: 0 };
