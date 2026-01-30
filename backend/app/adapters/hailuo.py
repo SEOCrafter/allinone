@@ -24,11 +24,12 @@ class HailuoAdapter(BaseAdapter, KieBaseAdapter):
         self.max_poll_attempts = kwargs.get("max_poll_attempts", 180)
         self.poll_interval = kwargs.get("poll_interval", 10)
 
-    def _resolve_model(self, model: str, mode: str = "std", has_image: bool = False) -> str:
+    def _resolve_model(self, model: str, mode: str = "std", has_image: bool = False, resolution: str = "768p") -> str:
         model_lower = model.lower()
-        
-        mode_suffix = "pro" if mode == "pro" else "standard"
-        
+        if resolution.lower() == "1080p":
+            mode_suffix = "pro"
+        else:
+            mode_suffix = "pro" if mode == "pro" else "standard"
         if "2.3" in model or "2-3" in model:
             if has_image:
                 return f"hailuo/2-3-image-to-video-{mode_suffix}"
@@ -37,7 +38,6 @@ class HailuoAdapter(BaseAdapter, KieBaseAdapter):
             if has_image:
                 return f"hailuo/02-image-to-video-{mode_suffix}"
             return f"hailuo/02-text-to-video-{mode_suffix}"
-        
         return model
 
     async def generate(
@@ -58,7 +58,7 @@ class HailuoAdapter(BaseAdapter, KieBaseAdapter):
         
         has_image = actual_image_url is not None
         
-        actual_model = self._resolve_model(model or self.default_model, mode, has_image)
+        actual_model = self._resolve_model(model or self.default_model, mode, has_image, resolution)
 
         input_data = {
             "prompt": prompt,
