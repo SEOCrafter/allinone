@@ -40,6 +40,15 @@ interface ModelSettingData {
   is_enabled: boolean;
 }
 
+interface PriceVariant {
+  label: string;
+  duration?: number;
+  sound?: boolean;
+  price_usd?: number;
+  price_per_second?: number;
+  mode?: string;
+}
+
 interface ProviderPrice {
   model_name: string;
   provider: string;
@@ -47,12 +56,7 @@ interface ProviderPrice {
   price_type: string;
   is_active: boolean;
   replicate_model_id: string | null;
-  price_variants: Record<string, {
-    duration: number;
-    sound: boolean;
-    price_usd: number;
-    label: string;
-  }> | null;
+  price_variants: Record<string, PriceVariant> | null;
 }
 
 interface ModelStat {
@@ -92,12 +96,7 @@ interface UnifiedModel {
   priceUsdOutput?: number;
   isActive: boolean;
   settingsKey: string;
-  priceVariants?: Record<string, {
-    duration: number;
-    sound: boolean;
-    price_usd: number;
-    label: string;
-  }> | null;
+  priceVariants?: Record<string, PriceVariant> | null;
 }
 
 export default function Adapters() {
@@ -318,7 +317,6 @@ export default function Adapters() {
     const currentEnabled = modelSettings[variantSettingsKey]?.is_enabled ?? true;
     const newEnabled = !currentEnabled;
     
-    // Сначала переключаем вариант
     setSavingSettings(prev => ({ ...prev, [variantSettingsKey]: true }));
     try {
       const [adapterName, modelId] = model.settingsKey.split(':');
@@ -336,7 +334,6 @@ export default function Adapters() {
           }
         };
         
-        // Проверяем, нужно ли обновить главный тумблер
         if (model.priceVariants) {
           const variantKeys = Object.keys(model.priceVariants);
           const anyEnabled = variantKeys.some(vk => {
@@ -371,14 +368,12 @@ export default function Adapters() {
     try {
       const [adapterName, modelId] = model.settingsKey.split(':');
       
-      // Переключаем главную модель
       await axios.post(
         `${BASE}/admin/models/${adapterName}/${encodeURIComponent(modelId)}/settings`,
         { is_enabled: newEnabled },
         { headers: getHeaders(), timeout: 10000 }
       );
       
-      // Переключаем все варианты
       const variantKeys = Object.keys(model.priceVariants);
       await Promise.all(variantKeys.map(vk =>
         axios.post(
@@ -388,7 +383,6 @@ export default function Adapters() {
         )
       ));
       
-      // Обновляем state
       const newSettings = { ...modelSettings };
       newSettings[model.settingsKey] = {
         credits_price: newSettings[model.settingsKey]?.credits_price ?? null,
@@ -520,11 +514,22 @@ export default function Adapters() {
   const types = [...new Set(adapters.map(a => a.type))];
   const currentAdapter = adapters.find((a) => a.name === selectedAdapter);
 
-  const formatPrice = (price: number) => {
+  const formatPrice = (price: number | undefined) => {
+    if (price === undefined || price === null) return '—';
     if (price === 0) return '$0.0000';
     if (price < 0.0001) return `$${price.toFixed(6)}`;
     if (price < 0.01) return `$${price.toFixed(4)}`;
     return `$${price.toFixed(2)}`;
+  };
+
+  const getVariantPrice = (variant: PriceVariant): string => {
+    if (variant.price_usd !== undefined) {
+      return formatPrice(variant.price_usd);
+    }
+    if (variant.price_per_second !== undefined) {
+      return `${formatPrice(variant.price_per_second)}/сек`;
+    }
+    return '—';
   };
 
   const getPriceTypeLabel = (priceType: string) => {
@@ -1069,7 +1074,7 @@ export default function Adapters() {
                           <td className="py-2"></td>
                           <td className="py-2"></td>
                           <td className="py-2 text-green-400 font-mono text-sm">
-                            {formatPrice(variant.price_usd)}
+                            {getVariantPrice(variant)}
                           </td>
                           <td className="py-2 text-sm">
                             <span className="text-gray-600">—</span>
