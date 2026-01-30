@@ -102,7 +102,7 @@ async def get_adapter_for_model(
     db: AsyncSession,
     model_name: str,
     fallback_provider: str = "kie",
-) -> Tuple[BaseAdapter, str, str, float]:
+) -> Tuple[BaseAdapter, str, str, float, str, Optional[dict]]:
     provider_price = await get_active_provider_for_model(db, model_name)
     normalized = normalize_model_name(model_name)
     
@@ -115,6 +115,8 @@ async def get_adapter_for_model(
         else:
             actual_model = model_name
         price_usd = float(provider_price.price_usd)
+        price_type = provider_price.price_type
+        price_variants = provider_price.price_variants
     else:
         provider = fallback_provider
         if normalized in MODEL_TO_KIE_MODEL:
@@ -122,6 +124,8 @@ async def get_adapter_for_model(
         else:
             actual_model = model_name
         price_usd = 0.0
+        price_type = "per_second"
+        price_variants = None
     
     api_key = get_api_key_for_provider(provider)
     if not api_key:
@@ -138,7 +142,7 @@ async def get_adapter_for_model(
     if not adapter:
         raise ValueError(f"Adapter not found for provider: {provider}")
     
-    return adapter, actual_model, provider, price_usd
+    return adapter, actual_model, provider, price_usd, price_type, price_variants
 
 
 def _get_kie_adapter_name(model_name: str) -> str:

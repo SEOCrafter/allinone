@@ -60,6 +60,7 @@ def extract_task_id(raw_response: dict, provider: str) -> Optional[str]:
         return resp.get("data", {}).get("taskId")
     return None
 
+
 def get_adapter_type(model: str) -> str:
     model_lower = model.lower()
     if "veo" in model_lower:
@@ -73,6 +74,27 @@ def get_adapter_type(model: str) -> str:
     return "default"
 
 
+def calculate_video_cost(
+    price_usd: float,
+    price_type: str,
+    price_variants: Optional[dict],
+    duration: int,
+    sound: bool,
+) -> float:
+    if price_variants:
+        variant_key = f"{duration}s_{'with_sound' if sound else 'no_sound'}"
+        variant = price_variants.get(variant_key)
+        if variant and "price_usd" in variant:
+            return float(variant["price_usd"])
+    
+    if price_type in ("per_generation", "per_request", "per_image"):
+        return price_usd
+    elif price_type == "per_second":
+        return price_usd * duration
+    
+    return price_usd * duration if price_usd > 0 else 0.05 * duration
+
+
 @router.post("/generate", response_model=VideoGenerateResponse)
 async def generate_video(
     data: VideoGenerateRequest,
@@ -80,7 +102,7 @@ async def generate_video(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        adapter, actual_model, provider, price_usd = await get_adapter_for_model(
+        adapter, actual_model, provider, price_usd, price_type, price_variants = await get_adapter_for_model(
             db=db,
             model_name=data.model,
             fallback_provider="kie",
@@ -153,7 +175,9 @@ async def generate_video(
             await log_sent_to_provider(db, request_id, external_task_id, provider, result.raw_response)
 
         if result.success:
-            provider_cost = result.provider_cost if result.provider_cost > 0 else price_usd
+            provider_cost = result.provider_cost if result.provider_cost > 0 else calculate_video_cost(
+                price_usd, price_type, price_variants, data.duration, data.sound
+            )
             credits_spent = provider_cost * 1000
 
             balance_result = await db.execute(
@@ -247,7 +271,7 @@ async def generate_video_async(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        adapter, actual_model, provider, price_usd = await get_adapter_for_model(
+        adapter, actual_model, provider, price_usd, price_type, price_variants = await get_adapter_for_model(
             db=db,
             model_name=data.model,
             fallback_provider="kie",
@@ -274,7 +298,7 @@ async def generate_video_async(
     request_id = str(uuid.uuid4())
     normalized_model = normalize_model_name(data.model)
 
-    estimated_cost = price_usd * data.duration if price_usd > 0 else 0.05 * data.duration
+    estimated_cost = calculate_video_cost(price_usd, price_type, price_variants, data.duration, data.sound)
     estimated_credits = estimated_cost * 1000
 
     request_params = {
@@ -388,7 +412,7 @@ async def generate_midjourney_video(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        adapter, actual_model, provider, price_usd = await get_adapter_for_model(
+        adapter, actual_model, provider, price_usd, price_type, price_variants = await get_adapter_for_model(
             db=db,
             model_name="midjourney",
             fallback_provider="kie",
