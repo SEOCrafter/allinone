@@ -108,6 +108,7 @@ async def create_payment(
         f"&currency={data.currency}"
         f"&o={order_id}"
         f"&s={sign}"
+        f"&i=44"
         f"&em={data.email}"
         f"&lang=ru"
     )
