@@ -252,6 +252,7 @@ class ReplicateAdapter(BaseAdapter):
         prompt: str,
         model: Optional[str] = None,
         image_urls: Optional[List[str]] = None,
+        video_urls: Optional[List[str]] = None,
         duration: int = 5,
         aspect_ratio: str = "16:9",
         wait_for_result: bool = True,
@@ -266,6 +267,7 @@ class ReplicateAdapter(BaseAdapter):
             model_type=model_type,
             prompt=prompt,
             image_urls=image_urls,
+            video_urls=video_urls,
             duration=duration,
             aspect_ratio=aspect_ratio,
             **params
@@ -327,6 +329,7 @@ class ReplicateAdapter(BaseAdapter):
         model_type: str,
         prompt: str,
         image_urls: Optional[List[str]] = None,
+        video_urls: Optional[List[str]] = None,
         duration: int = 5,
         aspect_ratio: str = "16:9",
         **params
@@ -349,6 +352,8 @@ class ReplicateAdapter(BaseAdapter):
             input_data["aspect_ratio"] = aspect_ratio
             if image_urls:
                 input_data["image"] = image_urls[0]
+            if "motion-control" in model.lower() and video_urls:
+                input_data["video"] = video_urls[0]
 
         elif "veo" in model.lower():
             input_data["duration"] = duration
