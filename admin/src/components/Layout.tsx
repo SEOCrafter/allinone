@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Activity, MessageSquare, Users, BarChart3, LogOut, Calculator, ArrowRightLeft } from 'lucide-react';
+import { LayoutDashboard, Activity, MessageSquare, Users, BarChart3, LogOut, Calculator, ArrowRightLeft, CreditCard } from 'lucide-react';
 
 export default function Layout() {
   const navigate = useNavigate();
@@ -15,6 +15,7 @@ export default function Layout() {
     { to: '/', icon: LayoutDashboard, label: 'Дашборд' },
     { to: '/adapters', icon: Activity, label: 'Адаптеры' },
     { to: '/providers', icon: ArrowRightLeft, label: 'Провайдеры' },
+    { to: '/tariffs', icon: CreditCard, label: 'Тарифы' },
     { to: '/requests', icon: MessageSquare, label: 'Запросы' },
     { to: '/users', icon: Users, label: 'Пользователи' },
     { to: '/stats', icon: BarChart3, label: 'Статистика' },
@@ -22,15 +23,15 @@ export default function Layout() {
   ];
 
   return (
-    <div className="flex h-screen bg-[#1a1a1a]">
+    <div className="flex h-screen bg-[#0a0a0a]">
       {/* Sidebar */}
-      <aside className="w-52 bg-[#171717] flex flex-col">
+      <div className="w-64 bg-[#1a1a1a] flex flex-col">
         <div className="p-4 border-b border-gray-800">
-          <h1 className="text-lg font-bold text-white">UmnikAI</h1>
-          <p className="text-xs text-gray-500">Админ-панель</p>
+          <h1 className="text-xl font-bold text-white">UmnikAI</h1>
+          <p className="text-sm text-gray-500">Админ-панель</p>
         </div>
 
-        <nav className="flex-1 p-2">
+        <nav className="flex-1 p-4">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
@@ -53,7 +54,7 @@ export default function Layout() {
         <div className="p-4 border-t border-gray-800">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-white truncate">{user.email}</p>
+              <p className="text-sm text-white">{user.email}</p>
               <p className="text-xs text-gray-500">{user.role}</p>
             </div>
             <button
@@ -61,16 +62,16 @@ export default function Layout() {
               className="p-2 text-gray-400 hover:text-white hover:bg-[#2f2f2f] rounded"
               title="Выйти"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="w-5 h-5" />
             </button>
           </div>
         </div>
-      </aside>
+      </div>
 
       {/* Main content */}
-      <main className="flex-1 overflow-auto bg-[#212121]">
+      <div className="flex-1 overflow-auto p-8">
         <Outlet />
-      </main>
+      </div>
     </div>
   );
 }

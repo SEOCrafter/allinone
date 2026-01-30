@@ -9,6 +9,7 @@ import Users from './pages/Users';
 import Stats from './pages/Stats';
 import UnitEconomics from './pages/UnitEconomics';
 import Providers from './pages/Providers';
+import Tariffs from './pages/Tariffs';
 
 const queryClient = new QueryClient();
 
@@ -38,6 +39,7 @@ function App() {
             <Route path="users" element={<Users />} />
             <Route path="stats" element={<Stats />} />
             <Route path="unit-economics" element={<UnitEconomics />} />
+            <Route path="tariffs" element={<Tariffs />} />
           </Route>
         </Routes>
       </BrowserRouter>
