@@ -1,5 +1,7 @@
 import hashlib
+import hmac
 import uuid
+import time
 from decimal import Decimal
 from datetime import datetime
 from typing import Optional
@@ -9,6 +11,7 @@ from fastapi.responses import RedirectResponse, PlainTextResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+import httpx
 
 from app.database import get_db
 from app.config import settings
@@ -18,16 +21,15 @@ from app.api.deps import get_current_user
 
 router = APIRouter()
 
-# IP адреса FreeKassa
 FREEKASSA_IPS = ['168.119.157.136', '168.119.60.227', '178.154.197.79', '51.250.54.238']
 
 
 class CreatePaymentRequest(BaseModel):
-    amount: int              # Сумма в рублях
-    credits: int             # Кредиты к начислению
+    amount: int
+    credits: int
     currency: str = "RUB"
-    email: str               # Email клиента
-    telegram_id: Optional[int] = None  # ID телеграм (опционально)
+    email: str
+    telegram_id: Optional[int] = None
 
 
 class PaymentResponse(BaseModel):
@@ -36,10 +38,13 @@ class PaymentResponse(BaseModel):
     amount: int
     credits: int
 
-def generate_payment_sign(merchant_id: int, amount: int, secret1: str, currency: str, order_id: str) -> str:
-    """Генерация подписи для платежной формы"""
-    sign_string = f"{merchant_id}:{amount}:{secret1}:{currency}:{order_id}"
-    return hashlib.md5(sign_string.encode()).hexdigest()
+
+def generate_api_sign(data: dict, api_key: str) -> str:
+    """Генерация подписи для API FreeKassa (HMAC SHA256)"""
+    sorted_values = [str(data[k]) for k in sorted(data.keys())]
+    sign_string = '|'.join(sorted_values)
+    return hmac.new(api_key.encode(), sign_string.encode(), hashlib.sha256).hexdigest()
+
 
 def verify_notification_sign(merchant_id: str, amount: str, secret2: str, order_id: str, received_sign: str) -> bool:
     """Проверка подписи уведомления от FreeKassa"""
@@ -61,16 +66,15 @@ def get_client_ip(request: Request) -> str:
 
 @router.post("/create", response_model=PaymentResponse)
 async def create_payment(
+    request: Request,
     data: CreatePaymentRequest,
     db: AsyncSession = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user)
 ):
-    """Создание платежа и получение ссылки на оплату"""
+    """Создание платежа через FreeKassa API"""
     
-    # Определяем user_id (авторизованный юзер или None для гостя)
     user_id = current_user.id if current_user else None
     
-    # Создаём транзакцию
     transaction = Transaction(
         user_id=user_id,
         type="topup",
@@ -90,32 +94,42 @@ async def create_payment(
     await db.refresh(transaction)
     
     order_id = str(transaction.id)
+    client_ip = get_client_ip(request)
     
-    # Генерируем подпись
-    sign = generate_payment_sign(
-        settings.FREEKASSA_MERCHANT_ID,
-        data.amount,
-        settings.FREEKASSA_SECRET1,
-        data.currency,
-        order_id
-    )
+    api_data = {
+        "shopId": settings.FREEKASSA_MERCHANT_ID,
+        "nonce": int(time.time() * 1000),
+        "paymentId": order_id,
+        "i": 44,
+        "email": data.email,
+        "ip": client_ip,
+        "amount": data.amount,
+        "currency": data.currency,
+    }
     
-    # Формируем URL оплаты
-    payment_url = (
-        f"https://pay.fk.money/"
-        f"?m={settings.FREEKASSA_MERCHANT_ID}"
-        f"&oa={data.amount}"
-        f"&currency={data.currency}"
-        f"&o={order_id}"
-        f"&s={sign}"
-        f"&i=44"
-        f"&em={data.email}"
-        f"&lang=ru"
-    )
+    api_data["signature"] = generate_api_sign(api_data, settings.FREEKASSA_API_KEY)
     
-    # Добавляем telegram_id если есть
-    if data.telegram_id:
-        payment_url += f"&us_telegram_id={data.telegram_id}"
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            "https://api.fk.life/v1/orders/create",
+            json=api_data,
+            headers={"Content-Type": "application/json"}
+        )
+        
+        result = response.json()
+        
+        if result.get("type") != "success":
+            transaction.status = "failed"
+            transaction.extra_data = {**transaction.extra_data, "error": result}
+            await db.commit()
+            raise HTTPException(status_code=400, detail=result.get("message", "Payment creation failed"))
+        
+        payment_url = result.get("location")
+        fk_order_id = result.get("orderId")
+        
+        transaction.external_id = str(fk_order_id)
+        transaction.extra_data = {**transaction.extra_data, "fk_response": result}
+        await db.commit()
     
     return PaymentResponse(
         payment_url=payment_url,
@@ -130,10 +144,10 @@ async def create_payment(
 async def freekassa_notify(request: Request, db: AsyncSession = Depends(get_db)):
     """Обработка уведомления от FreeKassa о платеже"""
     
-    # Проверяем IP
     client_ip = get_client_ip(request)
+    # if client_ip not in FREEKASSA_IPS:
+    #     return PlainTextResponse(f"IP not allowed: {client_ip}", status_code=403)
     
-    # Получаем данные (поддержка GET и POST)
     if request.method == "POST":
         form_data = await request.form()
         data = dict(form_data)
@@ -147,11 +161,9 @@ async def freekassa_notify(request: Request, db: AsyncSession = Depends(get_db))
     fk_order_id = data.get("intid", "")
     telegram_id = data.get("us_telegram_id")
     
-    # Проверяем подпись
     if not verify_notification_sign(merchant_id, amount, settings.FREEKASSA_SECRET2, order_id, received_sign):
         return PlainTextResponse("Wrong sign", status_code=400)
     
-    # Находим транзакцию
     try:
         transaction_uuid = uuid.UUID(order_id)
     except ValueError:
@@ -165,25 +177,20 @@ async def freekassa_notify(request: Request, db: AsyncSession = Depends(get_db))
     if not transaction:
         return PlainTextResponse("Order not found", status_code=404)
     
-    # Проверяем что ещё не обработан
     if transaction.status == "completed":
         return PlainTextResponse("YES")
     
-    # Проверяем сумму
     if Decimal(amount) != transaction.amount_currency:
         return PlainTextResponse("Wrong amount", status_code=400)
     
-    # Обновляем транзакцию
     transaction.status = "completed"
     transaction.external_id = fk_order_id
     transaction.completed_at = datetime.utcnow()
     
-    # Сохраняем все данные от FreeKassa
     extra = transaction.extra_data or {}
     extra["freekassa_response"] = data
     transaction.extra_data = extra
     
-    # Начисляем кредиты пользователю если есть user_id
     if transaction.user_id:
         result = await db.execute(
             select(User).where(User.id == transaction.user_id)
