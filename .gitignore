@@ -44,4 +44,5 @@ google-credentials.json
 backend/google-credentials.json
 
 *.zip
+*.rar*.zip
 *.rar
