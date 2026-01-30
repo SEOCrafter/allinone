@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.admin import requests, users, adapters, stats, unit_economics, providers, model_settings
+from app.api.v1.admin import requests, users, adapters, stats, unit_economics, providers, model_settings, plans
 
 router = APIRouter()
 
@@ -10,3 +10,4 @@ router.include_router(stats.router, prefix="/stats", tags=["Admin - Stats"])
 router.include_router(unit_economics.router, prefix="/unit-economics", tags=["Admin - Unit Economics"])
 router.include_router(providers.router, tags=["Admin - Providers"])
 router.include_router(model_settings.router, tags=["Admin - Model Settings"])
+router.include_router(plans.router, prefix="/plans", tags=["Admin - Plans"])
