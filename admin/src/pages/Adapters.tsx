@@ -47,6 +47,12 @@ interface ProviderPrice {
   price_type: string;
   is_active: boolean;
   replicate_model_id: string | null;
+  price_variants: Record<string, {
+    duration: number;
+    sound: boolean;
+    price_usd: number;
+    label: string;
+  }> | null;
 }
 
 interface ModelStat {
@@ -86,6 +92,12 @@ interface UnifiedModel {
   priceUsdOutput?: number;
   isActive: boolean;
   settingsKey: string;
+  priceVariants?: Record<string, {
+    duration: number;
+    sound: boolean;
+    price_usd: number;
+    label: string;
+  }> | null;
 }
 
 export default function Adapters() {
@@ -112,6 +124,7 @@ export default function Adapters() {
   const [testResult, setTestResult] = useState<TestResult | null>(null);
 
   const [modelTypeFilter, setModelTypeFilter] = useState<string>('all');
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   const loadedRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -516,6 +529,7 @@ export default function Adapters() {
       priceUsd: p.price_usd,
       isActive: p.is_active,
       settingsKey: `${p.provider}:${p.model_name}`,
+      priceVariants: p.price_variants,
     });
   });
 
@@ -812,10 +826,39 @@ export default function Adapters() {
                     <td className="py-3">{getProviderBadge(model.provider, model.providerDisplay)}</td>
                     <td className="py-3 text-gray-400 text-sm">{getPriceTypeLabel(model.priceType)}</td>
                     <td className="py-3 text-green-400 font-mono text-sm">
-                      {model.priceUsdOutput 
-                        ? `${formatPrice(model.priceUsd)} / ${formatPrice(model.priceUsdOutput)}`
-                        : formatPrice(model.priceUsd)
-                      }
+                      <div className="flex items-center gap-2">
+                        {model.priceUsdOutput 
+                          ? `${formatPrice(model.priceUsd)} / ${formatPrice(model.priceUsdOutput)}`
+                          : formatPrice(model.priceUsd)
+                        }
+                        {model.priceVariants && Object.keys(model.priceVariants).length > 0 && (
+                          <button
+                            onClick={() => {
+                              const newExpanded = new Set(expandedRows);
+                              if (newExpanded.has(model.settingsKey)) {
+                                newExpanded.delete(model.settingsKey);
+                              } else {
+                                newExpanded.add(model.settingsKey);
+                              }
+                              setExpandedRows(newExpanded);
+                            }}
+                            className="text-blue-400 hover:text-blue-300 text-xs"
+                            title="Показать варианты цен"
+                          >
+                            {expandedRows.has(model.settingsKey) ? '▲' : '▼'}
+                          </button>
+                        )}
+                      </div>
+                      {model.priceVariants && expandedRows.has(model.settingsKey) && (
+                        <div className="mt-2 text-xs space-y-1 bg-[#252525] p-2 rounded">
+                          {Object.entries(model.priceVariants).map(([key, variant]) => (
+                            <div key={key} className="flex justify-between text-gray-300">
+                              <span>{variant.label}</span>
+                              <span className="text-green-400">{formatPrice(variant.price_usd)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </td>
                     <td className="py-3 text-sm">
                       {avgData.cost !== null ? (
