@@ -133,8 +133,6 @@ async def freekassa_notify(request: Request, db: AsyncSession = Depends(get_db))
     
     # Проверяем IP
     client_ip = get_client_ip(request)
-    if client_ip not in FREEKASSA_IPS:
-        return PlainTextResponse(f"IP not allowed: {client_ip}", status_code=403)
     
     # Получаем данные (поддержка GET и POST)
     if request.method == "POST":
