@@ -81,7 +81,7 @@ export default function Tariffs() {
         api.get('/admin/adapters')
       ]);
       setTariffs(tariffsRes.data);
-      setAdapters(adaptersRes.data);
+      setAdapters(adaptersRes.data.adapters || []);
     } catch (error) {
       console.error('Failed to load data:', error);
     } finally {
