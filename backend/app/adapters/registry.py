@@ -47,29 +47,28 @@ class AdapterRegistry:
         for name, adapter_class in cls._adapters.items():
             if provider_type and adapter_class.provider_type != provider_type:
                 continue
-
             adapter_info = {
                 "name": adapter_class.name,
                 "display_name": adapter_class.display_name,
                 "type": adapter_class.provider_type.value,
             }
-
             if include_models and hasattr(adapter_class, 'PRICING'):
-                adapter_info["models"] = [
-                    {
+                models_list = []
+                for model_id, pricing in adapter_class.PRICING.items():
+                    model_type = adapter_class.provider_type.value
+                    if hasattr(adapter_class, 'MODELS') and model_id in adapter_class.MODELS:
+                        model_type = adapter_class.MODELS[model_id].get("type", model_type)
+                    models_list.append({
                         "id": model_id,
                         "display_name": pricing.get("display_name", model_id),
-                        "type": adapter_class.provider_type.value,
+                        "type": model_type,
                         "pricing": {
                             "input_per_1k": pricing.get("input", 0),
                             "output_per_1k": pricing.get("output", 0),
                         }
-                    }
-                    for model_id, pricing in adapter_class.PRICING.items()
-                ]
-
+                    })
+                adapter_info["models"] = models_list
             adapters.append(adapter_info)
-
         return adapters
 
     @classmethod
