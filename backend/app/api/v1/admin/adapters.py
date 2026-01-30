@@ -3,12 +3,13 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func, text
 from app.database import get_db
 from app.api.deps import get_admin_user
 from app.models.user import User
 from app.models.provider_balance import ProviderBalance
 from app.models.model_provider_price import ModelProviderPrice
+from app.models.request import Request
 from app.adapters import AdapterRegistry
 from app.config import settings
 import httpx
@@ -377,6 +378,58 @@ async def get_model_prices(
             for p in prices
         ]
     }
+
+
+@router.get("/models/stats")
+async def get_model_stats(
+    admin: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    query = text("""
+        SELECT 
+            model,
+            external_provider,
+            type,
+            COUNT(*) as request_count,
+            AVG(EXTRACT(EPOCH FROM (completed_at - started_at))) as avg_duration_sec,
+            AVG(tokens_input) as avg_tokens_input,
+            AVG(tokens_output) as avg_tokens_output,
+            AVG(tokens_input + tokens_output) as avg_tokens_total
+        FROM requests
+        WHERE status = 'completed'
+          AND completed_at IS NOT NULL
+          AND started_at IS NOT NULL
+        GROUP BY model, external_provider, type
+        ORDER BY model, external_provider
+    """)
+    
+    result = await db.execute(query)
+    rows = result.fetchall()
+    
+    stats = {}
+    for row in rows:
+        model = row[0]
+        provider = row[1] or "direct"
+        req_type = row[2]
+        count = row[3]
+        avg_duration = float(row[4]) if row[4] else None
+        avg_tokens_in = float(row[5]) if row[5] else None
+        avg_tokens_out = float(row[6]) if row[6] else None
+        avg_tokens_total = float(row[7]) if row[7] else None
+        
+        key = f"{provider}:{model}"
+        stats[key] = {
+            "model": model,
+            "provider": provider,
+            "type": req_type,
+            "request_count": count,
+            "avg_duration_sec": round(avg_duration, 2) if avg_duration else None,
+            "avg_tokens_input": round(avg_tokens_in) if avg_tokens_in else None,
+            "avg_tokens_output": round(avg_tokens_out) if avg_tokens_out else None,
+            "avg_tokens_total": round(avg_tokens_total) if avg_tokens_total else None,
+        }
+    
+    return {"ok": True, "stats": stats}
 
 
 @router.post("/balances/{provider}/set")
