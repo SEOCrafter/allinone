@@ -37,8 +37,8 @@ class ReplicateAdapter(BaseAdapter):
     MODELS = {
         "google/nano-banana-pro": {"type": "image", "price_type": "per_image", "price": 0.05},
         "google/nano-banana": {"type": "image", "price_type": "per_image", "price": 0.04},
-        "kwaivgi/kling-v2.6": {"type": "video", "price_type": "per_second", "price": 0.06},
-        "kwaivgi/kling-v2.6-motion-control": {"type": "video", "price_type": "per_second", "price": 0.06},
+        "kwaivgi/kling-v2.6": {"type": "video", "price_type": "per_second", "price": 0.07},
+        "kwaivgi/kling-v2.6-motion-control": {"type": "video", "price_type": "per_second", "price": 0.07},
         "google/veo-3": {"type": "video", "price_type": "per_second", "price": 0.75},
         "google/veo-3.1": {"type": "video", "price_type": "per_second", "price": 0.75},
         "google/veo-3-fast": {"type": "video", "price_type": "per_second", "price": 0.15},
