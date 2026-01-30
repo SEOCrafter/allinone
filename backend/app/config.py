@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     KIE_API_KEY: str = ""
     REPLICATE_API_KEY: str = ""
 
+    # FreeKassa
+    FREEKASSA_MERCHANT_ID: int = 0
+    FREEKASSA_SECRET1: str = ""
+    FREEKASSA_SECRET2: str = ""
+    FREEKASSA_API_KEY: str = ""
+
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
