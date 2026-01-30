@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.tariff import Tariff, TariffItem
 from app.models.model_setting import ModelSetting
-from app.api.deps import get_current_superadmin
+from app.api.deps import get_superadmin_user
 
 router = APIRouter()
 
@@ -76,7 +76,7 @@ class TariffResponse(BaseModel):
 @router.get("", response_model=List[TariffResponse])
 async def list_tariffs(
     db: AsyncSession = Depends(get_db),
-    _: None = Depends(get_current_superadmin)
+    _: None = Depends(get_superadmin_user)
 ):
     """Список всех тарифов"""
     result = await db.execute(
@@ -119,7 +119,7 @@ async def list_tariffs(
 async def get_tariff(
     tariff_id: UUID,
     db: AsyncSession = Depends(get_db),
-    _: None = Depends(get_current_superadmin)
+    _: None = Depends(get_superadmin_user)
 ):
     """Получить тариф по ID"""
     result = await db.execute(
@@ -162,7 +162,7 @@ async def get_tariff(
 async def create_tariff(
     data: TariffCreate,
     db: AsyncSession = Depends(get_db),
-    _: None = Depends(get_current_superadmin)
+    _: None = Depends(get_superadmin_user)
 ):
     """Создать новый тариф"""
     tariff = Tariff(
@@ -203,7 +203,7 @@ async def update_tariff(
     tariff_id: UUID,
     data: TariffUpdate,
     db: AsyncSession = Depends(get_db),
-    _: None = Depends(get_current_superadmin)
+    _: None = Depends(get_superadmin_user)
 ):
     """Обновить тариф"""
     result = await db.execute(
@@ -261,7 +261,7 @@ async def update_tariff(
 async def toggle_tariff(
     tariff_id: UUID,
     db: AsyncSession = Depends(get_db),
-    _: None = Depends(get_current_superadmin)
+    _: None = Depends(get_superadmin_user)
 ):
     """Включить/выключить тариф"""
     result = await db.execute(select(Tariff).where(Tariff.id == tariff_id))
@@ -280,7 +280,7 @@ async def toggle_tariff(
 async def delete_tariff(
     tariff_id: UUID,
     db: AsyncSession = Depends(get_db),
-    _: None = Depends(get_current_superadmin)
+    _: None = Depends(get_superadmin_user)
 ):
     """Удалить тариф"""
     result = await db.execute(select(Tariff).where(Tariff.id == tariff_id))
