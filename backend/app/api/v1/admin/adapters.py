@@ -214,6 +214,7 @@ async def list_adapters(
     
     return {"ok": True, "adapters": adapters}
 
+
 @router.get("/status")
 async def adapters_status(
     admin: User = Depends(get_admin_user),
@@ -345,6 +346,35 @@ async def adapters_balances(
                 "updated_at": (b.updated_at.isoformat() + "Z") if b.updated_at else None,
             }
             for b in balances
+        ]
+    }
+
+
+@router.get("/models/prices")
+async def get_model_prices(
+    admin: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(ModelProviderPrice).order_by(
+            ModelProviderPrice.model_name,
+            ModelProviderPrice.provider
+        )
+    )
+    prices = result.scalars().all()
+    
+    return {
+        "ok": True,
+        "prices": [
+            {
+                "model_name": p.model_name,
+                "provider": p.provider,
+                "price_usd": float(p.price_usd),
+                "price_type": p.price_type,
+                "is_active": p.is_active,
+                "replicate_model_id": p.replicate_model_id,
+            }
+            for p in prices
         ]
     }
 
