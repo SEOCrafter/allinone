@@ -6,12 +6,12 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models.plan import Plan, PlanItem
+from app.models.tariff import Tariff, TariffItem
 
 router = APIRouter()
 
 
-class PlanItemPublic(BaseModel):
+class TariffItemPublic(BaseModel):
     item_type: str
     adapter_name: Optional[str]
     model_id: Optional[str]
@@ -20,37 +20,37 @@ class PlanItemPublic(BaseModel):
     is_enabled: bool
 
 
-class PlanPublic(BaseModel):
+class TariffPublic(BaseModel):
     id: str
     name: str
     description: Optional[str]
     price: float
     currency: str
     credits: float
-    items: List[PlanItemPublic]
+    items: List[TariffItemPublic]
 
 
-@router.get("", response_model=List[PlanPublic])
-async def get_active_plans(db: AsyncSession = Depends(get_db)):
+@router.get("", response_model=List[TariffPublic])
+async def get_active_tariffs(db: AsyncSession = Depends(get_db)):
     """Получить активные тарифы для фронта"""
     result = await db.execute(
-        select(Plan)
-        .options(selectinload(Plan.items))
-        .where(Plan.is_active == True)
-        .order_by(Plan.sort_order, Plan.price)
+        select(Tariff)
+        .options(selectinload(Tariff.items))
+        .where(Tariff.is_active == True)
+        .order_by(Tariff.sort_order, Tariff.price)
     )
-    plans = result.scalars().all()
+    tariffs = result.scalars().all()
     
     return [
-        PlanPublic(
-            id=str(p.id),
-            name=p.name,
-            description=p.description,
-            price=float(p.price),
-            currency=p.currency,
-            credits=float(p.credits),
+        TariffPublic(
+            id=str(t.id),
+            name=t.name,
+            description=t.description,
+            price=float(t.price),
+            currency=t.currency,
+            credits=float(t.credits),
             items=[
-                PlanItemPublic(
+                TariffItemPublic(
                     item_type=item.item_type,
                     adapter_name=item.adapter_name,
                     model_id=item.model_id,
@@ -58,9 +58,9 @@ async def get_active_plans(db: AsyncSession = Depends(get_db)):
                     credits_override=float(item.credits_override) if item.credits_override else None,
                     is_enabled=item.is_enabled
                 )
-                for item in sorted(p.items, key=lambda x: x.sort_order)
+                for item in sorted(t.items, key=lambda x: x.sort_order)
                 if item.is_enabled
             ]
         )
-        for p in plans
+        for t in tariffs
     ]

@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1 import auth, users, chat, images, video, tasks, files, payments, providers, plans
+from app.api.v1 import auth, users, chat, images, video, tasks, files, payments, providers, tariffs
 from app.api.v1.admin import router as admin_router
 
 api_router = APIRouter()
@@ -13,5 +13,5 @@ api_router.include_router(tasks.router, prefix="/tasks", tags=["Tasks"])
 api_router.include_router(files.router, prefix="/files", tags=["Files"])
 api_router.include_router(payments.router, prefix="/payments", tags=["Payments"])
 api_router.include_router(providers.router, prefix="/providers", tags=["Providers"])
-api_router.include_router(plans.router, prefix="/plans", tags=["Plans"])
+api_router.include_router(tariffs.router, prefix="/tariffs", tags=["Tariffs"])
 api_router.include_router(admin_router, prefix="/admin", tags=["Admin"])
