@@ -24,21 +24,51 @@ class HailuoAdapter(BaseAdapter, KieBaseAdapter):
         self.max_poll_attempts = kwargs.get("max_poll_attempts", 180)
         self.poll_interval = kwargs.get("poll_interval", 10)
 
+    def _resolve_model(self, model: str, mode: str = "std", has_image: bool = False) -> str:
+        model_lower = model.lower()
+        
+        mode_suffix = "pro" if mode == "pro" else "standard"
+        
+        if "2.3" in model or "2-3" in model:
+            if has_image:
+                return f"hailuo/2-3-image-to-video-{mode_suffix}"
+            return f"hailuo/2-3-image-to-video-{mode_suffix}"
+        elif "02" in model or "2" in model_lower:
+            if has_image:
+                return f"hailuo/02-image-to-video-{mode_suffix}"
+            return f"hailuo/02-text-to-video-{mode_suffix}"
+        
+        return model
+
     async def generate(
         self,
         prompt: str,
         model: Optional[str] = None,
+        image_urls: Optional[List[str]] = None,
         image_url: Optional[str] = None,
+        duration: int = 6,
+        resolution: str = "768p",
+        mode: str = "std",
         **params
     ) -> GenerationResult:
-        model = model or self.default_model
+        actual_image_url = image_url
+        if not actual_image_url and image_urls:
+            actual_image_url = image_urls[0]
+        
+        has_image = actual_image_url is not None
+        
+        actual_model = self._resolve_model(model or self.default_model, mode, has_image)
 
-        input_data = {"prompt": prompt}
+        input_data = {
+            "prompt": prompt,
+            "duration": str(duration),
+            "resolution": resolution.upper(),
+        }
 
-        if image_url:
-            input_data["image_url"] = image_url
+        if actual_image_url:
+            input_data["image_url"] = actual_image_url
 
-        result = await self.generate_and_wait(model, input_data)
+        result = await self.generate_and_wait(actual_model, input_data)
 
         if not result.success:
             return GenerationResult(
@@ -51,7 +81,8 @@ class HailuoAdapter(BaseAdapter, KieBaseAdapter):
         return GenerationResult(
             success=True,
             content=result.result_url,
-            provider_cost=self.calculate_cost(model=model),
+            result_urls=result.result_urls,
+            provider_cost=self.calculate_cost(model=actual_model),
             raw_response=result.raw_response,
         )
 
@@ -80,4 +111,6 @@ class HailuoAdapter(BaseAdapter, KieBaseAdapter):
             "models": list(self.PRICING.keys()),
             "supports_text_to_video": True,
             "supports_image_to_video": True,
+            "supports_duration": [6, 10],
+            "supports_resolution": ["768P", "1080P"],
         }

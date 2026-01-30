@@ -29,6 +29,7 @@ class VideoGenerateRequest(BaseModel):
     video_urls: Optional[List[str]] = None
     duration: int = 5
     aspect_ratio: str = "16:9"
+    resolution: str = "768p"
     sound: bool = False
     mode: str = "std"
     character_orientation: str = "image"
@@ -83,8 +84,15 @@ def calculate_video_cost(
     duration: int,
     sound: bool,
     mode: str = "std",
+    resolution: str = "768p",
 ) -> float:
     if price_variants:
+        mode_label = "pro" if mode == "pro" else "standard"
+        variant_key = f"{duration}s_{resolution}_{mode_label}"
+        variant = price_variants.get(variant_key)
+        if variant and "price_usd" in variant:
+            return float(variant["price_usd"])
+        
         variant_key = f"{duration}s_{'with_sound' if sound else 'no_sound'}"
         variant = price_variants.get(variant_key)
         if variant and "price_usd" in variant:
@@ -140,6 +148,7 @@ async def generate_video(
     request_params = {
         "duration": data.duration,
         "aspect_ratio": data.aspect_ratio,
+        "resolution": data.resolution,
         "sound": data.sound,
         "mode": data.mode,
         "character_orientation": data.character_orientation,
@@ -168,6 +177,7 @@ async def generate_video(
             "model": actual_model,
             "duration": data.duration,
             "aspect_ratio": data.aspect_ratio,
+            "resolution": data.resolution,
             "sound": data.sound,
             "mode": data.mode,
             "character_orientation": data.character_orientation,
@@ -188,7 +198,7 @@ async def generate_video(
 
         if result.success:
             provider_cost = result.provider_cost if result.provider_cost > 0 else calculate_video_cost(
-                price_usd, price_type, price_variants, data.duration, data.sound, data.mode
+                price_usd, price_type, price_variants, data.duration, data.sound, data.mode, data.resolution
             )
             credits_spent = provider_cost * 1000
 
@@ -310,12 +320,13 @@ async def generate_video_async(
     request_id = str(uuid.uuid4())
     normalized_model = normalize_model_name(data.model)
 
-    estimated_cost = calculate_video_cost(price_usd, price_type, price_variants, data.duration, data.sound, data.mode)
+    estimated_cost = calculate_video_cost(price_usd, price_type, price_variants, data.duration, data.sound, data.mode, data.resolution)
     estimated_credits = estimated_cost * 1000
 
     request_params = {
         "duration": data.duration,
         "aspect_ratio": data.aspect_ratio,
+        "resolution": data.resolution,
         "sound": data.sound,
         "mode": data.mode,
         "character_orientation": data.character_orientation,
@@ -346,6 +357,7 @@ async def generate_video_async(
             "model": actual_model,
             "duration": data.duration,
             "aspect_ratio": data.aspect_ratio,
+            "resolution": data.resolution,
             "sound": data.sound,
             "mode": data.mode,
             "character_orientation": data.character_orientation,
