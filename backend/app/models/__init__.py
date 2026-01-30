@@ -5,6 +5,7 @@ from app.models.provider import Provider, ProviderPricing
 from app.models.request import Request, RequestFile, Result
 from app.models.transaction import Transaction
 from app.models.plan import Plan, UserSubscription
+from app.models.tariff import Tariff, TariffItem
 from app.models.promo import PromoCode, PromoActivation
 from app.models.unit_economics import UnitEconomics
 from app.models.model_provider_price import ModelProviderPrice
@@ -22,6 +23,8 @@ __all__ = [
     "Transaction",
     "Plan",
     "UserSubscription",
+    "Tariff",
+    "TariffItem",
     "PromoCode",
     "PromoActivation",
     "UnitEconomics",
