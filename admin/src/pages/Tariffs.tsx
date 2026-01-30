@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, ToggleLeft, ToggleRight, GripVertical, Save, X } from 'lucide-react';
+import { Plus, Trash2, GripVertical, Save, X, Pencil, Loader2 } from 'lucide-react';
 import api from '../api/client';
 
 interface TariffItem {
@@ -56,6 +56,8 @@ export default function Tariffs() {
   const [loading, setLoading] = useState(true);
   const [editingTariff, setEditingTariff] = useState<Tariff | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const emptyTariff: Tariff = {
     id: '',
@@ -90,6 +92,7 @@ export default function Tariffs() {
   };
 
   const handleToggle = async (tariff: Tariff) => {
+    setTogglingId(tariff.id);
     try {
       await api.patch(`/admin/tariffs/${tariff.id}/toggle`);
       setTariffs(tariffs.map(t => 
@@ -97,6 +100,8 @@ export default function Tariffs() {
       ));
     } catch (error) {
       console.error('Failed to toggle tariff:', error);
+    } finally {
+      setTogglingId(null);
     }
   };
 
@@ -125,6 +130,7 @@ export default function Tariffs() {
   const handleSave = async () => {
     if (!editingTariff) return;
     
+    setSaving(true);
     try {
       if (isCreating) {
         const res = await api.post('/admin/tariffs', editingTariff);
@@ -138,6 +144,8 @@ export default function Tariffs() {
     } catch (error) {
       console.error('Failed to save tariff:', error);
       alert('Ошибка сохранения');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -269,7 +277,7 @@ export default function Tariffs() {
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Цена</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Кредиты</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Блоков</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Статус</th>
+                <th className="px-4 py-3 text-center text-sm font-medium text-gray-400">Статус</th>
                 <th className="px-4 py-3 text-right text-sm font-medium text-gray-400">Действия</th>
               </tr>
             </thead>
@@ -282,7 +290,7 @@ export default function Tariffs() {
                 </tr>
               ) : (
                 tariffs.map((tariff) => (
-                  <tr key={tariff.id} className="hover:bg-[#252525]">
+                  <tr key={tariff.id} className={`hover:bg-[#252525] ${!tariff.is_active ? 'opacity-50' : ''}`}>
                     <td className="px-4 py-3">
                       <div>
                         <div className="font-medium text-white">{tariff.name}</div>
@@ -300,21 +308,23 @@ export default function Tariffs() {
                     <td className="px-4 py-3 text-gray-400">
                       {tariff.items.length}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 text-center">
                       <button
                         onClick={() => handleToggle(tariff)}
-                        className={`flex items-center gap-2 ${tariff.is_active ? 'text-green-500' : 'text-gray-500'}`}
+                        disabled={togglingId === tariff.id}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          tariff.is_active ? 'bg-green-600' : 'bg-gray-600'
+                        } ${togglingId === tariff.id ? 'opacity-50' : ''}`}
+                        title={tariff.is_active ? 'Включено' : 'Отключено'}
                       >
-                        {tariff.is_active ? (
-                          <>
-                            <ToggleRight className="w-5 h-5" />
-                            <span>Активен</span>
-                          </>
+                        {togglingId === tariff.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin mx-auto text-white" />
                         ) : (
-                          <>
-                            <ToggleLeft className="w-5 h-5" />
-                            <span>Выключен</span>
-                          </>
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              tariff.is_active ? 'translate-x-6' : 'translate-x-1'
+                            }`}
+                          />
                         )}
                       </button>
                     </td>
@@ -322,10 +332,10 @@ export default function Tariffs() {
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => handleEdit(tariff)}
-                          className="p-2 text-gray-400 hover:text-blue-500 hover:bg-[#2f2f2f] rounded"
+                          className="p-2 text-gray-400 hover:text-white hover:bg-[#2f2f2f] rounded"
                           title="Редактировать"
                         >
-                          <Edit2 className="w-4 h-4" />
+                          <Pencil className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleDelete(tariff)}
@@ -433,7 +443,7 @@ export default function Tariffs() {
                   {editingTariff.items.map((item, index) => (
                     <div
                       key={index}
-                      className="flex items-center gap-3 p-3 bg-[#252525] rounded-lg"
+                      className={`flex items-center gap-3 p-3 bg-[#252525] rounded-lg ${!item.is_enabled ? 'opacity-50' : ''}`}
                     >
                       <div className="flex flex-col gap-1">
                         <button
@@ -461,7 +471,7 @@ export default function Tariffs() {
                         )}
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-3">
                         <input
                           type="number"
                           value={item.credits_override || ''}
@@ -479,9 +489,16 @@ export default function Tariffs() {
                         </select>
                         <button
                           onClick={() => updateItem(index, { is_enabled: !item.is_enabled })}
-                          className={item.is_enabled ? 'text-green-500' : 'text-gray-500'}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                            item.is_enabled ? 'bg-green-600' : 'bg-gray-600'
+                          }`}
+                          title={item.is_enabled ? 'Включено' : 'Отключено'}
                         >
-                          {item.is_enabled ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              item.is_enabled ? 'translate-x-6' : 'translate-x-1'
+                            }`}
+                          />
                         </button>
                         <button
                           onClick={() => removeItem(index)}
@@ -500,9 +517,10 @@ export default function Tariffs() {
             <div className="flex gap-3">
               <button
                 onClick={handleSave}
-                className="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                disabled={saving}
+                className="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
               >
-                <Save className="w-4 h-4" />
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                 Сохранить
               </button>
               <button
