@@ -36,12 +36,10 @@ class PaymentResponse(BaseModel):
     amount: int
     credits: int
 
-
-def generate_payment_sign(merchant_id: int, amount: float, secret1: str, currency: str, order_id: str) -> str:
+def generate_payment_sign(merchant_id: int, amount: int, secret1: str, currency: str, order_id: str) -> str:
     """Генерация подписи для платежной формы"""
     sign_string = f"{merchant_id}:{amount}:{secret1}:{currency}:{order_id}"
     return hashlib.md5(sign_string.encode()).hexdigest()
-
 
 def verify_notification_sign(merchant_id: str, amount: str, secret2: str, order_id: str, received_sign: str) -> bool:
     """Проверка подписи уведомления от FreeKassa"""
@@ -96,7 +94,7 @@ async def create_payment(
     # Генерируем подпись
     sign = generate_payment_sign(
         settings.FREEKASSA_MERCHANT_ID,
-        float(data.amount),
+        data.amount,
         settings.FREEKASSA_SECRET1,
         data.currency,
         order_id
