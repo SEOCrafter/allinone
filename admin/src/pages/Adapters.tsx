@@ -313,6 +313,115 @@ export default function Adapters() {
     }
   };
 
+  const handleToggleVariantEnabled = async (model: UnifiedModel, variantKey: string) => {
+    const variantSettingsKey = `${model.settingsKey}:${variantKey}`;
+    const currentEnabled = modelSettings[variantSettingsKey]?.is_enabled ?? true;
+    const newEnabled = !currentEnabled;
+    
+    // Сначала переключаем вариант
+    setSavingSettings(prev => ({ ...prev, [variantSettingsKey]: true }));
+    try {
+      const [adapterName, modelId] = model.settingsKey.split(':');
+      const res = await axios.post(
+        `${BASE}/admin/models/${adapterName}/${encodeURIComponent(modelId + ':' + variantKey)}/settings`,
+        { is_enabled: newEnabled },
+        { headers: getHeaders(), timeout: 10000 }
+      );
+      if (res.status === 200) {
+        const newSettings = {
+          ...modelSettings,
+          [variantSettingsKey]: { 
+            credits_price: modelSettings[variantSettingsKey]?.credits_price ?? null,
+            is_enabled: newEnabled 
+          }
+        };
+        
+        // Проверяем, нужно ли обновить главный тумблер
+        if (model.priceVariants) {
+          const variantKeys = Object.keys(model.priceVariants);
+          const anyEnabled = variantKeys.some(vk => {
+            const vsk = `${model.settingsKey}:${vk}`;
+            if (vk === variantKey) return newEnabled;
+            return newSettings[vsk]?.is_enabled ?? true;
+          });
+          
+          newSettings[model.settingsKey] = {
+            credits_price: newSettings[model.settingsKey]?.credits_price ?? null,
+            is_enabled: anyEnabled
+          };
+        }
+        
+        setModelSettings(newSettings);
+      }
+    } catch (e) {
+      console.error('Ошибка переключения:', e);
+    } finally {
+      setSavingSettings(prev => ({ ...prev, [variantSettingsKey]: false }));
+    }
+  };
+
+  const handleToggleAllVariants = async (model: UnifiedModel) => {
+    if (!model.priceVariants) return;
+    
+    const mainEnabled = modelSettings[model.settingsKey]?.is_enabled ?? true;
+    const newEnabled = !mainEnabled;
+    
+    setSavingSettings(prev => ({ ...prev, [model.settingsKey]: true }));
+    
+    try {
+      const [adapterName, modelId] = model.settingsKey.split(':');
+      
+      // Переключаем главную модель
+      await axios.post(
+        `${BASE}/admin/models/${adapterName}/${encodeURIComponent(modelId)}/settings`,
+        { is_enabled: newEnabled },
+        { headers: getHeaders(), timeout: 10000 }
+      );
+      
+      // Переключаем все варианты
+      const variantKeys = Object.keys(model.priceVariants);
+      await Promise.all(variantKeys.map(vk =>
+        axios.post(
+          `${BASE}/admin/models/${adapterName}/${encodeURIComponent(modelId + ':' + vk)}/settings`,
+          { is_enabled: newEnabled },
+          { headers: getHeaders(), timeout: 10000 }
+        )
+      ));
+      
+      // Обновляем state
+      const newSettings = { ...modelSettings };
+      newSettings[model.settingsKey] = {
+        credits_price: newSettings[model.settingsKey]?.credits_price ?? null,
+        is_enabled: newEnabled
+      };
+      variantKeys.forEach(vk => {
+        const vsk = `${model.settingsKey}:${vk}`;
+        newSettings[vsk] = {
+          credits_price: newSettings[vsk]?.credits_price ?? null,
+          is_enabled: newEnabled
+        };
+      });
+      setModelSettings(newSettings);
+      
+    } catch (e) {
+      console.error('Ошибка переключения:', e);
+    } finally {
+      setSavingSettings(prev => ({ ...prev, [model.settingsKey]: false }));
+    }
+  };
+
+  const getMainToggleState = (model: UnifiedModel): boolean => {
+    if (!model.priceVariants || Object.keys(model.priceVariants).length === 0) {
+      return modelSettings[model.settingsKey]?.is_enabled ?? true;
+    }
+    
+    const variantKeys = Object.keys(model.priceVariants);
+    return variantKeys.some(vk => {
+      const vsk = `${model.settingsKey}:${vk}`;
+      return modelSettings[vsk]?.is_enabled ?? true;
+    });
+  };
+
   const filteredAdapters = adapters.filter(a => a.type === selectedType);
 
   const handleTypeChange = (type: string) => {
@@ -912,20 +1021,37 @@ export default function Adapters() {
                         )}
                       </td>
                       <td className="py-3 text-center">
-                        <button
-                          onClick={() => handleToggleEnabled(model.settingsKey)}
-                          disabled={isSaving}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                            settings.is_enabled ? 'bg-green-600' : 'bg-gray-600'
-                          } ${isSaving ? 'opacity-50' : ''}`}
-                          title={settings.is_enabled ? 'Включено' : 'Отключено'}
-                        >
-                          <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                              settings.is_enabled ? 'translate-x-6' : 'translate-x-1'
-                            }`}
-                          />
-                        </button>
+                        {hasVariants ? (
+                          <button
+                            onClick={() => handleToggleAllVariants(model)}
+                            disabled={isSaving}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                              getMainToggleState(model) ? 'bg-green-600' : 'bg-gray-600'
+                            } ${isSaving ? 'opacity-50' : ''}`}
+                            title={getMainToggleState(model) ? 'Выключить все варианты' : 'Включить все варианты'}
+                          >
+                            <span
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                getMainToggleState(model) ? 'translate-x-6' : 'translate-x-1'
+                              }`}
+                            />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleToggleEnabled(model.settingsKey)}
+                            disabled={isSaving}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                              settings.is_enabled ? 'bg-green-600' : 'bg-gray-600'
+                            } ${isSaving ? 'opacity-50' : ''}`}
+                            title={settings.is_enabled ? 'Включено' : 'Отключено'}
+                          >
+                            <span
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                settings.is_enabled ? 'translate-x-6' : 'translate-x-1'
+                              }`}
+                            />
+                          </button>
+                        )}
                       </td>
                     </tr>
                     {hasVariants && isExpanded && Object.entries(model.priceVariants!).map(([variantKey, variant]) => {
