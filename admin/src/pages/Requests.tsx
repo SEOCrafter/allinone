@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { getRequests, getRequest } from '../api/client';
 import { X, Loader2, ChevronDown, ChevronRight, ExternalLink, Clock, CheckCircle, XCircle, Send, Play } from 'lucide-react';
 import { useLoadData } from '../hooks/useLoadData';
@@ -49,22 +49,56 @@ interface RequestDetail {
 }
 
 export default function Requests() {
+  const [requests, setRequests] = useState<RequestItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] = useState<RequestDetail | null>(null);
   const [modalLoading, setModalLoading] = useState(false);
   const [filter, setFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
+  const selectedRequestIdRef = useRef<string | null>(null);
 
-  const loadFn = useCallback(async (signal: AbortSignal) => {
-    const res = await getRequests(1, 100, { signal });
-    return Array.isArray(res.data?.data) ? res.data.data : [];
+  const loadRequests = useCallback(async () => {
+    try {
+      const res = await getRequests(1, 100);
+      const data = Array.isArray(res.data?.data) ? res.data.data : [];
+      setRequests(data);
+    } catch (err) {
+      console.error('Ошибка загрузки запросов:', err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const { data: requests, loading } = useLoadData<RequestItem[]>(loadFn, []);
+  useEffect(() => {
+    loadRequests();
+    const interval = setInterval(loadRequests, 5000);
+    return () => clearInterval(interval);
+  }, [loadRequests]);
+
+  useEffect(() => {
+    if (!selectedRequestIdRef.current) return;
+    
+    const refreshDetail = async () => {
+      try {
+        const response = await getRequest(selectedRequestIdRef.current!);
+        const detail = response.data?.request;
+        if (detail) {
+          setSelectedRequest(detail);
+        }
+      } catch (err) {
+        console.error('Ошибка обновления деталей:', err);
+      }
+    };
+
+    const interval = setInterval(refreshDetail, 3000);
+    return () => clearInterval(interval);
+  }, [selectedRequest?.id]);
 
   const openDetail = async (id: string) => {
     setModalLoading(true);
     setExpandedEvents(new Set());
+    selectedRequestIdRef.current = id;
     try {
       const response = await getRequest(id);
       setSelectedRequest(response.data?.request || null);
@@ -72,6 +106,17 @@ export default function Requests() {
       console.error('Ошибка загрузки деталей:', err);
     } finally {
       setModalLoading(false);
+    }
+  };
+
+  const closeModal = () => {
+    setSelectedRequest(null);
+    selectedRequestIdRef.current = null;
+  };
+
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) {
+      closeModal();
     }
   };
 
@@ -234,7 +279,10 @@ export default function Requests() {
       </div>
 
       {selectedRequest && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div 
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={handleBackdropClick}
+        >
           <div className="bg-[#2f2f2f] rounded-lg w-full max-w-5xl max-h-[90vh] overflow-auto m-4">
             <div className="flex justify-between items-center p-4 border-b border-gray-700">
               <div className="flex items-center gap-3">
@@ -242,7 +290,7 @@ export default function Requests() {
                 {getStatusBadge(selectedRequest.status)}
                 {getTypeBadge(selectedRequest.type)}
               </div>
-              <button onClick={() => setSelectedRequest(null)} className="p-1 hover:bg-[#3f3f3f] rounded">
+              <button onClick={closeModal} className="p-1 hover:bg-[#3f3f3f] rounded">
                 <X className="w-5 h-5 text-gray-400" />
               </button>
             </div>
