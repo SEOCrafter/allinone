@@ -1120,7 +1120,7 @@ export default function Adapters() {
                           </td>
                           <td className="py-2 text-center">
                             <button
-                              onClick={() => handleToggleEnabled(variantSettingsKey)}
+                              onClick={() => handleToggleVariantEnabled(model, variantKey)}
                               disabled={isVariantSaving}
                               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                                 variantSettings.is_enabled ? 'bg-green-600' : 'bg-gray-600'
