@@ -40,6 +40,15 @@ interface ModelSettingData {
   is_enabled: boolean;
 }
 
+interface ProviderPrice {
+  model_name: string;
+  provider: string;
+  price_usd: number;
+  price_type: string;
+  is_active: boolean;
+  replicate_model_id: string | null;
+}
+
 interface TestResult {
   ok: boolean;
   frontend_request: Record<string, unknown>;
@@ -59,6 +68,7 @@ export default function Adapters() {
   const [statuses, setStatuses] = useState<AdapterStatus[]>([]);
   const [balances, setBalances] = useState<AdapterBalance[]>([]);
   const [modelSettings, setModelSettings] = useState<Record<string, ModelSettingData>>({});
+  const [providerPrices, setProviderPrices] = useState<ProviderPrice[]>([]);
   const [loading, setLoading] = useState(true);
   const [healthCheckLoading, setHealthCheckLoading] = useState<Record<string, boolean>>({});
   const [balanceInputs, setBalanceInputs] = useState<Record<string, string>>({});
@@ -74,6 +84,8 @@ export default function Adapters() {
   const [testMessage, setTestMessage] = useState('');
   const [testLoading, setTestLoading] = useState(false);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
+
+  const [priceTypeFilter, setPriceTypeFilter] = useState<string>('all');
 
   const loadedRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -109,10 +121,11 @@ export default function Adapters() {
     const t = Date.now();
 
     try {
-      const [adaptersRes, balancesRes, settingsRes] = await Promise.all([
+      const [adaptersRes, balancesRes, settingsRes, pricesRes] = await Promise.all([
         axios.get(`${BASE}/admin/adapters?_t=${t}`, { headers, signal }),
         axios.get(`${BASE}/admin/adapters/balances?_t=${t}`, { headers, signal }),
         axios.get(`${BASE}/admin/models/settings?_t=${t}`, { headers, signal }),
+        axios.get(`${BASE}/admin/adapters/models/prices?_t=${t}`, { headers, signal }),
       ]);
 
       if (signal.aborted || !mountedRef.current) return;
@@ -120,6 +133,7 @@ export default function Adapters() {
       const adaptersData = adaptersRes.data.adapters || [];
       const balancesData = balancesRes.data.balances || [];
       const settingsData = settingsRes.data.settings || {};
+      const pricesData = pricesRes.data.prices || [];
 
       const inputs: Record<string, string> = {};
       balancesData.forEach((b: AdapterBalance) => {
@@ -129,6 +143,7 @@ export default function Adapters() {
       setAdapters(adaptersData);
       setBalances(balancesData);
       setModelSettings(settingsData);
+      setProviderPrices(pricesData);
       setBalanceInputs(inputs);
       
       if (adaptersData.length > 0) {
@@ -161,7 +176,6 @@ export default function Adapters() {
     setStatuses([]);
     loadData(abortRef.current.signal);
     
-    // Загружаем статусы отдельно
     const token = localStorage.getItem('token');
     axios.get(`${BASE}/admin/adapters/status?_t=${Date.now()}`, { 
       headers: { Authorization: `Bearer ${token}` },
@@ -362,6 +376,33 @@ export default function Adapters() {
     if (price < 0.01) return `$${price.toFixed(4)}`;
     return `$${price.toFixed(2)}`;
   };
+
+  const getPriceTypeLabel = (priceType: string) => {
+    switch (priceType) {
+      case 'per_second': return 'за секунду';
+      case 'per_image': return 'за изображение';
+      case 'per_request': return 'за запрос';
+      case 'per_generation': return 'за генерацию';
+      default: return priceType;
+    }
+  };
+
+  const getProviderBadge = (provider: string) => {
+    if (provider === 'kie') {
+      return <span className="px-2 py-1 rounded text-xs font-bold bg-orange-600">KIE</span>;
+    }
+    if (provider === 'replicate') {
+      return <span className="px-2 py-1 rounded text-xs font-bold bg-purple-600">Replicate</span>;
+    }
+    return <span className="px-2 py-1 rounded text-xs font-bold bg-gray-600">{provider}</span>;
+  };
+
+  const filteredPrices = providerPrices.filter(p => {
+    if (priceTypeFilter === 'all') return true;
+    if (priceTypeFilter === 'video') return p.price_type === 'per_second';
+    if (priceTypeFilter === 'image') return p.price_type === 'per_image' || p.price_type === 'per_request';
+    return true;
+  });
 
   if (loading) {
     return (
@@ -568,6 +609,60 @@ export default function Adapters() {
             </div>
           </div>
         )}
+      </div>
+
+      <div className="bg-[#2f2f2f] rounded-lg p-4 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-white">Цены провайдеров (KIE / Replicate)</h2>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPriceTypeFilter('all')}
+              className={`px-3 py-1 rounded text-sm ${priceTypeFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-[#3f3f3f] text-gray-400'}`}
+            >
+              Все
+            </button>
+            <button
+              onClick={() => setPriceTypeFilter('video')}
+              className={`px-3 py-1 rounded text-sm ${priceTypeFilter === 'video' ? 'bg-pink-600 text-white' : 'bg-[#3f3f3f] text-gray-400'}`}
+            >
+              Видео
+            </button>
+            <button
+              onClick={() => setPriceTypeFilter('image')}
+              className={`px-3 py-1 rounded text-sm ${priceTypeFilter === 'image' ? 'bg-purple-600 text-white' : 'bg-[#3f3f3f] text-gray-400'}`}
+            >
+              Изображения
+            </button>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="text-gray-400 text-left">
+                <th className="pb-3">Модель</th>
+                <th className="pb-3">Провайдер</th>
+                <th className="pb-3">Цена USD</th>
+                <th className="pb-3">Тип цены</th>
+                <th className="pb-3">Replicate ID</th>
+                <th className="pb-3 text-center">Активен</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredPrices.map((p, idx) => (
+                <tr key={`${p.model_name}-${p.provider}-${idx}`} className={`border-t border-gray-700 ${!p.is_active ? 'opacity-50' : ''}`}>
+                  <td className="py-3 text-white font-medium">{p.model_name}</td>
+                  <td className="py-3">{getProviderBadge(p.provider)}</td>
+                  <td className="py-3 text-green-400 font-mono">{formatPrice(p.price_usd)}</td>
+                  <td className="py-3 text-gray-400 text-sm">{getPriceTypeLabel(p.price_type)}</td>
+                  <td className="py-3 text-gray-500 text-xs font-mono">{p.replicate_model_id || '—'}</td>
+                  <td className="py-3 text-center">
+                    <span className={`inline-block w-3 h-3 rounded-full ${p.is_active ? 'bg-green-500' : 'bg-gray-500'}`}></span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="bg-[#2f2f2f] rounded-lg p-4">
