@@ -33,7 +33,7 @@ class HailuoAdapter(BaseAdapter, KieBaseAdapter):
             if has_image:
                 return f"hailuo/2-3-image-to-video-{mode_suffix}"
             return f"hailuo/2-3-image-to-video-{mode_suffix}"
-        elif "02" in model or "2" in model_lower:
+        elif "02" in model or "hailuo-02" in model_lower:
             if has_image:
                 return f"hailuo/02-image-to-video-{mode_suffix}"
             return f"hailuo/02-text-to-video-{mode_suffix}"
@@ -49,6 +49,7 @@ class HailuoAdapter(BaseAdapter, KieBaseAdapter):
         duration: int = 6,
         resolution: str = "768p",
         mode: str = "std",
+        wait_for_result: bool = True,
         **params
     ) -> GenerationResult:
         actual_image_url = image_url
@@ -68,23 +69,34 @@ class HailuoAdapter(BaseAdapter, KieBaseAdapter):
         if actual_image_url:
             input_data["image_url"] = actual_image_url
 
-        result = await self.generate_and_wait(actual_model, input_data)
+        if wait_for_result:
+            result = await self.generate_and_wait(actual_model, input_data)
 
-        if not result.success:
+            if not result.success:
+                return GenerationResult(
+                    success=False,
+                    error_code=result.error_code,
+                    error_message=result.error_message,
+                    raw_response=result.raw_response,
+                )
+
             return GenerationResult(
-                success=False,
-                error_code=result.error_code,
-                error_message=result.error_message,
+                success=True,
+                content=result.result_url,
+                result_urls=result.result_urls,
+                provider_cost=self.calculate_cost(model=actual_model),
                 raw_response=result.raw_response,
             )
-
-        return GenerationResult(
-            success=True,
-            content=result.result_url,
-            result_urls=result.result_urls,
-            provider_cost=self.calculate_cost(model=actual_model),
-            raw_response=result.raw_response,
-        )
+        else:
+            result = await self.create_task(actual_model, input_data)
+            
+            return GenerationResult(
+                success=result.success,
+                error_code=result.error_code if not result.success else "ASYNC_TASK",
+                error_message=result.error_message if not result.success else "Task submitted",
+                provider_cost=self.calculate_cost(model=actual_model),
+                raw_response=result.raw_response,
+            )
 
     async def health_check(self) -> ProviderHealth:
         import time
