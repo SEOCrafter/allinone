@@ -88,7 +88,13 @@ def calculate_video_cost(
 ) -> float:
     if price_variants:
         mode_label = "pro" if mode == "pro" else "standard"
+        
         variant_key = f"{duration}s_{resolution}_{mode_label}"
+        variant = price_variants.get(variant_key)
+        if variant and "price_usd" in variant:
+            return float(variant["price_usd"])
+        
+        variant_key = f"{duration}s_{resolution}"
         variant = price_variants.get(variant_key)
         if variant and "price_usd" in variant:
             return float(variant["price_usd"])
@@ -109,7 +115,6 @@ def calculate_video_cost(
         return price_usd * duration
     
     return price_usd * duration if price_usd > 0 else 0.05 * duration
-
 
 @router.post("/generate", response_model=VideoGenerateResponse)
 async def generate_video(
