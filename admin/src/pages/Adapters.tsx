@@ -49,6 +49,17 @@ interface ProviderPrice {
   replicate_model_id: string | null;
 }
 
+interface ModelStat {
+  model: string;
+  provider: string;
+  type: string;
+  request_count: number;
+  avg_duration_sec: number | null;
+  avg_tokens_input: number | null;
+  avg_tokens_output: number | null;
+  avg_tokens_total: number | null;
+}
+
 interface TestResult {
   ok: boolean;
   frontend_request: Record<string, unknown>;
@@ -65,6 +76,7 @@ interface TestResult {
 
 interface UnifiedModel {
   name: string;
+  modelId: string;
   type: string;
   provider: string;
   providerDisplay: string;
@@ -81,6 +93,7 @@ export default function Adapters() {
   const [balances, setBalances] = useState<AdapterBalance[]>([]);
   const [modelSettings, setModelSettings] = useState<Record<string, ModelSettingData>>({});
   const [providerPrices, setProviderPrices] = useState<ProviderPrice[]>([]);
+  const [modelStats, setModelStats] = useState<Record<string, ModelStat>>({});
   const [loading, setLoading] = useState(true);
   const [healthCheckLoading, setHealthCheckLoading] = useState<Record<string, boolean>>({});
   const [balanceInputs, setBalanceInputs] = useState<Record<string, string>>({});
@@ -133,11 +146,12 @@ export default function Adapters() {
     const t = Date.now();
 
     try {
-      const [adaptersRes, balancesRes, settingsRes, pricesRes] = await Promise.all([
+      const [adaptersRes, balancesRes, settingsRes, pricesRes, statsRes] = await Promise.all([
         axios.get(`${BASE}/admin/adapters?_t=${t}`, { headers, signal }),
         axios.get(`${BASE}/admin/adapters/balances?_t=${t}`, { headers, signal }),
         axios.get(`${BASE}/admin/models/settings?_t=${t}`, { headers, signal }),
         axios.get(`${BASE}/admin/adapters/models/prices?_t=${t}`, { headers, signal }),
+        axios.get(`${BASE}/admin/adapters/models/stats?_t=${t}`, { headers, signal }),
       ]);
 
       if (signal.aborted || !mountedRef.current) return;
@@ -146,6 +160,7 @@ export default function Adapters() {
       const balancesData = balancesRes.data.balances || [];
       const settingsData = settingsRes.data.settings || {};
       const pricesData = pricesRes.data.prices || [];
+      const statsData = statsRes.data.stats || {};
 
       const inputs: Record<string, string> = {};
       balancesData.forEach((b: AdapterBalance) => {
@@ -156,6 +171,7 @@ export default function Adapters() {
       setBalances(balancesData);
       setModelSettings(settingsData);
       setProviderPrices(pricesData);
+      setModelStats(statsData);
       setBalanceInputs(inputs);
       
       if (adaptersData.length > 0) {
@@ -446,12 +462,42 @@ export default function Adapters() {
     }
   };
 
+  const calculateAvgCost = (model: UnifiedModel): { cost: number | null; count: number } => {
+    const statsKey = `${model.provider}:${model.modelId}`;
+    const stat = modelStats[statsKey];
+    
+    if (!stat || stat.request_count === 0) {
+      return { cost: null, count: 0 };
+    }
+
+    if (model.priceType === 'per_generation' || model.priceType === 'per_image' || model.priceType === 'per_request') {
+      return { cost: null, count: stat.request_count };
+    }
+
+    if (model.priceType === 'per_second' && stat.avg_duration_sec) {
+      return { cost: stat.avg_duration_sec * model.priceUsd, count: stat.request_count };
+    }
+
+    if (model.priceType === 'per_1k_tokens' && stat.avg_tokens_total) {
+      const avgCost = (stat.avg_tokens_total / 1000) * model.priceUsd;
+      if (model.priceUsdOutput && stat.avg_tokens_input && stat.avg_tokens_output) {
+        const inputCost = (stat.avg_tokens_input / 1000) * model.priceUsd;
+        const outputCost = (stat.avg_tokens_output / 1000) * model.priceUsdOutput;
+        return { cost: inputCost + outputCost, count: stat.request_count };
+      }
+      return { cost: avgCost, count: stat.request_count };
+    }
+
+    return { cost: null, count: stat.request_count };
+  };
+
   const unifiedModels: UnifiedModel[] = [];
 
   providerPrices.forEach(p => {
     const modelType = getModelType(p.model_name);
     unifiedModels.push({
       name: p.model_name,
+      modelId: p.model_name,
       type: modelType,
       provider: p.provider,
       providerDisplay: p.provider === 'kie' ? 'KIE' : p.provider === 'replicate' ? 'Replicate' : p.provider,
@@ -466,6 +512,7 @@ export default function Adapters() {
     adapter.models?.forEach(model => {
       unifiedModels.push({
         name: model.display_name || model.id,
+        modelId: model.id,
         type: 'text',
         provider: adapter.name,
         providerDisplay: adapter.display_name,
@@ -735,6 +782,7 @@ export default function Adapters() {
                 <th className="pb-3">Провайдер</th>
                 <th className="pb-3">Тип цены</th>
                 <th className="pb-3">Себестоимость</th>
+                <th className="pb-3">Среднее</th>
                 <th className="pb-3">Кредиты</th>
                 <th className="pb-3 text-center">Статус</th>
               </tr>
@@ -744,6 +792,7 @@ export default function Adapters() {
                 const settings = modelSettings[model.settingsKey] || { credits_price: null, is_enabled: true };
                 const isEditing = editingCredits === model.settingsKey;
                 const isSaving = savingSettings[model.settingsKey];
+                const avgData = calculateAvgCost(model);
 
                 return (
                   <tr key={`${model.settingsKey}-${idx}`} className={`border-t border-gray-700 ${!model.isActive ? 'opacity-50' : ''}`}>
@@ -756,6 +805,18 @@ export default function Adapters() {
                         ? `${formatPrice(model.priceUsd)} / ${formatPrice(model.priceUsdOutput)}`
                         : formatPrice(model.priceUsd)
                       }
+                    </td>
+                    <td className="py-3 text-sm">
+                      {avgData.cost !== null ? (
+                        <span className="text-yellow-400 font-mono" title={`На основе ${avgData.count} запросов`}>
+                          {formatPrice(avgData.cost)}
+                          <span className="text-gray-500 text-xs ml-1">({avgData.count})</span>
+                        </span>
+                      ) : avgData.count > 0 ? (
+                        <span className="text-gray-500" title="Фиксированная цена">—</span>
+                      ) : (
+                        <span className="text-gray-600" title="Нет данных">—</span>
+                      )}
                     </td>
                     <td className="py-3">
                       {isEditing ? (
