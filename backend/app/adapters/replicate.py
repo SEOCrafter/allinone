@@ -362,6 +362,8 @@ class ReplicateAdapter(BaseAdapter):
                 input_data["image"] = image_urls[0]
 
         elif "hailuo" in model.lower() or "minimax/video" in model.lower():
+            input_data["duration"] = duration
+            input_data["resolution"] = params.get("resolution", "768p").lower()
             if image_urls:
                 input_data["first_frame_image"] = image_urls[0]
 
