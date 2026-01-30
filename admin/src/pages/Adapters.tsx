@@ -63,6 +63,18 @@ interface TestResult {
   error?: Record<string, unknown>;
 }
 
+interface UnifiedModel {
+  name: string;
+  type: string;
+  provider: string;
+  providerDisplay: string;
+  priceType: string;
+  priceUsd: number;
+  priceUsdOutput?: number;
+  isActive: boolean;
+  settingsKey: string;
+}
+
 export default function Adapters() {
   const [adapters, setAdapters] = useState<Adapter[]>([]);
   const [statuses, setStatuses] = useState<AdapterStatus[]>([]);
@@ -204,18 +216,17 @@ export default function Adapters() {
     }
   };
 
-  const handleEditCredits = (adapterName: string, modelId: string) => {
-    const key = `${adapterName}:${modelId}`;
-    const current = modelSettings[key]?.credits_price;
-    setEditingCredits(key);
+  const handleEditCredits = (settingsKey: string) => {
+    const current = modelSettings[settingsKey]?.credits_price;
+    setEditingCredits(settingsKey);
     setCreditsInput(current?.toString() || '');
   };
 
-  const handleSaveCredits = async (adapterName: string, modelId: string) => {
-    const key = `${adapterName}:${modelId}`;
+  const handleSaveCredits = async (settingsKey: string) => {
     const value = creditsInput ? parseFloat(creditsInput) : null;
+    const [adapterName, modelId] = settingsKey.split(':');
     
-    setSavingSettings(prev => ({ ...prev, [key]: true }));
+    setSavingSettings(prev => ({ ...prev, [settingsKey]: true }));
     try {
       const res = await axios.post(
         `${BASE}/admin/models/${adapterName}/${encodeURIComponent(modelId)}/settings`,
@@ -225,16 +236,16 @@ export default function Adapters() {
       if (res.status === 200) {
         setModelSettings(prev => ({
           ...prev,
-          [key]: { 
+          [settingsKey]: { 
             credits_price: value, 
-            is_enabled: prev[key]?.is_enabled ?? true 
+            is_enabled: prev[settingsKey]?.is_enabled ?? true 
           }
         }));
       }
     } catch (e) {
       console.error('Ошибка сохранения:', e);
     } finally {
-      setSavingSettings(prev => ({ ...prev, [key]: false }));
+      setSavingSettings(prev => ({ ...prev, [settingsKey]: false }));
       setEditingCredits(null);
     }
   };
@@ -244,12 +255,12 @@ export default function Adapters() {
     setCreditsInput('');
   };
 
-  const handleToggleEnabled = async (adapterName: string, modelId: string) => {
-    const key = `${adapterName}:${modelId}`;
-    const currentEnabled = modelSettings[key]?.is_enabled ?? true;
+  const handleToggleEnabled = async (settingsKey: string) => {
+    const currentEnabled = modelSettings[settingsKey]?.is_enabled ?? true;
     const newEnabled = !currentEnabled;
+    const [adapterName, modelId] = settingsKey.split(':');
     
-    setSavingSettings(prev => ({ ...prev, [key]: true }));
+    setSavingSettings(prev => ({ ...prev, [settingsKey]: true }));
     try {
       const res = await axios.post(
         `${BASE}/admin/models/${adapterName}/${encodeURIComponent(modelId)}/settings`,
@@ -259,8 +270,8 @@ export default function Adapters() {
       if (res.status === 200) {
         setModelSettings(prev => ({
           ...prev,
-          [key]: { 
-            credits_price: prev[key]?.credits_price ?? null,
+          [settingsKey]: { 
+            credits_price: prev[settingsKey]?.credits_price ?? null,
             is_enabled: newEnabled 
           }
         }));
@@ -268,7 +279,7 @@ export default function Adapters() {
     } catch (e) {
       console.error('Ошибка переключения:', e);
     } finally {
-      setSavingSettings(prev => ({ ...prev, [key]: false }));
+      setSavingSettings(prev => ({ ...prev, [settingsKey]: false }));
     }
   };
 
@@ -383,18 +394,31 @@ export default function Adapters() {
       case 'per_image': return 'за изобр';
       case 'per_request': return 'за запрос';
       case 'per_generation': return 'за генер';
+      case 'per_1k_tokens': return 'за 1K токенов';
       default: return priceType;
     }
   };
 
-  const getProviderBadge = (provider: string) => {
+  const getProviderBadge = (provider: string, providerDisplay: string) => {
     if (provider === 'kie') {
       return <span className="px-2 py-0.5 rounded text-xs font-bold bg-orange-600">KIE</span>;
     }
     if (provider === 'replicate') {
       return <span className="px-2 py-0.5 rounded text-xs font-bold bg-purple-600">Replicate</span>;
     }
-    return <span className="px-2 py-0.5 rounded text-xs font-bold bg-gray-600">{provider}</span>;
+    if (provider === 'openai') {
+      return <span className="px-2 py-0.5 rounded text-xs font-bold bg-green-700">OpenAI</span>;
+    }
+    if (provider === 'anthropic') {
+      return <span className="px-2 py-0.5 rounded text-xs font-bold bg-amber-700">Anthropic</span>;
+    }
+    if (provider === 'gemini') {
+      return <span className="px-2 py-0.5 rounded text-xs font-bold bg-blue-700">Gemini</span>;
+    }
+    if (provider === 'deepseek') {
+      return <span className="px-2 py-0.5 rounded text-xs font-bold bg-cyan-700">DeepSeek</span>;
+    }
+    return <span className="px-2 py-0.5 rounded text-xs font-bold bg-gray-600">{providerDisplay}</span>;
   };
 
   const getModelType = (modelName: string): string => {
@@ -407,11 +431,57 @@ export default function Adapters() {
     return 'video';
   };
 
-  const filteredPrices = providerPrices.filter(p => {
-    if (modelTypeFilter === 'all') return true;
-    const type = getModelType(p.model_name);
-    return type === modelTypeFilter;
+  const getTypeBadge = (type: string) => {
+    switch (type) {
+      case 'text':
+        return <span className="px-2 py-0.5 rounded text-xs font-bold bg-blue-600">Текст</span>;
+      case 'image':
+        return <span className="px-2 py-0.5 rounded text-xs font-bold bg-purple-600">Изобр</span>;
+      case 'video':
+        return <span className="px-2 py-0.5 rounded text-xs font-bold bg-pink-600">Видео</span>;
+      case 'audio':
+        return <span className="px-2 py-0.5 rounded text-xs font-bold bg-teal-600">Аудио</span>;
+      default:
+        return <span className="px-2 py-0.5 rounded text-xs font-bold bg-gray-600">{type}</span>;
+    }
+  };
+
+  const unifiedModels: UnifiedModel[] = [];
+
+  providerPrices.forEach(p => {
+    const modelType = getModelType(p.model_name);
+    unifiedModels.push({
+      name: p.model_name,
+      type: modelType,
+      provider: p.provider,
+      providerDisplay: p.provider === 'kie' ? 'KIE' : p.provider === 'replicate' ? 'Replicate' : p.provider,
+      priceType: p.price_type,
+      priceUsd: p.price_usd,
+      isActive: p.is_active,
+      settingsKey: `${p.provider}:${p.model_name}`,
+    });
   });
+
+  adapters.filter(a => a.type === 'text').forEach(adapter => {
+    adapter.models?.forEach(model => {
+      unifiedModels.push({
+        name: model.display_name || model.id,
+        type: 'text',
+        provider: adapter.name,
+        providerDisplay: adapter.display_name,
+        priceType: 'per_1k_tokens',
+        priceUsd: model.pricing.input_per_1k,
+        priceUsdOutput: model.pricing.output_per_1k,
+        isActive: true,
+        settingsKey: `${adapter.name}:${model.id}`,
+      });
+    });
+  });
+
+  const filteredModels = unifiedModels.filter(m => {
+    if (modelTypeFilter === 'all') return true;
+    return m.type === modelTypeFilter;
+  }).sort((a, b) => a.name.localeCompare(b.name));
 
   if (loading) {
     return (
@@ -620,15 +690,21 @@ export default function Adapters() {
         )}
       </div>
 
-      <div className="bg-[#2f2f2f] rounded-lg p-4 mb-6">
+      <div className="bg-[#2f2f2f] rounded-lg p-4">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-white">Модели KIE / Replicate</h2>
+          <h2 className="text-lg font-semibold text-white">Доступные модели</h2>
           <div className="flex gap-2">
             <button
               onClick={() => setModelTypeFilter('all')}
               className={`px-3 py-1 rounded text-sm ${modelTypeFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-[#3f3f3f] text-gray-400'}`}
             >
               Все
+            </button>
+            <button
+              onClick={() => setModelTypeFilter('text')}
+              className={`px-3 py-1 rounded text-sm ${modelTypeFilter === 'text' ? 'bg-blue-600 text-white' : 'bg-[#3f3f3f] text-gray-400'}`}
+            >
+              Текст
             </button>
             <button
               onClick={() => setModelTypeFilter('video')}
@@ -642,13 +718,19 @@ export default function Adapters() {
             >
               Изображения
             </button>
+            <button
+              onClick={() => setModelTypeFilter('audio')}
+              className={`px-3 py-1 rounded text-sm ${modelTypeFilter === 'audio' ? 'bg-teal-600 text-white' : 'bg-[#3f3f3f] text-gray-400'}`}
+            >
+              Аудио
+            </button>
           </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="text-gray-400 text-left text-sm">
-                <th className="pb-3">Модель</th>
+                <th className="pb-3">Название</th>
                 <th className="pb-3">Тип</th>
                 <th className="pb-3">Провайдер</th>
                 <th className="pb-3">Тип цены</th>
@@ -658,30 +740,23 @@ export default function Adapters() {
               </tr>
             </thead>
             <tbody>
-              {filteredPrices.map((p, idx) => {
-                const key = `${p.provider}:${p.model_name}`;
-                const settings = modelSettings[key] || { credits_price: null, is_enabled: true };
-                const isEditing = editingCredits === key;
-                const isSaving = savingSettings[key];
-                const modelType = getModelType(p.model_name);
+              {filteredModels.map((model, idx) => {
+                const settings = modelSettings[model.settingsKey] || { credits_price: null, is_enabled: true };
+                const isEditing = editingCredits === model.settingsKey;
+                const isSaving = savingSettings[model.settingsKey];
 
                 return (
-                  <tr key={`${p.model_name}-${p.provider}-${idx}`} className={`border-t border-gray-700 ${!p.is_active ? 'opacity-50' : ''}`}>
-                    <td className="py-3 text-white font-medium">{p.model_name}</td>
-                    <td className="py-3">
-                      <span className={`px-2 py-0.5 rounded text-xs font-bold ${
-                        modelType === 'image' ? 'bg-purple-600' : 
-                        modelType === 'video' ? 'bg-pink-600' : 
-                        modelType === 'audio' ? 'bg-blue-600' : 'bg-gray-600'
-                      }`}>
-                        {modelType === 'image' ? 'Изобр' : 
-                         modelType === 'video' ? 'Видео' : 
-                         modelType === 'audio' ? 'Аудио' : modelType}
-                      </span>
+                  <tr key={`${model.settingsKey}-${idx}`} className={`border-t border-gray-700 ${!model.isActive ? 'opacity-50' : ''}`}>
+                    <td className="py-3 text-white font-medium">{model.name}</td>
+                    <td className="py-3">{getTypeBadge(model.type)}</td>
+                    <td className="py-3">{getProviderBadge(model.provider, model.providerDisplay)}</td>
+                    <td className="py-3 text-gray-400 text-sm">{getPriceTypeLabel(model.priceType)}</td>
+                    <td className="py-3 text-green-400 font-mono text-sm">
+                      {model.priceUsdOutput 
+                        ? `${formatPrice(model.priceUsd)} / ${formatPrice(model.priceUsdOutput)}`
+                        : formatPrice(model.priceUsd)
+                      }
                     </td>
-                    <td className="py-3">{getProviderBadge(p.provider)}</td>
-                    <td className="py-3 text-gray-400 text-sm">{getPriceTypeLabel(p.price_type)}</td>
-                    <td className="py-3 text-green-400 font-mono">{formatPrice(p.price_usd)}</td>
                     <td className="py-3">
                       {isEditing ? (
                         <div className="flex items-center gap-1">
@@ -693,12 +768,12 @@ export default function Adapters() {
                             className="w-20 px-2 py-1 bg-[#3f3f3f] border border-gray-600 rounded text-white text-sm"
                             autoFocus
                             onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleSaveCredits(p.provider, p.model_name);
+                              if (e.key === 'Enter') handleSaveCredits(model.settingsKey);
                               if (e.key === 'Escape') handleCancelEdit();
                             }}
                           />
                           <button
-                            onClick={() => handleSaveCredits(p.provider, p.model_name)}
+                            onClick={() => handleSaveCredits(model.settingsKey)}
                             disabled={isSaving}
                             className="p-1 text-green-400 hover:text-green-300"
                           >
@@ -717,7 +792,7 @@ export default function Adapters() {
                             {settings.credits_price !== null ? settings.credits_price.toFixed(4) : '—'}
                           </span>
                           <button
-                            onClick={() => handleEditCredits(p.provider, p.model_name)}
+                            onClick={() => handleEditCredits(model.settingsKey)}
                             className="p-1 text-gray-400 hover:text-white"
                             title="Редактировать цену"
                           >
@@ -727,112 +802,24 @@ export default function Adapters() {
                       )}
                     </td>
                     <td className="py-3 text-center">
-                      <span className={`inline-block w-3 h-3 rounded-full ${p.is_active ? 'bg-green-500' : 'bg-gray-500'}`}></span>
+                      <button
+                        onClick={() => handleToggleEnabled(model.settingsKey)}
+                        disabled={isSaving}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          settings.is_enabled ? 'bg-green-600' : 'bg-gray-600'
+                        } ${isSaving ? 'opacity-50' : ''}`}
+                        title={settings.is_enabled ? 'Включено' : 'Отключено'}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            settings.is_enabled ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
                     </td>
                   </tr>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className="bg-[#2f2f2f] rounded-lg p-4">
-        <h2 className="text-lg font-semibold text-white mb-4">Текстовые модели</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="text-gray-400 text-left text-sm">
-                <th className="pb-3">Название</th>
-                <th className="pb-3">Модель ID</th>
-                <th className="pb-3">Провайдер</th>
-                <th className="pb-3">Себестоимость</th>
-                <th className="pb-3">Кредиты</th>
-                <th className="pb-3 text-center">Статус</th>
-              </tr>
-            </thead>
-            <tbody>
-              {adapters.filter(a => a.type === 'text').flatMap((adapter) =>
-                adapter.models?.map((model) => {
-                  const key = `${adapter.name}:${model.id}`;
-                  const settings = modelSettings[key] || { credits_price: null, is_enabled: true };
-                  const isEditing = editingCredits === key;
-                  const isSaving = savingSettings[key];
-
-                  return (
-                    <tr key={key} className={`border-t border-gray-700 ${!settings.is_enabled ? 'opacity-50' : ''}`}>
-                      <td className="py-3 text-gray-300">{model.display_name || model.id}</td>
-                      <td className="py-3 text-gray-500 text-sm font-mono">{model.id}</td>
-                      <td className="py-3">
-                        <span className="px-2 py-0.5 rounded text-xs font-bold bg-blue-600">{adapter.display_name}</span>
-                      </td>
-                      <td className="py-3 text-gray-300 text-sm">
-                        {formatPrice(model.pricing.input_per_1k)} / {formatPrice(model.pricing.output_per_1k)}
-                      </td>
-                      <td className="py-3">
-                        {isEditing ? (
-                          <div className="flex items-center gap-1">
-                            <input
-                              type="number"
-                              step="0.0001"
-                              value={creditsInput}
-                              onChange={(e) => setCreditsInput(e.target.value)}
-                              className="w-20 px-2 py-1 bg-[#3f3f3f] border border-gray-600 rounded text-white text-sm"
-                              autoFocus
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleSaveCredits(adapter.name, model.id);
-                                if (e.key === 'Escape') handleCancelEdit();
-                              }}
-                            />
-                            <button
-                              onClick={() => handleSaveCredits(adapter.name, model.id)}
-                              disabled={isSaving}
-                              className="p-1 text-green-400 hover:text-green-300"
-                            >
-                              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                            </button>
-                            <button
-                              onClick={handleCancelEdit}
-                              className="p-1 text-red-400 hover:text-red-300"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <span className={`${settings.credits_price !== null ? 'text-green-400 font-medium' : 'text-gray-500'}`}>
-                              {settings.credits_price !== null ? settings.credits_price.toFixed(4) : '—'}
-                            </span>
-                            <button
-                              onClick={() => handleEditCredits(adapter.name, model.id)}
-                              className="p-1 text-gray-400 hover:text-white"
-                              title="Редактировать цену"
-                            >
-                              <Pencil className="w-3 h-3" />
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                      <td className="py-3 text-center">
-                        <button
-                          onClick={() => handleToggleEnabled(adapter.name, model.id)}
-                          disabled={isSaving}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                            settings.is_enabled ? 'bg-green-600' : 'bg-gray-600'
-                          } ${isSaving ? 'opacity-50' : ''}`}
-                          title={settings.is_enabled ? 'Включено' : 'Отключено'}
-                        >
-                          <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                              settings.is_enabled ? 'translate-x-6' : 'translate-x-1'
-                            }`}
-                          />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
             </tbody>
           </table>
         </div>
