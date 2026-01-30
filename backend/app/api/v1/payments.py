@@ -8,7 +8,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse, PlainTextResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import httpx
@@ -28,7 +28,7 @@ class CreatePaymentRequest(BaseModel):
     amount: int
     credits: int
     currency: str = "RUB"
-    email: str
+    email: EmailStr
     telegram_id: Optional[int] = None
 
 
@@ -71,7 +71,7 @@ async def create_payment(
     db: AsyncSession = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user)
 ):
-    """Создание платежа через FreeKassa API"""
+    """Создание платежа через FreeKassa API (СБП)"""
     
     user_id = current_user.id if current_user else None
     
@@ -81,7 +81,7 @@ async def create_payment(
         amount_currency=Decimal(str(data.amount)),
         currency=data.currency,
         credits_added=Decimal(str(data.credits)),
-        payment_method="freekassa",
+        payment_method="sbp",
         payment_provider="freekassa",
         status="pending",
         extra_data={
@@ -96,6 +96,9 @@ async def create_payment(
     order_id = str(transaction.id)
     client_ip = get_client_ip(request)
     
+    if client_ip.startswith("172.") or client_ip.startswith("10.") or client_ip == "127.0.0.1":
+        client_ip = "89.19.208.10"
+    
     api_data = {
         "shopId": settings.FREEKASSA_MERCHANT_ID,
         "nonce": int(time.time() * 1000),
@@ -109,27 +112,35 @@ async def create_payment(
     
     api_data["signature"] = generate_api_sign(api_data, settings.FREEKASSA_API_KEY)
     
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.post(
-            "https://api.fk.life/v1/orders/create",
-            json=api_data,
-            headers={"Content-Type": "application/json"}
-        )
-        
-        result = response.json()
-        
-        if result.get("type") != "success":
-            transaction.status = "failed"
-            transaction.extra_data = {**transaction.extra_data, "error": result}
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                "https://api.fk.life/v1/orders/create",
+                json=api_data,
+                headers={"Content-Type": "application/json"}
+            )
+            
+            result = response.json()
+            
+            if result.get("type") != "success":
+                transaction.status = "failed"
+                transaction.extra_data = {**transaction.extra_data, "error": result}
+                await db.commit()
+                error_msg = result.get("message") or result.get("error") or "Payment creation failed"
+                raise HTTPException(status_code=400, detail=error_msg)
+            
+            payment_url = result.get("location")
+            fk_order_id = result.get("orderId")
+            
+            transaction.external_id = str(fk_order_id)
+            transaction.extra_data = {**transaction.extra_data, "fk_response": result}
             await db.commit()
-            raise HTTPException(status_code=400, detail=result.get("message", "Payment creation failed"))
-        
-        payment_url = result.get("location")
-        fk_order_id = result.get("orderId")
-        
-        transaction.external_id = str(fk_order_id)
-        transaction.extra_data = {**transaction.extra_data, "fk_response": result}
+    
+    except httpx.RequestError as e:
+        transaction.status = "failed"
+        transaction.extra_data = {**transaction.extra_data, "error": str(e)}
         await db.commit()
+        raise HTTPException(status_code=500, detail="Payment service unavailable")
     
     return PaymentResponse(
         payment_url=payment_url,
