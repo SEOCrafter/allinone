@@ -374,6 +374,7 @@ async def get_model_prices(
                 "price_type": p.price_type,
                 "is_active": p.is_active,
                 "replicate_model_id": p.replicate_model_id,
+                "price_variants": p.price_variants,
             }
             for p in prices
         ]
