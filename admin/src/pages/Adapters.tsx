@@ -85,7 +85,7 @@ export default function Adapters() {
   const [testLoading, setTestLoading] = useState(false);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
 
-  const [priceTypeFilter, setPriceTypeFilter] = useState<string>('all');
+  const [modelTypeFilter, setModelTypeFilter] = useState<string>('all');
 
   const loadedRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -379,29 +379,38 @@ export default function Adapters() {
 
   const getPriceTypeLabel = (priceType: string) => {
     switch (priceType) {
-      case 'per_second': return 'за секунду';
-      case 'per_image': return 'за изображение';
+      case 'per_second': return 'за сек';
+      case 'per_image': return 'за изобр';
       case 'per_request': return 'за запрос';
-      case 'per_generation': return 'за генерацию';
+      case 'per_generation': return 'за генер';
       default: return priceType;
     }
   };
 
   const getProviderBadge = (provider: string) => {
     if (provider === 'kie') {
-      return <span className="px-2 py-1 rounded text-xs font-bold bg-orange-600">KIE</span>;
+      return <span className="px-2 py-0.5 rounded text-xs font-bold bg-orange-600">KIE</span>;
     }
     if (provider === 'replicate') {
-      return <span className="px-2 py-1 rounded text-xs font-bold bg-purple-600">Replicate</span>;
+      return <span className="px-2 py-0.5 rounded text-xs font-bold bg-purple-600">Replicate</span>;
     }
-    return <span className="px-2 py-1 rounded text-xs font-bold bg-gray-600">{provider}</span>;
+    return <span className="px-2 py-0.5 rounded text-xs font-bold bg-gray-600">{provider}</span>;
+  };
+
+  const getModelType = (modelName: string): string => {
+    if (modelName.includes('flux') || modelName.includes('midjourney') || modelName.includes('nano') || modelName.includes('imagen') || modelName.includes('sd-') || modelName.includes('face-swap') || modelName.includes('photon')) {
+      return 'image';
+    }
+    if (modelName.includes('speech')) {
+      return 'audio';
+    }
+    return 'video';
   };
 
   const filteredPrices = providerPrices.filter(p => {
-    if (priceTypeFilter === 'all') return true;
-    if (priceTypeFilter === 'video') return p.price_type === 'per_second';
-    if (priceTypeFilter === 'image') return p.price_type === 'per_image' || p.price_type === 'per_request';
-    return true;
+    if (modelTypeFilter === 'all') return true;
+    const type = getModelType(p.model_name);
+    return type === modelTypeFilter;
   });
 
   if (loading) {
@@ -613,23 +622,23 @@ export default function Adapters() {
 
       <div className="bg-[#2f2f2f] rounded-lg p-4 mb-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-white">Цены провайдеров (KIE / Replicate)</h2>
+          <h2 className="text-lg font-semibold text-white">Модели KIE / Replicate</h2>
           <div className="flex gap-2">
             <button
-              onClick={() => setPriceTypeFilter('all')}
-              className={`px-3 py-1 rounded text-sm ${priceTypeFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-[#3f3f3f] text-gray-400'}`}
+              onClick={() => setModelTypeFilter('all')}
+              className={`px-3 py-1 rounded text-sm ${modelTypeFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-[#3f3f3f] text-gray-400'}`}
             >
               Все
             </button>
             <button
-              onClick={() => setPriceTypeFilter('video')}
-              className={`px-3 py-1 rounded text-sm ${priceTypeFilter === 'video' ? 'bg-pink-600 text-white' : 'bg-[#3f3f3f] text-gray-400'}`}
+              onClick={() => setModelTypeFilter('video')}
+              className={`px-3 py-1 rounded text-sm ${modelTypeFilter === 'video' ? 'bg-pink-600 text-white' : 'bg-[#3f3f3f] text-gray-400'}`}
             >
               Видео
             </button>
             <button
-              onClick={() => setPriceTypeFilter('image')}
-              className={`px-3 py-1 rounded text-sm ${priceTypeFilter === 'image' ? 'bg-purple-600 text-white' : 'bg-[#3f3f3f] text-gray-400'}`}
+              onClick={() => setModelTypeFilter('image')}
+              className={`px-3 py-1 rounded text-sm ${modelTypeFilter === 'image' ? 'bg-purple-600 text-white' : 'bg-[#3f3f3f] text-gray-400'}`}
             >
               Изображения
             </button>
@@ -638,49 +647,112 @@ export default function Adapters() {
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="text-gray-400 text-left">
+              <tr className="text-gray-400 text-left text-sm">
                 <th className="pb-3">Модель</th>
-                <th className="pb-3">Провайдер</th>
-                <th className="pb-3">Цена USD</th>
-                <th className="pb-3">Тип цены</th>
-                <th className="pb-3">Replicate ID</th>
-                <th className="pb-3 text-center">Активен</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredPrices.map((p, idx) => (
-                <tr key={`${p.model_name}-${p.provider}-${idx}`} className={`border-t border-gray-700 ${!p.is_active ? 'opacity-50' : ''}`}>
-                  <td className="py-3 text-white font-medium">{p.model_name}</td>
-                  <td className="py-3">{getProviderBadge(p.provider)}</td>
-                  <td className="py-3 text-green-400 font-mono">{formatPrice(p.price_usd)}</td>
-                  <td className="py-3 text-gray-400 text-sm">{getPriceTypeLabel(p.price_type)}</td>
-                  <td className="py-3 text-gray-500 text-xs font-mono">{p.replicate_model_id || '—'}</td>
-                  <td className="py-3 text-center">
-                    <span className={`inline-block w-3 h-3 rounded-full ${p.is_active ? 'bg-green-500' : 'bg-gray-500'}`}></span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className="bg-[#2f2f2f] rounded-lg p-4">
-        <h2 className="text-lg font-semibold text-white mb-4">Доступные модели</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="text-gray-400 text-left">
-                <th className="pb-3">Название</th>
-                <th className="pb-3">Модель ID</th>
                 <th className="pb-3">Тип</th>
+                <th className="pb-3">Провайдер</th>
+                <th className="pb-3">Тип цены</th>
                 <th className="pb-3">Себестоимость</th>
                 <th className="pb-3">Кредиты</th>
                 <th className="pb-3 text-center">Статус</th>
               </tr>
             </thead>
             <tbody>
-              {adapters.flatMap((adapter) =>
+              {filteredPrices.map((p, idx) => {
+                const key = `${p.provider}:${p.model_name}`;
+                const settings = modelSettings[key] || { credits_price: null, is_enabled: true };
+                const isEditing = editingCredits === key;
+                const isSaving = savingSettings[key];
+                const modelType = getModelType(p.model_name);
+
+                return (
+                  <tr key={`${p.model_name}-${p.provider}-${idx}`} className={`border-t border-gray-700 ${!p.is_active ? 'opacity-50' : ''}`}>
+                    <td className="py-3 text-white font-medium">{p.model_name}</td>
+                    <td className="py-3">
+                      <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                        modelType === 'image' ? 'bg-purple-600' : 
+                        modelType === 'video' ? 'bg-pink-600' : 
+                        modelType === 'audio' ? 'bg-blue-600' : 'bg-gray-600'
+                      }`}>
+                        {modelType === 'image' ? 'Изобр' : 
+                         modelType === 'video' ? 'Видео' : 
+                         modelType === 'audio' ? 'Аудио' : modelType}
+                      </span>
+                    </td>
+                    <td className="py-3">{getProviderBadge(p.provider)}</td>
+                    <td className="py-3 text-gray-400 text-sm">{getPriceTypeLabel(p.price_type)}</td>
+                    <td className="py-3 text-green-400 font-mono">{formatPrice(p.price_usd)}</td>
+                    <td className="py-3">
+                      {isEditing ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            step="0.0001"
+                            value={creditsInput}
+                            onChange={(e) => setCreditsInput(e.target.value)}
+                            className="w-20 px-2 py-1 bg-[#3f3f3f] border border-gray-600 rounded text-white text-sm"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSaveCredits(p.provider, p.model_name);
+                              if (e.key === 'Escape') handleCancelEdit();
+                            }}
+                          />
+                          <button
+                            onClick={() => handleSaveCredits(p.provider, p.model_name)}
+                            disabled={isSaving}
+                            className="p-1 text-green-400 hover:text-green-300"
+                          >
+                            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                          </button>
+                          <button
+                            onClick={handleCancelEdit}
+                            className="p-1 text-red-400 hover:text-red-300"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span className={`${settings.credits_price !== null ? 'text-green-400 font-medium' : 'text-gray-500'}`}>
+                            {settings.credits_price !== null ? settings.credits_price.toFixed(4) : '—'}
+                          </span>
+                          <button
+                            onClick={() => handleEditCredits(p.provider, p.model_name)}
+                            className="p-1 text-gray-400 hover:text-white"
+                            title="Редактировать цену"
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-3 text-center">
+                      <span className={`inline-block w-3 h-3 rounded-full ${p.is_active ? 'bg-green-500' : 'bg-gray-500'}`}></span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="bg-[#2f2f2f] rounded-lg p-4">
+        <h2 className="text-lg font-semibold text-white mb-4">Текстовые модели</h2>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="text-gray-400 text-left text-sm">
+                <th className="pb-3">Название</th>
+                <th className="pb-3">Модель ID</th>
+                <th className="pb-3">Провайдер</th>
+                <th className="pb-3">Себестоимость</th>
+                <th className="pb-3">Кредиты</th>
+                <th className="pb-3 text-center">Статус</th>
+              </tr>
+            </thead>
+            <tbody>
+              {adapters.filter(a => a.type === 'text').flatMap((adapter) =>
                 adapter.models?.map((model) => {
                   const key = `${adapter.name}:${model.id}`;
                   const settings = modelSettings[key] || { credits_price: null, is_enabled: true };
@@ -692,21 +764,10 @@ export default function Adapters() {
                       <td className="py-3 text-gray-300">{model.display_name || model.id}</td>
                       <td className="py-3 text-gray-500 text-sm font-mono">{model.id}</td>
                       <td className="py-3">
-                        <span className={`px-2 py-1 rounded text-xs font-bold ${
-                          model.type === 'text' ? 'bg-blue-600' : 
-                          model.type === 'image' ? 'bg-purple-600' : 
-                          model.type === 'video' ? 'bg-pink-600' : 'bg-gray-600'
-                        }`}>
-                          {model.type === 'text' ? 'Текст' : 
-                           model.type === 'image' ? 'Изображение' : 
-                           model.type === 'video' ? 'Видео' : model.type}
-                        </span>
+                        <span className="px-2 py-0.5 rounded text-xs font-bold bg-blue-600">{adapter.display_name}</span>
                       </td>
                       <td className="py-3 text-gray-300 text-sm">
-                        {model.type === 'text' 
-                          ? `${formatPrice(model.pricing.input_per_1k)} / ${formatPrice(model.pricing.output_per_1k)}`
-                          : formatPrice(model.pricing.per_request || model.pricing.input_per_1k)
-                        }
+                        {formatPrice(model.pricing.input_per_1k)} / {formatPrice(model.pricing.output_per_1k)}
                       </td>
                       <td className="py-3">
                         {isEditing ? (
@@ -716,7 +777,7 @@ export default function Adapters() {
                               step="0.0001"
                               value={creditsInput}
                               onChange={(e) => setCreditsInput(e.target.value)}
-                              className="w-24 px-2 py-1 bg-[#3f3f3f] border border-gray-600 rounded text-white text-sm"
+                              className="w-20 px-2 py-1 bg-[#3f3f3f] border border-gray-600 rounded text-white text-sm"
                               autoFocus
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') handleSaveCredits(adapter.name, model.id);
