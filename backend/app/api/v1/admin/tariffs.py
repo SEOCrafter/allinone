@@ -302,7 +302,7 @@ async def apply_global_credits(db: AsyncSession, adapter_name: str, model_id: st
     
     result = await db.execute(
         select(ModelSetting).where(
-            ModelSetting.adapter_name == adapter_name,
+            ModelSetting.provider == adapter_name,
             ModelSetting.model_id == model_id
         )
     )
@@ -312,7 +312,7 @@ async def apply_global_credits(db: AsyncSession, adapter_name: str, model_id: st
         setting.credits_price = Decimal(str(credits))
     else:
         setting = ModelSetting(
-            adapter_name=adapter_name,
+            provider=adapter_name,
             model_id=model_id,
             credits_price=Decimal(str(credits)),
             is_enabled=True
