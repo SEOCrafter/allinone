@@ -818,121 +818,200 @@ export default function Adapters() {
                 const isEditing = editingCredits === model.settingsKey;
                 const isSaving = savingSettings[model.settingsKey];
                 const avgData = calculateAvgCost(model);
+                const hasVariants = model.priceVariants && Object.keys(model.priceVariants).length > 0;
+                const isExpanded = expandedRows.has(model.settingsKey);
 
                 return (
-                  <tr key={`${model.settingsKey}-${idx}`} className={`border-t border-gray-700 ${!model.isActive ? 'opacity-50' : ''}`}>
-                    <td className="py-3 text-white font-medium">{model.name}</td>
-                    <td className="py-3">{getTypeBadge(model.type)}</td>
-                    <td className="py-3">{getProviderBadge(model.provider, model.providerDisplay)}</td>
-                    <td className="py-3 text-gray-400 text-sm">{getPriceTypeLabel(model.priceType)}</td>
-                    <td className="py-3 text-green-400 font-mono text-sm">
-                      <div className="flex items-center gap-2">
+                  <>
+                    <tr key={`${model.settingsKey}-${idx}`} className={`border-t border-gray-700 ${!model.isActive ? 'opacity-50' : ''}`}>
+                      <td className="py-3 text-white font-medium">
+                        <div className="flex items-center gap-2">
+                          {hasVariants && (
+                            <button
+                              onClick={() => {
+                                const newExpanded = new Set(expandedRows);
+                                if (newExpanded.has(model.settingsKey)) {
+                                  newExpanded.delete(model.settingsKey);
+                                } else {
+                                  newExpanded.add(model.settingsKey);
+                                }
+                                setExpandedRows(newExpanded);
+                              }}
+                              className="w-5 h-5 flex items-center justify-center rounded bg-[#3f3f3f] hover:bg-[#4f4f4f] text-green-400 text-sm font-bold"
+                              title="Показать варианты цен"
+                            >
+                              {isExpanded ? '−' : '+'}
+                            </button>
+                          )}
+                          {model.name}
+                        </div>
+                      </td>
+                      <td className="py-3">{getTypeBadge(model.type)}</td>
+                      <td className="py-3">{getProviderBadge(model.provider, model.providerDisplay)}</td>
+                      <td className="py-3 text-gray-400 text-sm">{getPriceTypeLabel(model.priceType)}</td>
+                      <td className="py-3 text-green-400 font-mono text-sm">
                         {model.priceUsdOutput 
                           ? `${formatPrice(model.priceUsd)} / ${formatPrice(model.priceUsdOutput)}`
                           : formatPrice(model.priceUsd)
                         }
-                        {model.priceVariants && Object.keys(model.priceVariants).length > 0 && (
-                          <button
-                            onClick={() => {
-                              const newExpanded = new Set(expandedRows);
-                              if (newExpanded.has(model.settingsKey)) {
-                                newExpanded.delete(model.settingsKey);
-                              } else {
-                                newExpanded.add(model.settingsKey);
-                              }
-                              setExpandedRows(newExpanded);
-                            }}
-                            className="text-blue-400 hover:text-blue-300 text-xs"
-                            title="Показать варианты цен"
-                          >
-                            {expandedRows.has(model.settingsKey) ? '▲' : '▼'}
-                          </button>
-                        )}
-                      </div>
-                      {model.priceVariants && expandedRows.has(model.settingsKey) && (
-                        <div className="mt-2 text-xs space-y-1 bg-[#252525] p-2 rounded">
-                          {Object.entries(model.priceVariants).map(([key, variant]) => (
-                            <div key={key} className="flex justify-between text-gray-300">
-                              <span>{variant.label}</span>
-                              <span className="text-green-400">{formatPrice(variant.price_usd)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-3 text-sm">
-                      {avgData.cost !== null ? (
-                        <span className="text-yellow-400 font-mono" title={`На основе ${avgData.count} запросов`}>
-                          {formatPrice(avgData.cost)}
-                          <span className="text-gray-500 text-xs ml-1">({avgData.count})</span>
-                        </span>
-                      ) : avgData.count > 0 ? (
-                        <span className="text-gray-500" title="Фиксированная цена">—</span>
-                      ) : (
-                        <span className="text-gray-600" title="Нет данных">—</span>
-                      )}
-                    </td>
-                    <td className="py-3">
-                      {isEditing ? (
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            step="0.0001"
-                            value={creditsInput}
-                            onChange={(e) => setCreditsInput(e.target.value)}
-                            className="w-20 px-2 py-1 bg-[#3f3f3f] border border-gray-600 rounded text-white text-sm"
-                            autoFocus
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleSaveCredits(model.settingsKey);
-                              if (e.key === 'Escape') handleCancelEdit();
-                            }}
-                          />
-                          <button
-                            onClick={() => handleSaveCredits(model.settingsKey)}
-                            disabled={isSaving}
-                            className="p-1 text-green-400 hover:text-green-300"
-                          >
-                            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                          </button>
-                          <button
-                            onClick={handleCancelEdit}
-                            className="p-1 text-red-400 hover:text-red-300"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <span className={`${settings.credits_price !== null ? 'text-green-400 font-medium' : 'text-gray-500'}`}>
-                            {settings.credits_price !== null ? settings.credits_price.toFixed(4) : '—'}
+                      </td>
+                      <td className="py-3 text-sm">
+                        {avgData.cost !== null ? (
+                          <span className="text-yellow-400 font-mono" title={`На основе ${avgData.count} запросов`}>
+                            {formatPrice(avgData.cost)}
+                            <span className="text-gray-500 text-xs ml-1">({avgData.count})</span>
                           </span>
-                          <button
-                            onClick={() => handleEditCredits(model.settingsKey)}
-                            className="p-1 text-gray-400 hover:text-white"
-                            title="Редактировать цену"
-                          >
-                            <Pencil className="w-3 h-3" />
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-3 text-center">
-                      <button
-                        onClick={() => handleToggleEnabled(model.settingsKey)}
-                        disabled={isSaving}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                          settings.is_enabled ? 'bg-green-600' : 'bg-gray-600'
-                        } ${isSaving ? 'opacity-50' : ''}`}
-                        title={settings.is_enabled ? 'Включено' : 'Отключено'}
-                      >
-                        <span
-                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                            settings.is_enabled ? 'translate-x-6' : 'translate-x-1'
-                          }`}
-                        />
-                      </button>
-                    </td>
-                  </tr>
+                        ) : avgData.count > 0 ? (
+                          <span className="text-gray-500" title="Фиксированная цена">—</span>
+                        ) : (
+                          <span className="text-gray-600" title="Нет данных">—</span>
+                        )}
+                      </td>
+                      <td className="py-3">
+                        {isEditing ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              step="0.0001"
+                              value={creditsInput}
+                              onChange={(e) => setCreditsInput(e.target.value)}
+                              className="w-20 px-2 py-1 bg-[#3f3f3f] border border-gray-600 rounded text-white text-sm"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveCredits(model.settingsKey);
+                                if (e.key === 'Escape') handleCancelEdit();
+                              }}
+                            />
+                            <button
+                              onClick={() => handleSaveCredits(model.settingsKey)}
+                              disabled={isSaving}
+                              className="p-1 text-green-400 hover:text-green-300"
+                            >
+                              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                            </button>
+                            <button
+                              onClick={handleCancelEdit}
+                              className="p-1 text-red-400 hover:text-red-300"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <span className={`${settings.credits_price !== null ? 'text-green-400 font-medium' : 'text-gray-500'}`}>
+                              {settings.credits_price !== null ? settings.credits_price.toFixed(4) : '—'}
+                            </span>
+                            <button
+                              onClick={() => handleEditCredits(model.settingsKey)}
+                              className="p-1 text-gray-400 hover:text-white"
+                              title="Редактировать цену"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-3 text-center">
+                        <button
+                          onClick={() => handleToggleEnabled(model.settingsKey)}
+                          disabled={isSaving}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                            settings.is_enabled ? 'bg-green-600' : 'bg-gray-600'
+                          } ${isSaving ? 'opacity-50' : ''}`}
+                          title={settings.is_enabled ? 'Включено' : 'Отключено'}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              settings.is_enabled ? 'translate-x-6' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                      </td>
+                    </tr>
+                    {hasVariants && isExpanded && Object.entries(model.priceVariants!).map(([variantKey, variant]) => {
+                      const variantSettingsKey = `${model.settingsKey}:${variantKey}`;
+                      const variantSettings = modelSettings[variantSettingsKey] || { credits_price: null, is_enabled: true };
+                      const isVariantEditing = editingCredits === variantSettingsKey;
+                      const isVariantSaving = savingSettings[variantSettingsKey];
+
+                      return (
+                        <tr key={variantSettingsKey} className="bg-[#1a1a1a]">
+                          <td className="py-2 pl-10 text-gray-300 text-sm">
+                            ↳ {variant.label}
+                          </td>
+                          <td className="py-2"></td>
+                          <td className="py-2"></td>
+                          <td className="py-2"></td>
+                          <td className="py-2 text-green-400 font-mono text-sm">
+                            {formatPrice(variant.price_usd)}
+                          </td>
+                          <td className="py-2 text-sm">
+                            <span className="text-gray-600">—</span>
+                          </td>
+                          <td className="py-2">
+                            {isVariantEditing ? (
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="number"
+                                  step="0.0001"
+                                  value={creditsInput}
+                                  onChange={(e) => setCreditsInput(e.target.value)}
+                                  className="w-20 px-2 py-1 bg-[#3f3f3f] border border-gray-600 rounded text-white text-sm"
+                                  autoFocus
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleSaveCredits(variantSettingsKey);
+                                    if (e.key === 'Escape') handleCancelEdit();
+                                  }}
+                                />
+                                <button
+                                  onClick={() => handleSaveCredits(variantSettingsKey)}
+                                  disabled={isVariantSaving}
+                                  className="p-1 text-green-400 hover:text-green-300"
+                                >
+                                  {isVariantSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                                </button>
+                                <button
+                                  onClick={handleCancelEdit}
+                                  className="p-1 text-red-400 hover:text-red-300"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <span className={`${variantSettings.credits_price !== null ? 'text-green-400 font-medium' : 'text-gray-500'}`}>
+                                  {variantSettings.credits_price !== null ? variantSettings.credits_price.toFixed(4) : '—'}
+                                </span>
+                                <button
+                                  onClick={() => handleEditCredits(variantSettingsKey)}
+                                  className="p-1 text-gray-400 hover:text-white"
+                                  title="Редактировать цену"
+                                >
+                                  <Pencil className="w-3 h-3" />
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-2 text-center">
+                            <button
+                              onClick={() => handleToggleEnabled(variantSettingsKey)}
+                              disabled={isVariantSaving}
+                              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                variantSettings.is_enabled ? 'bg-green-600' : 'bg-gray-600'
+                              } ${isVariantSaving ? 'opacity-50' : ''}`}
+                              title={variantSettings.is_enabled ? 'Включено' : 'Отключено'}
+                            >
+                              <span
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                  variantSettings.is_enabled ? 'translate-x-6' : 'translate-x-1'
+                                }`}
+                              />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </>
                 );
               })}
             </tbody>
