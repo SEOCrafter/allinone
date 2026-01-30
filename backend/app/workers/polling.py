@@ -90,8 +90,12 @@ def parse_kie_result(data: dict, adapter_type: str = "default") -> dict:
             result_json_str = task_data.get("resultJson", "{}")
             try:
                 result_json = json.loads(result_json_str) if isinstance(result_json_str, str) else result_json_str
-                result_url = result_json.get("resultUrl") or result_json.get("url")
-                result_urls = result_json.get("resultUrls") or ([result_url] if result_url else None)
+                result_urls = result_json.get("resultUrls")
+                if result_urls and len(result_urls) > 0:
+                    result_url = result_urls[0]
+                else:
+                    result_url = result_json.get("resultUrl") or result_json.get("url")
+                    result_urls = [result_url] if result_url else None
             except:
                 result_url = None
                 result_urls = None
