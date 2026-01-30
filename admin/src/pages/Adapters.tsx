@@ -54,10 +54,11 @@ interface ModelStat {
   provider: string;
   type: string;
   request_count: number;
-  avg_duration_sec: number | null;
+  avg_video_duration: number | null;
   avg_tokens_input: number | null;
   avg_tokens_output: number | null;
   avg_tokens_total: number | null;
+  avg_provider_cost: number | null;
 }
 
 interface TestResult {
@@ -470,21 +471,25 @@ export default function Adapters() {
       return { cost: null, count: 0 };
     }
 
+    if (stat.avg_provider_cost && stat.avg_provider_cost > 0) {
+      return { cost: stat.avg_provider_cost, count: stat.request_count };
+    }
+
     if (model.priceType === 'per_generation' || model.priceType === 'per_image' || model.priceType === 'per_request') {
       return { cost: null, count: stat.request_count };
     }
 
-    if (model.priceType === 'per_second' && stat.avg_duration_sec) {
-      return { cost: stat.avg_duration_sec * model.priceUsd, count: stat.request_count };
+    if (model.priceType === 'per_second' && stat.avg_video_duration) {
+      return { cost: stat.avg_video_duration * model.priceUsd, count: stat.request_count };
     }
 
     if (model.priceType === 'per_1k_tokens' && stat.avg_tokens_total) {
-      const avgCost = (stat.avg_tokens_total / 1000) * model.priceUsd;
       if (model.priceUsdOutput && stat.avg_tokens_input && stat.avg_tokens_output) {
         const inputCost = (stat.avg_tokens_input / 1000) * model.priceUsd;
         const outputCost = (stat.avg_tokens_output / 1000) * model.priceUsdOutput;
         return { cost: inputCost + outputCost, count: stat.request_count };
       }
+      const avgCost = (stat.avg_tokens_total / 1000) * model.priceUsd;
       return { cost: avgCost, count: stat.request_count };
     }
 

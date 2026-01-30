@@ -107,6 +107,12 @@ async def generate_video(
     request_id = str(uuid.uuid4())
     normalized_model = normalize_model_name(data.model)
 
+    request_params = {
+        "duration": data.duration,
+        "aspect_ratio": data.aspect_ratio,
+        "sound": data.sound,
+    }
+
     request_record = Request(
         id=request_id,
         user_id=user.id,
@@ -115,6 +121,7 @@ async def generate_video(
         endpoint="/api/v1/video/generate",
         model=normalized_model,
         prompt=data.prompt,
+        params=request_params,
         status="processing",
         external_provider=provider,
         started_at=datetime.utcnow(),
@@ -270,6 +277,12 @@ async def generate_video_async(
     estimated_cost = price_usd * data.duration if price_usd > 0 else 0.05 * data.duration
     estimated_credits = estimated_cost * 1000
 
+    request_params = {
+        "duration": data.duration,
+        "aspect_ratio": data.aspect_ratio,
+        "sound": data.sound,
+    }
+
     request_record = Request(
         id=request_id,
         user_id=user.id,
@@ -278,6 +291,7 @@ async def generate_video_async(
         endpoint="/api/v1/video/generate-async",
         model=normalized_model,
         prompt=data.prompt,
+        params=request_params,
         status="processing",
         external_provider=provider,
         credits_spent=Decimal(str(estimated_credits)),

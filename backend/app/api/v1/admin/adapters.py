@@ -391,14 +391,17 @@ async def get_model_stats(
             external_provider,
             type,
             COUNT(*) as request_count,
-            AVG(EXTRACT(EPOCH FROM (completed_at - started_at))) as avg_duration_sec,
+            AVG(CASE 
+                WHEN type = 'video' AND params IS NOT NULL 
+                THEN CAST(params->>'duration' AS NUMERIC)
+                ELSE NULL 
+            END) as avg_video_duration,
             AVG(tokens_input) as avg_tokens_input,
             AVG(tokens_output) as avg_tokens_output,
-            AVG(tokens_input + tokens_output) as avg_tokens_total
+            AVG(COALESCE(tokens_input, 0) + COALESCE(tokens_output, 0)) as avg_tokens_total,
+            AVG(CAST(provider_cost AS NUMERIC)) as avg_provider_cost
         FROM requests
         WHERE status = 'completed'
-          AND completed_at IS NOT NULL
-          AND started_at IS NOT NULL
         GROUP BY model, external_provider, type
         ORDER BY model, external_provider
     """)
@@ -412,10 +415,11 @@ async def get_model_stats(
         provider = row[1] or "direct"
         req_type = row[2]
         count = row[3]
-        avg_duration = float(row[4]) if row[4] else None
+        avg_video_duration = float(row[4]) if row[4] else None
         avg_tokens_in = float(row[5]) if row[5] else None
         avg_tokens_out = float(row[6]) if row[6] else None
         avg_tokens_total = float(row[7]) if row[7] else None
+        avg_provider_cost = float(row[8]) if row[8] else None
         
         key = f"{provider}:{model}"
         stats[key] = {
@@ -423,10 +427,11 @@ async def get_model_stats(
             "provider": provider,
             "type": req_type,
             "request_count": count,
-            "avg_duration_sec": round(avg_duration, 2) if avg_duration else None,
+            "avg_video_duration": round(avg_video_duration, 1) if avg_video_duration else None,
             "avg_tokens_input": round(avg_tokens_in) if avg_tokens_in else None,
             "avg_tokens_output": round(avg_tokens_out) if avg_tokens_out else None,
             "avg_tokens_total": round(avg_tokens_total) if avg_tokens_total else None,
+            "avg_provider_cost": round(avg_provider_cost, 6) if avg_provider_cost else None,
         }
     
     return {"ok": True, "stats": stats}
