@@ -59,7 +59,7 @@ class ReplicateAdapter(BaseAdapter):
         "google/imagen-4": {"type": "image", "price_type": "per_image", "price": 0.03},
         "google/imagen-4-fast": {"type": "image", "price_type": "per_image", "price": 0.02},
         "google/imagen-4-ultra": {"type": "image", "price_type": "per_image", "price": 0.05},
-        "omniedgeio/face-swap": {"type": "image", "price_type": "per_image", "price": 0.01},
+        "cdingram/face-swap": {"type": "image", "price_type": "per_image", "price": 0.014},
         "minimax/speech-02-turbo": {"type": "audio", "price_type": "per_request", "price": 0.02},
         "minimax/speech-02-hd": {"type": "audio", "price_type": "per_request", "price": 0.04},
         "minimax/image-01": {"type": "image", "price_type": "per_image", "price": 0.01},
@@ -485,8 +485,8 @@ class ReplicateAdapter(BaseAdapter):
 
         elif "face-swap" in model.lower():
             if image_urls and len(image_urls) >= 2:
-                input_data["source_image"] = image_urls[0]
-                input_data["target_image"] = image_urls[1]
+                input_data["input_image"] = image_urls[0]
+                input_data["swap_image"] = image_urls[1]
             input_data.pop("prompt", None)
 
         elif "luma" in model.lower():
