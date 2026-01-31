@@ -467,10 +467,18 @@ class ReplicateAdapter(BaseAdapter):
         elif "luma" in model.lower():
             if "photon" in model.lower():
                 input_data["aspect_ratio"] = aspect_ratio
-                if params.get("output_format"):
-                    input_data["output_format"] = params["output_format"]
                 if params.get("seed") is not None:
                     input_data["seed"] = params["seed"]
+                if image_urls:
+                    input_data["image_reference"] = image_urls[0]
+                    if len(image_urls) >= 2:
+                        input_data["style_reference"] = image_urls[1]
+                    if len(image_urls) >= 3:
+                        input_data["character_reference"] = image_urls[2]
+                if params.get("image_reference_weight") is not None:
+                    input_data["image_reference_weight"] = params["image_reference_weight"]
+                if params.get("style_reference_weight") is not None:
+                    input_data["style_reference_weight"] = params["style_reference_weight"]
             else:
                 input_data["duration"] = duration
                 input_data["aspect_ratio"] = aspect_ratio
@@ -478,7 +486,7 @@ class ReplicateAdapter(BaseAdapter):
                     input_data["seed"] = params["seed"]
                 if image_urls:
                     input_data["start_image"] = image_urls[0]
-
+                    
         elif "runway" in model.lower():
             if "gen4-image" in model.lower():
                 input_data["aspect_ratio"] = aspect_ratio
