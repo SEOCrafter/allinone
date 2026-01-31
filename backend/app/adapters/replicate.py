@@ -371,8 +371,13 @@ class ReplicateAdapter(BaseAdapter):
                 input_data["first_frame_image"] = image_urls[0]
 
         elif "sora" in model.lower():
-            input_data["duration"] = duration
-            input_data["aspect_ratio"] = aspect_ratio
+            input_data["seconds"] = duration
+            if aspect_ratio in ("9:16", "10:16", "3:4"):
+                input_data["aspect_ratio"] = "portrait"
+            else:
+                input_data["aspect_ratio"] = "landscape"
+            if image_urls:
+                input_data["input_reference"] = image_urls[0]
 
         elif "seedance" in model.lower():
             input_data["duration"] = duration
