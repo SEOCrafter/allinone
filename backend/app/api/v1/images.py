@@ -29,8 +29,6 @@ ALLOWED_ASPECT_RATIOS = {
 }
 
 ASPECT_RATIO_MAPPING = {
-    "3:4": "2:3",
-    "4:3": "3:2",
     "16:10": "16:9",
     "10:16": "9:16",
 }
