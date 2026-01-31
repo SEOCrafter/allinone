@@ -35,7 +35,7 @@ class SoraAdapter(BaseAdapter, KieBaseAdapter):
     ) -> GenerationResult:
         model = model or self.default_model
 
-        n_frames = "10s" if duration <= 10 else "15s"
+        n_frames = "10" if duration <= 10 else "15"
         size = "high" if mode == "pro" else "standard"
 
         sora_aspect = aspect_ratio
