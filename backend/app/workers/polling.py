@@ -12,6 +12,7 @@ REPLICATE_API_KEY = os.getenv("REPLICATE_API_KEY", "")
 
 KIE_STATUS_ENDPOINTS = {
     "veo": "/veo/record-info",
+    "midjourney": "/mj/record-info",
     "default": "/jobs/recordInfo",
 }
 
