@@ -35,9 +35,9 @@ class SeedanceAdapter(BaseAdapter, KieBaseAdapter):
         input_data = {
             "prompt": prompt,
             "aspect_ratio": aspect_ratio,
-            "duration": duration,
+            "duration": str(duration),
         }
-
+        
         if image_url:
             input_data["image_url"] = image_url
 
