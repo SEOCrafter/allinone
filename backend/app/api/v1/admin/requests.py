@@ -12,6 +12,12 @@ from app.models.task_event import TaskEvent
 router = APIRouter()
 
 
+def format_dt(dt):
+    if dt is None:
+        return None
+    return dt.isoformat() + "Z"
+
+
 @router.get("")
 async def list_requests(
     page: int = Query(1, ge=1),
@@ -101,7 +107,7 @@ async def list_requests(
             "error_message": req.error_message,
             "external_task_id": req.external_task_id,
             "result_url": req.result_url,
-            "created_at": req.created_at.isoformat(),
+            "created_at": format_dt(req.created_at),
         })
 
     return {
@@ -151,7 +157,7 @@ async def get_request_detail(
             "external_status": e.external_status,
             "response_data": e.response_data,
             "error_message": e.error_message,
-            "created_at": e.created_at.isoformat() if e.created_at else None,
+            "created_at": format_dt(e.created_at),
         }
         for e in events
     ]
@@ -189,9 +195,9 @@ async def get_request_detail(
                 "message": req.error_message,
             } if req.error_code else None,
             "timing": {
-                "created_at": req.created_at.isoformat(),
-                "started_at": req.started_at.isoformat() if req.started_at else None,
-                "completed_at": req.completed_at.isoformat() if req.completed_at else None,
+                "created_at": format_dt(req.created_at),
+                "started_at": format_dt(req.started_at),
+                "completed_at": format_dt(req.completed_at),
             },
             "events": events_data,
         }
@@ -226,7 +232,7 @@ async def get_request_events(
                 "external_status": e.external_status,
                 "response_data": e.response_data,
                 "error_message": e.error_message,
-                "created_at": e.created_at.isoformat() if e.created_at else None,
+                "created_at": format_dt(e.created_at),
             }
             for e in events
         ]
