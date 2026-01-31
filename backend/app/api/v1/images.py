@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional, List
 from decimal import Decimal
 from datetime import datetime
@@ -19,8 +19,21 @@ from app.workers.polling import poll_task
 from app.adapters import AdapterRegistry
 from app.config import settings
 
+
+
 router = APIRouter()
 
+ALLOWED_ASPECT_RATIOS = {
+    "1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", 
+    "4:5", "5:4", "21:9", "9:21", "16:10", "10:16"
+}
+
+ASPECT_RATIO_MAPPING = {
+    "3:4": "2:3",
+    "4:3": "3:2",
+    "16:10": "16:9",
+    "10:16": "9:16",
+}
 
 class GenerateRequest(BaseModel):
     prompt: str
@@ -41,6 +54,56 @@ class GenerateRequest(BaseModel):
     num_outputs: int = 1
     wait_for_result: bool = False
 
+    @field_validator("aspect_ratio")
+    @classmethod
+    def validate_aspect_ratio(cls, v: str) -> str:
+        v = v.strip()
+        if v in ASPECT_RATIO_MAPPING:
+            return ASPECT_RATIO_MAPPING[v]
+        if v not in ALLOWED_ASPECT_RATIOS:
+            allowed = ", ".join(sorted(ALLOWED_ASPECT_RATIOS))
+            raise ValueError(f"aspect_ratio must be one of: {allowed}")
+        return v
+
+    @field_validator("cfg")
+    @classmethod
+    def validate_cfg(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and (v < 1 or v > 10):
+            raise ValueError("cfg must be between 1 and 10")
+        return v
+
+    @field_validator("prompt_strength")
+    @classmethod
+    def validate_prompt_strength(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and (v < 0 or v > 1):
+            raise ValueError("prompt_strength must be between 0 and 1")
+        return v
+
+    @field_validator("resolution")
+    @classmethod
+    def validate_resolution(cls, v: str) -> str:
+        allowed = {"1K", "2K", "4K", "512", "768", "1024", "1080p", "720p"}
+        if v not in allowed:
+            return "1K"
+        return v
+
+    @field_validator("output_format")
+    @classmethod
+    def validate_output_format(cls, v: str) -> str:
+        allowed = {"png", "jpg", "jpeg", "webp"}
+        v = v.lower()
+        if v not in allowed:
+            return "png"
+        return v
+
+    @field_validator("num_outputs")
+    @classmethod
+    def validate_num_outputs(cls, v: int) -> int:
+        if v < 1:
+            return 1
+        if v > 4:
+            return 4
+        return v
 
 class GenerateResponse(BaseModel):
     ok: bool
