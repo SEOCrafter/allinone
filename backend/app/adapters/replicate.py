@@ -395,10 +395,15 @@ class ReplicateAdapter(BaseAdapter):
                     input_data["start_image"] = image_urls[0]
 
         elif "runway" in model.lower():
-            if "video" in model_type or "turbo" in model.lower():
-                input_data["duration"] = duration
-            if image_urls:
-                input_data["image"] = image_urls[0]
+            if "aleph" in model.lower():
+                input_data["aspect_ratio"] = aspect_ratio
+                if video_urls:
+                    input_data["video"] = video_urls[0]
+                if image_urls:
+                    input_data["reference_image"] = image_urls[0]
+            else:
+                if image_urls:
+                    input_data["image"] = image_urls[0]
 
         elif "speech" in model.lower():
             input_data["text"] = prompt
