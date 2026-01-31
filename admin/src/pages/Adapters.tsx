@@ -566,7 +566,7 @@ export default function Adapters() {
   };
 
   const getModelType = (modelName: string): string => {
-    if (modelName.includes('flux') || modelName.includes('midjourney') || modelName.includes('nano') || modelName.includes('imagen') || modelName.includes('sd-') || modelName.includes('face-swap') || modelName.includes('photon') || modelName.includes('minimax-image') || modelName.includes('runway-gen4-image') || modelName.includes('runway-gen4-turbo')) {
+    if (modelName.includes('flux') || modelName.includes('midjourney') || modelName.includes('nano') || modelName.includes('imagen') || modelName.includes('sd-') || modelName.includes('face-swap') || modelName.includes('photon') || modelName.includes('minimax-image') || modelName.includes('runway-gen4-image')) {
       return 'image';
     }
     if (modelName.includes('speech')) {
