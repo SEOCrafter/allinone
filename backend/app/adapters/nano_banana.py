@@ -74,14 +74,14 @@ class NanoBananaAdapter(BaseAdapter, KieBaseAdapter):
             input_data = {
                 "prompt": prompt,
                 "image_urls": images,
-                "output_format": output_format.upper(),
+                "output_format": output_format.lower(),
                 "image_size": aspect_ratio,
             }
         
         else:
             input_data = {
                 "prompt": prompt,
-                "output_format": output_format.upper(),
+                "output_format": output_format.lower(),
                 "image_size": aspect_ratio,
             }
         

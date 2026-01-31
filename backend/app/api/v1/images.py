@@ -35,7 +35,7 @@ class GenerateRequest(BaseModel):
     style: Optional[str] = None
     output_format: str = "png"
     image_input: Optional[List[str]] = None
-    wait_for_result: bool = True
+    wait_for_result: bool = False
 
 
 class GenerateResponse(BaseModel):
