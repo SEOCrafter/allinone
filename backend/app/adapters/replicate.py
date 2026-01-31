@@ -390,8 +390,9 @@ class ReplicateAdapter(BaseAdapter):
                 pass
             else:
                 input_data["duration"] = duration
+                input_data["aspect_ratio"] = aspect_ratio
                 if image_urls:
-                    input_data["image"] = image_urls[0]
+                    input_data["start_image"] = image_urls[0]
 
         elif "runway" in model.lower():
             if "video" in model_type or "turbo" in model.lower():
