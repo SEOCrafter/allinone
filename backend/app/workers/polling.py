@@ -66,7 +66,7 @@ def parse_kie_result(data: dict, adapter_type: str = "default") -> dict:
         return {"status": "processing"}
     
     task_data = data.get("data", {})
-    
+
     if adapter_type == "veo":
         success_flag = task_data.get("successFlag")
         if success_flag == 1:
@@ -85,6 +85,33 @@ def parse_kie_result(data: dict, adapter_type: str = "default") -> dict:
             }
         else:
             return {"status": "processing"}
+
+    elif adapter_type == "midjourney":
+        success_flag = task_data.get("successFlag")
+        if success_flag == 1:
+            result_info = task_data.get("resultInfoJson", {})
+            if isinstance(result_info, str):
+                try:
+                    result_info = json.loads(result_info)
+                except:
+                    result_info = {}
+            raw_urls = result_info.get("resultUrls", [])
+            result_urls = [u.get("resultUrl") if isinstance(u, dict) else u for u in raw_urls]
+            result_urls = [u for u in result_urls if u]
+            return {
+                "status": "success",
+                "result_url": result_urls[0] if result_urls else None,
+                "result_urls": result_urls,
+            }
+        elif success_flag in (2, 3) or task_data.get("errorCode"):
+            return {
+                "status": "failed",
+                "error_code": task_data.get("errorCode") or "MJ_FAILED",
+                "error_message": task_data.get("errorMessage") or "Task failed",
+            }
+        else:
+            return {"status": "processing"}
+
     else:
         state = task_data.get("state", "").lower()
         if state == "success":
