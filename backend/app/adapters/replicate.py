@@ -484,10 +484,10 @@ class ReplicateAdapter(BaseAdapter):
                     input_data["reference_images"] = image_urls[2:6]
 
         elif "face-swap" in model.lower():
+            input_data = {}
             if image_urls and len(image_urls) >= 2:
                 input_data["input_image"] = image_urls[0]
                 input_data["swap_image"] = image_urls[1]
-            input_data.pop("prompt", None)
 
         elif "luma" in model.lower():
             if "photon" in model.lower():
