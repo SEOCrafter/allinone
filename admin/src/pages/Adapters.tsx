@@ -932,7 +932,7 @@ export default function Adapters() {
                 const isEditing = editingCredits === model.settingsKey;
                 const isSaving = savingSettings[model.settingsKey];
                 const avgData = calculateAvgCost(model);
-                const hasVariants = model.priceVariants && Object.keys(model.priceVariants).length > 0;
+                const hasVariants = model.priceVariants && Object.keys(model.priceVariants).filter(k => k !== 'constraints' && k !== 'display_name').length > 0;
                 const isExpanded = expandedRows.has(model.settingsKey);
 
                 return (
