@@ -27,9 +27,9 @@ class MidjourneyAdapter(BaseAdapter):
         },
     }
 
-    VERSIONS = ["7", "6.1", "6", "5.2", "niji6"]
-    ASPECT_RATIOS = ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"]
-    SPEEDS = ["fast", "relax", "turbo"]
+    VERSIONS = ["7", "6.1", "6", "5.2", "5.1", "niji6", "niji7"]
+    ASPECT_RATIOS = ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "1:2", "2:1", "5:6", "6:5"]
+    SPEEDS = ["relaxed", "fast", "turbo"]
 
     def __init__(self, api_key: str, default_version: str = "7", **kwargs):
         super().__init__(api_key, **kwargs)
@@ -43,36 +43,77 @@ class MidjourneyAdapter(BaseAdapter):
             "Content-Type": "application/json",
         }
 
+    def _build_payload(
+        self,
+        prompt: str,
+        task_type: str,
+        file_url: Optional[str],
+        file_urls: Optional[List[str]],
+        aspect_ratio: str,
+        version: str,
+        speed: str,
+        stylization: int,
+        weirdness: int,
+        variety: int,
+        ow: Optional[int],
+        callback_url: Optional[str] = None,
+    ) -> dict:
+        payload = {
+            "taskType": task_type,
+            "prompt": prompt,
+            "aspectRatio": aspect_ratio,
+            "version": version,
+            "stylization": stylization,
+            "weirdness": weirdness,
+            "variety": variety,
+        }
+
+        if task_type not in ("mj_video", "mj_omni_reference"):
+            payload["speed"] = speed
+
+        if file_urls:
+            payload["fileUrls"] = file_urls
+        elif file_url:
+            payload["fileUrl"] = file_url
+
+        if task_type == "mj_omni_reference" and ow is not None:
+            payload["ow"] = ow
+
+        if callback_url:
+            payload["callBackUrl"] = callback_url
+
+        return payload
+
     async def generate(
         self,
         prompt: str,
         task_type: str = "mj_txt2img",
         file_url: Optional[str] = None,
+        file_urls: Optional[List[str]] = None,
         aspect_ratio: str = "1:1",
         version: Optional[str] = None,
         speed: str = "fast",
         stylization: int = 100,
         weirdness: int = 0,
-        watermark: Optional[str] = None,
+        variety: int = 0,
+        ow: Optional[int] = None,
         **params
     ) -> GenerationResult:
         version = version or self.default_version
 
-        payload = {
-            "taskType": task_type,
-            "prompt": prompt,
-            "speed": speed,
-            "aspectRatio": aspect_ratio,
-            "version": version,
-            "stylization": stylization,
-            "weirdness": weirdness,
-        }
-
-        if file_url:
-            payload["fileUrl"] = file_url
-
-        if watermark:
-            payload["waterMark"] = watermark
+        payload = self._build_payload(
+            prompt=prompt,
+            task_type=task_type,
+            file_url=file_url,
+            file_urls=file_urls,
+            aspect_ratio=aspect_ratio,
+            version=version,
+            speed=speed,
+            stylization=stylization,
+            weirdness=weirdness,
+            variety=variety,
+            ow=ow,
+        )
 
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
@@ -131,6 +172,7 @@ class MidjourneyAdapter(BaseAdapter):
         return GenerationResult(
             success=True,
             content=result.result_url,
+            result_urls=result.result_urls,
             provider_cost=self.calculate_cost(task_type=task_type),
             raw_response=result.raw_response,
         )
@@ -140,35 +182,33 @@ class MidjourneyAdapter(BaseAdapter):
         prompt: str,
         task_type: str = "mj_txt2img",
         file_url: Optional[str] = None,
+        file_urls: Optional[List[str]] = None,
         aspect_ratio: str = "1:1",
         version: Optional[str] = None,
         speed: str = "fast",
         stylization: int = 100,
         weirdness: int = 0,
-        watermark: Optional[str] = None,
+        variety: int = 0,
+        ow: Optional[int] = None,
         callback_url: Optional[str] = None,
         **params
     ) -> KieTaskResult:
         version = version or self.default_version
 
-        payload = {
-            "taskType": task_type,
-            "prompt": prompt,
-            "speed": speed,
-            "aspectRatio": aspect_ratio,
-            "version": version,
-            "stylization": stylization,
-            "weirdness": weirdness,
-        }
-
-        if file_url:
-            payload["fileUrl"] = file_url
-
-        if watermark:
-            payload["waterMark"] = watermark
-
-        if callback_url:
-            payload["callBackUrl"] = callback_url
+        payload = self._build_payload(
+            prompt=prompt,
+            task_type=task_type,
+            file_url=file_url,
+            file_urls=file_urls,
+            aspect_ratio=aspect_ratio,
+            version=version,
+            speed=speed,
+            stylization=stylization,
+            weirdness=weirdness,
+            variety=variety,
+            ow=ow,
+            callback_url=callback_url,
+        )
 
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
@@ -255,8 +295,15 @@ class MidjourneyAdapter(BaseAdapter):
 
                 if success_flag == 1:
                     result_info = task_data.get("resultInfoJson", {})
+                    if isinstance(result_info, str):
+                        import json
+                        try:
+                            result_info = json.loads(result_info)
+                        except:
+                            result_info = {}
                     result_urls = result_info.get("resultUrls", [])
-                    urls = [r.get("resultUrl") for r in result_urls if r.get("resultUrl")]
+                    urls = [r.get("resultUrl") if isinstance(r, dict) else r for r in result_urls]
+                    urls = [u for u in urls if u]
 
                     return KieTaskResult(
                         success=True,
@@ -313,63 +360,6 @@ class MidjourneyAdapter(BaseAdapter):
             error_message=f"Task did not complete within {self.max_poll_attempts * self.poll_interval} seconds",
         )
 
-    async def text_to_image(
-        self,
-        prompt: str,
-        aspect_ratio: str = "1:1",
-        version: Optional[str] = None,
-        speed: str = "fast",
-        stylization: int = 100,
-        weirdness: int = 0,
-        **params
-    ) -> GenerationResult:
-        return await self.generate(
-            prompt=prompt,
-            task_type="mj_txt2img",
-            aspect_ratio=aspect_ratio,
-            version=version,
-            speed=speed,
-            stylization=stylization,
-            weirdness=weirdness,
-            **params
-        )
-
-    async def image_to_image(
-        self,
-        prompt: str,
-        image_url: str,
-        aspect_ratio: str = "1:1",
-        version: Optional[str] = None,
-        speed: str = "fast",
-        stylization: int = 100,
-        weirdness: int = 0,
-        **params
-    ) -> GenerationResult:
-        return await self.generate(
-            prompt=prompt,
-            task_type="mj_img2img",
-            file_url=image_url,
-            aspect_ratio=aspect_ratio,
-            version=version,
-            speed=speed,
-            stylization=stylization,
-            weirdness=weirdness,
-            **params
-        )
-
-    async def image_to_video(
-        self,
-        image_url: str,
-        prompt: Optional[str] = None,
-        **params
-    ) -> GenerationResult:
-        return await self.generate(
-            prompt=prompt or "Animate this image",
-            task_type="mj_video",
-            file_url=image_url,
-            **params
-        )
-
     async def health_check(self) -> ProviderHealth:
         import time
         start = time.time()
@@ -377,7 +367,7 @@ class MidjourneyAdapter(BaseAdapter):
             result = await self.generate_async(
                 prompt="A simple red circle",
                 task_type="mj_txt2img",
-                speed="relax",
+                speed="relaxed",
             )
             latency = int((time.time() - start) * 1000)
             if result.success and result.task_id:
@@ -405,4 +395,6 @@ class MidjourneyAdapter(BaseAdapter):
             "images_per_request": 4,
             "stylization_range": [0, 1000],
             "weirdness_range": [0, 3000],
+            "variety_range": [0, 100],
+            "ow_range": [1, 1000],
         }

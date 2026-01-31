@@ -140,11 +140,14 @@ class MidjourneyRequest(BaseModel):
     prompt: str
     task_type: str = "mj_txt2img"
     file_url: Optional[str] = None
+    file_urls: Optional[List[str]] = None
     aspect_ratio: str = "1:1"
     version: str = "7"
     speed: str = "fast"
     stylization: int = 100
     weirdness: int = 0
+    variety: int = 0
+    ow: Optional[int] = None
 
 
 def extract_task_id(raw_response: dict, provider: str) -> Optional[str]:
@@ -716,11 +719,14 @@ async def generate_midjourney(
             prompt=data.prompt,
             task_type=data.task_type,
             file_url=data.file_url,
+            file_urls=data.file_urls,
             aspect_ratio=data.aspect_ratio,
             version=data.version,
             speed=data.speed,
             stylization=data.stylization,
             weirdness=data.weirdness,
+            variety=data.variety,
+            ow=data.ow,
         )
         external_task_id = result.task_id
 
