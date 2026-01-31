@@ -37,10 +37,10 @@ class VeoAdapter(BaseAdapter, KieBaseAdapter):
 
     def _get_kie_model_name(self, model: str) -> str:
         if model == "veo3.1_fast":
-            return "Fast"
+            return "veo3_fast"
         elif model == "veo3.1_quality":
-            return "Quality"
-        return "Fast"
+            return "veo3"
+        return "veo3_fast"
 
     async def create_veo_task(self, model: str, input_data: dict) -> KieTaskResult:
         kie_model = self._get_kie_model_name(model)
