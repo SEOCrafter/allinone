@@ -488,6 +488,7 @@ class ReplicateAdapter(BaseAdapter):
             if image_urls and len(image_urls) >= 2:
                 input_data["input_image"] = image_urls[0]
                 input_data["swap_image"] = image_urls[1]
+            return input_data
 
         elif "luma" in model.lower():
             if "photon" in model.lower():
