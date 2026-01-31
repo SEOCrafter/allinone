@@ -9,8 +9,8 @@ class SoraAdapter(BaseAdapter, KieBaseAdapter):
     provider_type = ProviderType.VIDEO
 
     PRICING = {
-        "sora-2-pro-text-to-video": {"per_video": 0.80, "display_name": "Sora 2 Pro T2V"},
-        "sora-2-pro-image-to-video": {"per_video": 0.80, "display_name": "Sora 2 Pro I2V"},
+        "sora-2-pro-text-to-video": {"per_video": 0.75, "display_name": "Sora 2 Pro T2V"},
+        "sora-2-pro-image-to-video": {"per_video": 0.75, "display_name": "Sora 2 Pro I2V"},
         "sora-2-text-to-video": {"per_video": 0.50, "display_name": "Sora 2 T2V"},
         "sora-2-image-to-video": {"per_video": 0.50, "display_name": "Sora 2 I2V"},
     }
@@ -26,13 +26,17 @@ class SoraAdapter(BaseAdapter, KieBaseAdapter):
         self,
         prompt: str,
         model: Optional[str] = None,
-        image_url: Optional[str] = None,
+        image_urls: Optional[List[str]] = None,
         aspect_ratio: str = "landscape",
-        n_frames: str = "10",
-        size: str = "standard",
+        duration: int = 10,
+        mode: str = "std",
+        wait_for_result: bool = True,
         **params
     ) -> GenerationResult:
         model = model or self.default_model
+
+        n_frames = "10s" if duration <= 10 else "15s"
+        size = "high" if mode == "pro" else "standard"
 
         input_data = {
             "prompt": prompt,
@@ -41,25 +45,43 @@ class SoraAdapter(BaseAdapter, KieBaseAdapter):
             "size": size,
         }
 
-        if image_url:
-            input_data["image_url"] = image_url
+        if image_urls:
+            input_data["image_url"] = image_urls[0]
 
-        result = await self.generate_and_wait(model, input_data)
+        if wait_for_result:
+            result = await self.generate_and_wait(model, input_data)
 
-        if not result.success:
+            if not result.success:
+                return GenerationResult(
+                    success=False,
+                    error_code=result.error_code,
+                    error_message=result.error_message,
+                    raw_response=result.raw_response,
+                )
+
             return GenerationResult(
-                success=False,
-                error_code=result.error_code,
-                error_message=result.error_message,
+                success=True,
+                content=result.result_url,
+                provider_cost=self.calculate_cost(model=model, duration=duration, mode=mode),
                 raw_response=result.raw_response,
             )
+        else:
+            result = await self.create_task(model, input_data)
 
-        return GenerationResult(
-            success=True,
-            content=result.result_url,
-            provider_cost=self.calculate_cost(model=model),
-            raw_response=result.raw_response,
-        )
+            if not result.success:
+                return GenerationResult(
+                    success=False,
+                    error_code=result.error_code,
+                    error_message=result.error_message,
+                    raw_response=result.raw_response,
+                )
+
+            return GenerationResult(
+                success=False,
+                error_code="PROCESSING",
+                error_message="Task created, polling required",
+                raw_response=result.raw_response,
+            )
 
     async def health_check(self) -> ProviderHealth:
         import time
@@ -67,7 +89,7 @@ class SoraAdapter(BaseAdapter, KieBaseAdapter):
         try:
             result = await self.create_task(
                 "sora-2-text-to-video",
-                {"prompt": "test", "aspect_ratio": "landscape", "n_frames": "10", "size": "standard"},
+                {"prompt": "test", "aspect_ratio": "landscape", "n_frames": "10s", "size": "standard"},
             )
             latency = int((time.time() - start) * 1000)
             if result.success and result.task_id:
@@ -76,16 +98,24 @@ class SoraAdapter(BaseAdapter, KieBaseAdapter):
         except Exception as e:
             return ProviderHealth(status=ProviderStatus.DOWN, error=str(e))
 
-    def calculate_cost(self, model: Optional[str] = None, **params) -> float:
-        model = model or self.default_model
-        pricing = self.PRICING.get(model, self.PRICING["sora-2-pro-text-to-video"])
-        return pricing.get("per_video", 0.80)
+    def calculate_cost(self, model: Optional[str] = None, duration: int = 10, mode: str = "std", **params) -> float:
+        is_pro_model = model and "pro" in model.lower()
+        is_high = mode == "pro"
+        
+        if is_pro_model:
+            if is_high:
+                return 1.65 if duration <= 10 else 3.15
+            else:
+                return 0.75 if duration <= 10 else 1.35
+        else:
+            return 0.50 if duration <= 10 else 0.90
 
     def get_capabilities(self) -> dict:
         return {
             "models": list(self.PRICING.keys()),
-            "aspect_ratios": ["landscape", "portrait", "square"],
-            "sizes": ["standard", "720p", "1080p"],
+            "aspect_ratios": ["landscape", "portrait"],
+            "durations": [10, 15],
+            "sizes": ["standard", "high"],
             "supports_text_to_video": True,
             "supports_image_to_video": True,
         }
