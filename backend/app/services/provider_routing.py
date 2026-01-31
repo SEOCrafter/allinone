@@ -43,6 +43,7 @@ MODEL_TO_KIE_MODEL = {
     "kling-2.6-t2v": "kling-2.6/text-to-video",
     "kling-2.6-i2v": "kling-2.6/image-to-video",
     "kling-2.6-motion": "kling-2.6/motion-control",
+    "seedance-pro": "bytedance/seedance-1.5-pro",
 }
 
 
