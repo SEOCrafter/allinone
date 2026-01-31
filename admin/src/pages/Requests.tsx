@@ -48,6 +48,8 @@ interface RequestDetail {
   events: TaskEvent[];
 }
 
+const TZ = { timeZone: 'Europe/Moscow' };
+
 export default function Requests() {
   const [requests, setRequests] = useState<RequestItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -266,7 +268,7 @@ export default function Requests() {
                   {r.type === 'chat' ? `${r.tokens_input || 0} / ${r.tokens_output || 0}` : '/'}
                 </td>
                 <td className="p-4 text-gray-300">${(r.provider_cost || 0).toFixed(6)}</td>
-                <td className="p-4 text-gray-500">{new Date(r.created_at).toLocaleString('ru')}</td>
+                <td className="p-4 text-gray-500">{new Date(r.created_at).toLocaleString('ru', TZ)}</td>
               </tr>
             ))}
             {filteredRequests.length === 0 && (
@@ -387,7 +389,7 @@ export default function Requests() {
                               </span>
                             )}
                             <span className="text-xs text-gray-500 ml-auto">
-                              {new Date(event.created_at).toLocaleTimeString('ru')}
+                              {new Date(event.created_at).toLocaleTimeString('ru', TZ)}
                             </span>
                           </div>
                           {expandedEvents.has(event.id) && event.response_data && (
@@ -411,18 +413,18 @@ export default function Requests() {
                 <div className="grid grid-cols-3 gap-4 text-sm">
                   <div className="bg-[#252525] p-3 rounded">
                     <p className="text-xs text-gray-500">Создан</p>
-                    <p className="text-gray-300">{new Date(selectedRequest.timing.created_at).toLocaleString('ru')}</p>
+                    <p className="text-gray-300">{new Date(selectedRequest.timing.created_at).toLocaleString('ru', TZ)}</p>
                   </div>
                   <div className="bg-[#252525] p-3 rounded">
                     <p className="text-xs text-gray-500">Запущен</p>
                     <p className="text-gray-300">
-                      {selectedRequest.timing.started_at ? new Date(selectedRequest.timing.started_at).toLocaleString('ru') : '-'}
+                      {selectedRequest.timing.started_at ? new Date(selectedRequest.timing.started_at).toLocaleString('ru', TZ) : '-'}
                     </p>
                   </div>
                   <div className="bg-[#252525] p-3 rounded">
                     <p className="text-xs text-gray-500">Завершён</p>
                     <p className="text-gray-300">
-                      {selectedRequest.timing.completed_at ? new Date(selectedRequest.timing.completed_at).toLocaleString('ru') : '-'}
+                      {selectedRequest.timing.completed_at ? new Date(selectedRequest.timing.completed_at).toLocaleString('ru', TZ) : '-'}
                     </p>
                   </div>
                 </div>
