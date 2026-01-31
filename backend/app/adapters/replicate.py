@@ -377,7 +377,8 @@ class ReplicateAdapter(BaseAdapter):
             else:
                 input_data["aspect_ratio"] = "landscape"
             if "pro" in model.lower():
-                sora_resolution = "high" if mode == "pro" else "standard"
+                sora_mode = params.get("mode", "std")
+                sora_resolution = "high" if sora_mode == "pro" else "standard"
                 input_data["resolution"] = sora_resolution
             if image_urls:
                 input_data["input_reference"] = image_urls[0]
