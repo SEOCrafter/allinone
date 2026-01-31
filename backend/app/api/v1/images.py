@@ -712,7 +712,7 @@ async def generate_midjourney(
     await log_created(db, request_id, provider, data.task_type)
 
     try:
-        result = await adapter.generate(
+        result = await adapter.generate_async(
             prompt=data.prompt,
             task_type=data.task_type,
             file_url=data.file_url,
@@ -721,8 +721,8 @@ async def generate_midjourney(
             speed=data.speed,
             stylization=data.stylization,
             weirdness=data.weirdness,
-            wait_for_result=False,
         )
+        external_task_id = result.task_id
 
         external_task_id = extract_task_id(result.raw_response, provider)
         
