@@ -12,34 +12,42 @@ class VeoAdapter(BaseAdapter, KieBaseAdapter):
     provider_type = ProviderType.VIDEO
 
     PRICING = {
-        "veo3_fast": {"per_video": 0.50, "display_name": "Veo 3 Fast"},
-        "veo3": {"per_video": 1.00, "display_name": "Veo 3"},
-        "veo3.1": {"per_video": 1.00, "display_name": "Veo 3.1"},
+        "veo3.1_fast": {"per_video": 0.30, "display_name": "Veo 3.1 Fast"},
+        "veo3.1_quality": {"per_video": 1.25, "display_name": "Veo 3.1 Quality"},
     }
 
     MODEL_MAPPING = {
-        "veo-3": "veo3",
-        "veo-3-fast": "veo3_fast",
-        "veo-3.1": "veo3.1",
-        "veo-2": "veo3_fast",
+        "veo-3.1": "veo3.1_fast",
     }
 
-    def __init__(self, api_key: str, default_model: str = "veo3_fast", **kwargs):
+    def __init__(self, api_key: str, default_model: str = "veo3.1_fast", **kwargs):
         BaseAdapter.__init__(self, api_key, **kwargs)
         KieBaseAdapter.__init__(self, api_key, **kwargs)
         self.default_model = default_model
         self.max_poll_attempts = kwargs.get("max_poll_attempts", 180)
         self.poll_interval = kwargs.get("poll_interval", 10)
 
-    def _normalize_model(self, model: str) -> str:
-        return self.MODEL_MAPPING.get(model, model)
+    def _normalize_model(self, model: str, mode: str = "std") -> str:
+        base_model = self.MODEL_MAPPING.get(model, model)
+        if "veo3.1" in base_model or "veo-3.1" in model:
+            if mode == "pro":
+                return "veo3.1_quality"
+            return "veo3.1_fast"
+        return base_model
+
+    def _get_kie_model_name(self, model: str) -> str:
+        if model == "veo3.1_fast":
+            return "Fast"
+        elif model == "veo3.1_quality":
+            return "Quality"
+        return "Fast"
 
     async def create_veo_task(self, model: str, input_data: dict) -> KieTaskResult:
-        model = self._normalize_model(model)
+        kie_model = self._get_kie_model_name(model)
         
         payload = {
             "prompt": input_data.get("prompt"),
-            "model": model,
+            "model": kie_model,
             "aspect_ratio": input_data.get("aspect_ratio", "16:9"),
         }
 
@@ -183,9 +191,11 @@ class VeoAdapter(BaseAdapter, KieBaseAdapter):
         image_urls: Optional[List[str]] = None,
         aspect_ratio: str = "16:9",
         wait_for_result: bool = True,
+        mode: str = "std",
         **params
     ) -> GenerationResult:
-        model = model or self.default_model
+        model = model or "veo-3.1"
+        normalized_model = self._normalize_model(model, mode)
 
         input_data = {
             "prompt": prompt,
@@ -195,7 +205,7 @@ class VeoAdapter(BaseAdapter, KieBaseAdapter):
         if image_urls:
             input_data["imageUrls"] = image_urls
 
-        create_result = await self.create_veo_task(model, input_data)
+        create_result = await self.create_veo_task(normalized_model, input_data)
 
         if not create_result.success:
             return GenerationResult(
@@ -207,10 +217,10 @@ class VeoAdapter(BaseAdapter, KieBaseAdapter):
 
         if not wait_for_result:
             return GenerationResult(
-                success=True,
-                error_code="ASYNC_TASK",
-                error_message="Task submitted",
-                provider_cost=self.calculate_cost(model=model),
+                success=False,
+                error_code="PROCESSING",
+                error_message=create_result.task_id,
+                provider_cost=self.calculate_cost(model=normalized_model),
                 raw_response=create_result.raw_response,
             )
 
@@ -227,7 +237,7 @@ class VeoAdapter(BaseAdapter, KieBaseAdapter):
         return GenerationResult(
             success=True,
             content=result.result_url,
-            provider_cost=self.calculate_cost(model=model),
+            provider_cost=self.calculate_cost(model=normalized_model),
             raw_response=result.raw_response,
         )
 
@@ -236,7 +246,7 @@ class VeoAdapter(BaseAdapter, KieBaseAdapter):
         start = time.time()
         try:
             result = await self.create_veo_task(
-                "veo3_fast",
+                "veo3.1_fast",
                 {"prompt": "test", "aspect_ratio": "16:9"},
             )
             latency = int((time.time() - start) * 1000)
@@ -248,14 +258,14 @@ class VeoAdapter(BaseAdapter, KieBaseAdapter):
 
     def calculate_cost(self, model: Optional[str] = None, **params) -> float:
         model = model or self.default_model
-        model = self._normalize_model(model)
-        pricing = self.PRICING.get(model, self.PRICING["veo3_fast"])
-        return pricing.get("per_video", 0.50)
+        pricing = self.PRICING.get(model, self.PRICING["veo3.1_fast"])
+        return pricing.get("per_video", 0.30)
 
     def get_capabilities(self) -> dict:
         return {
             "models": list(self.PRICING.keys()),
-            "aspect_ratios": ["16:9", "9:16", "1:1"],
+            "aspect_ratios": ["16:9", "9:16", "auto"],
             "supports_text_to_video": True,
             "supports_image_to_video": True,
+            "supports_audio": True,
         }
