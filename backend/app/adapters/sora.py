@@ -38,9 +38,15 @@ class SoraAdapter(BaseAdapter, KieBaseAdapter):
         n_frames = "10s" if duration <= 10 else "15s"
         size = "high" if mode == "pro" else "standard"
 
+        sora_aspect = aspect_ratio
+        if aspect_ratio in ("16:9", "16:10", "4:3"):
+            sora_aspect = "landscape"
+        elif aspect_ratio in ("9:16", "10:16", "3:4"):
+            sora_aspect = "portrait"
+
         input_data = {
             "prompt": prompt,
-            "aspect_ratio": aspect_ratio,
+            "aspect_ratio": sora_aspect,
             "n_frames": n_frames,
             "size": size,
         }
