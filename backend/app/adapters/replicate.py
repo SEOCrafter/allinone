@@ -36,7 +36,7 @@ class ReplicateAdapter(BaseAdapter):
 
     MODELS = {
         "google/nano-banana-pro": {"type": "image", "price_type": "per_image", "price": 0.05},
-        "google/nano-banana": {"type": "image", "price_type": "per_image", "price": 0.04},
+        "google/nano-banana": {"type": "image", "price_type": "per_image", "price": 0.039},
         "kwaivgi/kling-v2.6": {"type": "video", "price_type": "per_second", "price": 0.07},
         "kwaivgi/kling-v2.6-motion-control": {"type": "video", "price_type": "per_second", "price": 0.07},
         "google/veo-3": {"type": "video", "price_type": "per_second", "price": 0.75},
@@ -346,6 +346,12 @@ class ReplicateAdapter(BaseAdapter):
 
         elif "imagen" in model.lower():
             input_data["aspect_ratio"] = aspect_ratio
+
+        elif "nano-banana" in model.lower():
+            if image_urls:
+                input_data["image_input"] = image_urls
+            input_data["aspect_ratio"] = aspect_ratio
+            input_data["output_format"] = params.get("output_format", "jpg")
 
         elif "kling" in model.lower():
             input_data["duration"] = duration
