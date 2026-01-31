@@ -358,8 +358,15 @@ class ReplicateAdapter(BaseAdapter):
         elif "veo" in model.lower():
             input_data["duration"] = duration
             input_data["aspect_ratio"] = aspect_ratio
+            input_data["resolution"] = params.get("resolution", "1080p")
+            generate_audio = params.get("generate_audio", True)
+            input_data["generate_audio"] = generate_audio
             if image_urls:
                 input_data["image"] = image_urls[0]
+                if len(image_urls) >= 2:
+                    input_data["last_frame"] = image_urls[1]
+                if len(image_urls) >= 3:
+                    input_data["reference_images"] = image_urls[2:5]
 
         elif "hailuo" in model.lower() or "minimax/video" in model.lower():
             input_data["duration"] = duration
