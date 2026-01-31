@@ -40,7 +40,7 @@ class GenerateRequest(BaseModel):
     width: int = 1024
     height: int = 1024
     aspect_ratio: str = "1:1"
-    resolution: str = "1K"
+    resolution: Optional[str] = None
     steps: Optional[int] = None
     guidance: Optional[float] = None
     cfg: Optional[float] = None
@@ -79,10 +79,12 @@ class GenerateRequest(BaseModel):
 
     @field_validator("resolution")
     @classmethod
-    def validate_resolution(cls, v: str) -> str:
-        allowed = {"1K", "2K", "4K", "512", "768", "1024", "1080p", "720p"}
+    def validate_resolution(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        allowed = {"1K", "2K", "4K", "512", "768", "1024", "1080p", "720p", "0.5 MP", "1 MP", "2 MP", "4 MP", "match_input_image"}
         if v not in allowed:
-            return "1K"
+            return None
         return v
 
     @field_validator("output_format")
@@ -129,7 +131,7 @@ class NanoBananaRequest(BaseModel):
     prompt: str
     model: str = "nano-banana-pro"
     aspect_ratio: str = "1:1"
-    resolution: str = "1K"
+    resolution: Optional[str] = None
     output_format: str = "png"
     image_input: Optional[List[str]] = None
 
