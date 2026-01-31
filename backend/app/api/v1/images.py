@@ -32,9 +32,13 @@ class GenerateRequest(BaseModel):
     resolution: str = "1K"
     steps: Optional[int] = None
     guidance: Optional[float] = None
+    cfg: Optional[float] = None
     style: Optional[str] = None
     output_format: str = "png"
     image_input: Optional[List[str]] = None
+    seed: Optional[int] = None
+    prompt_strength: Optional[float] = None
+    num_outputs: int = 1
     wait_for_result: bool = False
 
 
@@ -132,6 +136,38 @@ def calculate_image_cost(
     return price_usd if price_usd > 0 else 0.05
 
 
+def build_generate_params(data: GenerateRequest, actual_model: str, wait: bool = None) -> dict:
+    params = {
+        "model": actual_model,
+        "aspect_ratio": data.aspect_ratio,
+        "resolution": data.resolution,
+        "output_format": data.output_format,
+        "width": data.width,
+        "height": data.height,
+        "wait_for_result": wait if wait is not None else data.wait_for_result,
+    }
+    if data.negative_prompt:
+        params["negative_prompt"] = data.negative_prompt
+    if data.steps is not None:
+        params["steps"] = data.steps
+    if data.guidance is not None:
+        params["guidance"] = data.guidance
+    if data.cfg is not None:
+        params["cfg"] = data.cfg
+    if data.style:
+        params["style"] = data.style
+    if data.image_input:
+        params["image_input"] = data.image_input
+        params["image_urls"] = data.image_input
+    if data.seed is not None:
+        params["seed"] = data.seed
+    if data.prompt_strength is not None:
+        params["prompt_strength"] = data.prompt_strength
+    if data.num_outputs > 1:
+        params["num_outputs"] = data.num_outputs
+    return params
+
+
 @router.post("/generate", response_model=GenerateResponse)
 async def generate_image(
     data: GenerateRequest,
@@ -191,27 +227,7 @@ async def generate_image(
     await log_created(db, request_id, provider, normalized_model)
 
     try:
-        params = {
-            "model": actual_model,
-            "aspect_ratio": data.aspect_ratio,
-            "resolution": data.resolution,
-            "output_format": data.output_format,
-            "width": data.width,
-            "height": data.height,
-            "wait_for_result": data.wait_for_result,
-        }
-        if data.negative_prompt:
-            params["negative_prompt"] = data.negative_prompt
-        if data.steps:
-            params["steps"] = data.steps
-        if data.guidance:
-            params["guidance"] = data.guidance
-        if data.style:
-            params["style"] = data.style
-        if data.image_input:
-            params["image_input"] = data.image_input
-            params["image_urls"] = data.image_input
-
+        params = build_generate_params(data, actual_model)
         result = await adapter.generate(data.prompt, **params)
 
         external_task_id = extract_task_id(result.raw_response, provider)
@@ -221,7 +237,7 @@ async def generate_image(
 
         if result.success:
             provider_cost = result.provider_cost if result.provider_cost > 0 else calculate_image_cost(
-                price_usd, price_type, price_variants, data.resolution
+                price_usd, price_type, price_variants, data.resolution, data.num_outputs
             )
             credits_spent = provider_cost * 1000
 
@@ -246,7 +262,6 @@ async def generate_image(
             request_record.completed_at = datetime.utcnow()
 
             await log_completed(db, request_id, image_url, image_urls, result.raw_response)
-
             await db.commit()
 
             return GenerateResponse(
@@ -283,7 +298,6 @@ async def generate_image(
             request_record.completed_at = datetime.utcnow()
 
             await log_failed(db, request_id, result.error_code or "UNKNOWN", result.error_message or "Unknown error", result.raw_response)
-
             await db.commit()
 
             return GenerateResponse(
@@ -301,7 +315,6 @@ async def generate_image(
         request_record.completed_at = datetime.utcnow()
 
         await log_failed(db, request_id, "EXCEPTION", str(e))
-
         await db.commit()
 
         return GenerateResponse(
@@ -347,7 +360,7 @@ async def generate_image_async(
     request_id = str(uuid.uuid4())
     normalized_model = normalize_model_name(data.model)
 
-    estimated_cost = calculate_image_cost(price_usd, price_type, price_variants, data.resolution)
+    estimated_cost = calculate_image_cost(price_usd, price_type, price_variants, data.resolution, data.num_outputs)
     estimated_credits = estimated_cost * 1000
 
     request_params = {
@@ -377,21 +390,7 @@ async def generate_image_async(
     await log_created(db, request_id, provider, normalized_model)
 
     try:
-        params = {
-            "model": actual_model,
-            "aspect_ratio": data.aspect_ratio,
-            "resolution": data.resolution,
-            "output_format": data.output_format,
-            "width": data.width,
-            "height": data.height,
-            "wait_for_result": False,
-        }
-        if data.negative_prompt:
-            params["negative_prompt"] = data.negative_prompt
-        if data.image_input:
-            params["image_input"] = data.image_input
-            params["image_urls"] = data.image_input
-
+        params = build_generate_params(data, actual_model, wait=False)
         result = await adapter.generate(data.prompt, **params)
 
         external_task_id = extract_task_id(result.raw_response, provider)

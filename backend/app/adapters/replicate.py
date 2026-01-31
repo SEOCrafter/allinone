@@ -340,12 +340,42 @@ class ReplicateAdapter(BaseAdapter):
             input_data["aspect_ratio"] = aspect_ratio
             if params.get("num_outputs"):
                 input_data["num_outputs"] = params["num_outputs"]
+            if params.get("output_format"):
+                input_data["output_format"] = params["output_format"]
+            if params.get("seed") is not None:
+                input_data["seed"] = params["seed"]
+            if params.get("guidance") is not None:
+                input_data["guidance"] = params["guidance"]
+            if image_urls:
+                input_data["image"] = image_urls[0]
+                if params.get("prompt_strength") is not None:
+                    input_data["prompt_strength"] = params["prompt_strength"]
 
         elif "stable-diffusion" in model.lower():
             input_data["aspect_ratio"] = aspect_ratio
+            if params.get("output_format"):
+                input_data["output_format"] = params["output_format"]
+            if params.get("cfg") is not None:
+                input_data["cfg"] = params["cfg"]
+            if params.get("seed") is not None:
+                input_data["seed"] = params["seed"]
+            if params.get("negative_prompt"):
+                input_data["negative_prompt"] = params["negative_prompt"]
+            if image_urls:
+                input_data["image"] = image_urls[0]
+                if params.get("prompt_strength") is not None:
+                    input_data["prompt_strength"] = params["prompt_strength"]
 
         elif "imagen" in model.lower():
             input_data["aspect_ratio"] = aspect_ratio
+            if params.get("output_format"):
+                input_data["output_format"] = params["output_format"]
+            if params.get("seed") is not None:
+                input_data["seed"] = params["seed"]
+            if params.get("negative_prompt"):
+                input_data["negative_prompt"] = params["negative_prompt"]
+            if params.get("safety_filter_level"):
+                input_data["safety_filter_level"] = params["safety_filter_level"]
 
         elif "nano-banana" in model.lower():
             if image_urls:
@@ -356,6 +386,12 @@ class ReplicateAdapter(BaseAdapter):
         elif "kling" in model.lower():
             input_data["duration"] = duration
             input_data["aspect_ratio"] = aspect_ratio
+            if params.get("seed") is not None:
+                input_data["seed"] = params["seed"]
+            if params.get("cfg_scale") is not None:
+                input_data["cfg_scale"] = params["cfg_scale"]
+            if params.get("negative_prompt"):
+                input_data["negative_prompt"] = params["negative_prompt"]
             if image_urls:
                 input_data["image"] = image_urls[0]
             if "motion-control" in model.lower() and video_urls:
@@ -368,8 +404,12 @@ class ReplicateAdapter(BaseAdapter):
             if veo_resolution not in ("720p", "1080p"):
                 veo_resolution = "1080p"
             input_data["resolution"] = veo_resolution
-            generate_audio = params.get("generate_audio", True)
+            generate_audio = params.get("generate_audio", params.get("sound", True))
             input_data["generate_audio"] = generate_audio
+            if params.get("seed") is not None:
+                input_data["seed"] = params["seed"]
+            if params.get("negative_prompt"):
+                input_data["negative_prompt"] = params["negative_prompt"]
             if image_urls:
                 input_data["image"] = image_urls[0]
                 if len(image_urls) >= 2:
@@ -383,6 +423,8 @@ class ReplicateAdapter(BaseAdapter):
                 input_data["resolution"] = params.get("resolution", "512p").upper()
             else:
                 input_data["resolution"] = params.get("resolution", "768p").lower()
+            if params.get("seed") is not None:
+                input_data["seed"] = params["seed"]
             if image_urls:
                 input_data["first_frame_image"] = image_urls[0]
 
@@ -396,6 +438,8 @@ class ReplicateAdapter(BaseAdapter):
                 sora_mode = params.get("mode", "std")
                 sora_resolution = "high" if sora_mode == "pro" else "standard"
                 input_data["resolution"] = sora_resolution
+            if params.get("seed") is not None:
+                input_data["seed"] = params["seed"]
             if image_urls:
                 input_data["input_reference"] = image_urls[0]
 
@@ -403,6 +447,10 @@ class ReplicateAdapter(BaseAdapter):
             input_data["duration"] = duration
             input_data["resolution"] = params.get("resolution", "720p")
             input_data["aspect_ratio"] = aspect_ratio
+            if params.get("seed") is not None:
+                input_data["seed"] = params["seed"]
+            if params.get("negative_prompt"):
+                input_data["negative_prompt"] = params["negative_prompt"]
             if image_urls:
                 input_data["image"] = image_urls[0]
                 if len(image_urls) >= 2:
@@ -418,30 +466,51 @@ class ReplicateAdapter(BaseAdapter):
 
         elif "luma" in model.lower():
             if "photon" in model.lower():
-                pass
+                input_data["aspect_ratio"] = aspect_ratio
+                if params.get("output_format"):
+                    input_data["output_format"] = params["output_format"]
+                if params.get("seed") is not None:
+                    input_data["seed"] = params["seed"]
             else:
                 input_data["duration"] = duration
                 input_data["aspect_ratio"] = aspect_ratio
+                if params.get("seed") is not None:
+                    input_data["seed"] = params["seed"]
                 if image_urls:
                     input_data["start_image"] = image_urls[0]
 
         elif "runway" in model.lower():
-            if "aleph" in model.lower():
+            if "gen4-image" in model.lower():
                 input_data["aspect_ratio"] = aspect_ratio
-                if video_urls:
-                    input_data["video"] = video_urls[0]
-                if image_urls:
-                    input_data["reference_image"] = image_urls[0]
-            else:
+                if params.get("output_format"):
+                    input_data["output_format"] = params["output_format"]
+                if params.get("seed") is not None:
+                    input_data["seed"] = params["seed"]
                 if image_urls:
                     input_data["image"] = image_urls[0]
+            else:
+                input_data["duration"] = duration
+                input_data["aspect_ratio"] = aspect_ratio
+                if params.get("seed") is not None:
+                    input_data["seed"] = params["seed"]
+                if image_urls:
+                    input_data["image"] = image_urls[0]
+
+        elif "minimax/image" in model.lower():
+            input_data["aspect_ratio"] = aspect_ratio
+            if params.get("output_format"):
+                input_data["output_format"] = params["output_format"]
 
         elif "speech" in model.lower():
             input_data["text"] = prompt
             input_data.pop("prompt", None)
+            if params.get("voice_id"):
+                input_data["voice_id"] = params["voice_id"]
+            if params.get("speed") is not None:
+                input_data["speed"] = params["speed"]
 
         for key, value in params.items():
-            if key not in input_data and value is not None and key not in ("wait_for_result",):
+            if key not in input_data and value is not None and key not in ("wait_for_result", "model", "width", "height"):
                 input_data[key] = value
 
         return input_data
