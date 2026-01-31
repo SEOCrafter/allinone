@@ -62,7 +62,7 @@ class ReplicateAdapter(BaseAdapter):
         "omniedgeio/face-swap": {"type": "image", "price_type": "per_image", "price": 0.01},
         "minimax/speech-02-turbo": {"type": "audio", "price_type": "per_request", "price": 0.02},
         "minimax/speech-02-hd": {"type": "audio", "price_type": "per_request", "price": 0.04},
-        "minimax/image-01": {"type": "image", "price_type": "per_image", "price": 0.04},
+        "minimax/image-01": {"type": "image", "price_type": "per_image", "price": 0.01},
         "minimax/video-01": {"type": "video", "price_type": "per_request", "price": 0.30},
         "runwayml/gen4-image": {"type": "image", "price_type": "per_image", "price": 0.05},
         "runwayml/gen4-image-turbo": {"type": "image", "price_type": "per_image", "price": 0.03},
@@ -511,8 +511,12 @@ class ReplicateAdapter(BaseAdapter):
 
         elif "minimax/image" in model.lower():
             input_data["aspect_ratio"] = aspect_ratio
-            if params.get("output_format"):
-                input_data["output_format"] = params["output_format"]
+            if params.get("number_of_images") and params["number_of_images"] > 1:
+                input_data["number_of_images"] = min(params["number_of_images"], 9)
+            if params.get("prompt_optimizer") is not None:
+                input_data["prompt_optimizer"] = params["prompt_optimizer"]
+            if image_urls:
+                input_data["subject_reference"] = image_urls[0]
 
         elif "speech" in model.lower():
             input_data["text"] = prompt
