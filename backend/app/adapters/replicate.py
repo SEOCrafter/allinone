@@ -376,6 +376,8 @@ class ReplicateAdapter(BaseAdapter):
 
         elif "seedance" in model.lower():
             input_data["duration"] = duration
+            input_data["resolution"] = params.get("resolution", "720p")
+            input_data["aspect_ratio"] = aspect_ratio
             if image_urls:
                 input_data["image"] = image_urls[0]
 
