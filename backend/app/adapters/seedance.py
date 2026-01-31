@@ -25,9 +25,10 @@ class SeedanceAdapter(BaseAdapter, KieBaseAdapter):
         self,
         prompt: str,
         model: Optional[str] = None,
-        image_url: Optional[str] = None,
+        image_urls: Optional[List[str]] = None,
         aspect_ratio: str = "16:9",
-        duration: str = "4",
+        duration: int = 4,
+        wait_for_result: bool = True,
         **params
     ) -> GenerationResult:
         model = model or self.default_model
@@ -37,26 +38,44 @@ class SeedanceAdapter(BaseAdapter, KieBaseAdapter):
             "aspect_ratio": aspect_ratio,
             "duration": str(duration),
         }
-        
-        if image_url:
-            input_data["image_url"] = image_url
 
-        result = await self.generate_and_wait(model, input_data)
+        if image_urls:
+            input_data["image_url"] = image_urls[0]
 
-        if not result.success:
+        if wait_for_result:
+            result = await self.generate_and_wait(model, input_data)
+
+            if not result.success:
+                return GenerationResult(
+                    success=False,
+                    error_code=result.error_code,
+                    error_message=result.error_message,
+                    raw_response=result.raw_response,
+                )
+
             return GenerationResult(
-                success=False,
-                error_code=result.error_code,
-                error_message=result.error_message,
+                success=True,
+                content=result.result_url,
+                provider_cost=self.calculate_cost(model=model),
                 raw_response=result.raw_response,
             )
+        else:
+            result = await self.create_task(model, input_data)
 
-        return GenerationResult(
-            success=True,
-            content=result.result_url,
-            provider_cost=self.calculate_cost(model=model),
-            raw_response=result.raw_response,
-        )
+            if not result.success:
+                return GenerationResult(
+                    success=False,
+                    error_code=result.error_code,
+                    error_message=result.error_message,
+                    raw_response=result.raw_response,
+                )
+
+            return GenerationResult(
+                success=False,
+                error_code="PROCESSING",
+                error_message="Task created, polling required",
+                raw_response=result.raw_response,
+            )
 
     async def health_check(self) -> ProviderHealth:
         import time
@@ -82,7 +101,7 @@ class SeedanceAdapter(BaseAdapter, KieBaseAdapter):
         return {
             "models": list(self.PRICING.keys()),
             "aspect_ratios": ["16:9", "9:16", "1:1"],
-            "durations": ["4", "8"],
+            "durations": ["4", "8", "12"],
             "supports_text_to_video": True,
             "supports_image_to_video": True,
         }
