@@ -34,6 +34,8 @@ MODEL_NAME_ALIASES = {
     "flux-2/flex-image-to-image": "flux-2-flex",
     "flux-kontext/pro-text-to-image": "flux-kontext-pro",
     "flux-kontext/pro-image-to-image": "flux-kontext-pro",
+    "google/nano-banana": "nano-banana",
+    "google/nano-banana-edit": "nano-banana-edit",
 }
 
 MODEL_TO_KIE_MODEL = {
@@ -46,6 +48,10 @@ MODEL_TO_KIE_MODEL = {
     "seedance-pro": "bytedance/seedance-1.5-pro",
     "sora-2": "sora-2-pro-text-to-video",
     "sora-2-pro": "sora-2-pro-text-to-video",
+    "nano-banana-pro": "nano-banana-pro",
+    "nano-banana": "google/nano-banana",
+    "nano-banana-edit": "google/nano-banana-edit",
+    "midjourney": "midjourney",
 }
 
 
@@ -115,6 +121,8 @@ async def get_adapter_for_model(
             actual_model = provider_price.replicate_model_id
         elif provider == "kie" and normalized in MODEL_TO_KIE_MODEL:
             actual_model = MODEL_TO_KIE_MODEL[normalized]
+        elif provider == "kie" and model_name in MODEL_TO_KIE_MODEL:
+            actual_model = MODEL_TO_KIE_MODEL[model_name]
         else:
             actual_model = model_name
         price_usd = float(provider_price.price_usd)
@@ -124,6 +132,8 @@ async def get_adapter_for_model(
         provider = fallback_provider
         if normalized in MODEL_TO_KIE_MODEL:
             actual_model = MODEL_TO_KIE_MODEL[normalized]
+        elif model_name in MODEL_TO_KIE_MODEL:
+            actual_model = MODEL_TO_KIE_MODEL[model_name]
         else:
             actual_model = model_name
         price_usd = 0.0

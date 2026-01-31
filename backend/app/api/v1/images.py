@@ -15,6 +15,7 @@ from app.models.provider import Provider
 from app.models.provider_balance import ProviderBalance
 from app.services.provider_routing import get_adapter_for_model, normalize_model_name
 from app.services.task_events import log_created, log_sent_to_provider, log_completed, log_failed
+from app.workers.polling import poll_task
 from app.adapters import AdapterRegistry
 from app.config import settings
 
@@ -32,6 +33,9 @@ class GenerateRequest(BaseModel):
     steps: Optional[int] = None
     guidance: Optional[float] = None
     style: Optional[str] = None
+    output_format: str = "png"
+    image_input: Optional[List[str]] = None
+    wait_for_result: bool = True
 
 
 class GenerateResponse(BaseModel):
@@ -42,6 +46,7 @@ class GenerateResponse(BaseModel):
     request_id: Optional[str] = None
     credits_spent: Optional[float] = None
     provider_used: Optional[str] = None
+    status: Optional[str] = None
     error: Optional[str] = None
 
 
@@ -81,8 +86,50 @@ def extract_task_id(raw_response: dict, provider: str) -> Optional[str]:
     if provider == "replicate":
         return raw_response.get("id")
     elif provider == "kie":
-        return raw_response.get("data", {}).get("taskId")
+        resp = raw_response.get("response", raw_response)
+        return resp.get("data", {}).get("taskId")
     return None
+
+
+def get_image_adapter_type(model: str) -> str:
+    model_lower = model.lower()
+    if "nano-banana" in model_lower:
+        return "nano_banana"
+    elif "midjourney" in model_lower:
+        return "midjourney"
+    elif "flux" in model_lower:
+        return "flux"
+    elif "imagen" in model_lower:
+        return "imagen"
+    elif "sd-" in model_lower or "stable-diffusion" in model_lower:
+        return "stable_diffusion"
+    elif "face-swap" in model_lower:
+        return "face_swap"
+    elif "runway" in model_lower:
+        return "runway"
+    elif "luma" in model_lower:
+        return "luma"
+    elif "minimax" in model_lower:
+        return "minimax"
+    return "default"
+
+
+def calculate_image_cost(
+    price_usd: float,
+    price_type: str,
+    price_variants: Optional[dict],
+    resolution: str = "1K",
+    num_images: int = 1,
+) -> float:
+    if price_variants:
+        variant = price_variants.get(resolution)
+        if variant and "price_usd" in variant:
+            return float(variant["price_usd"]) * num_images
+    
+    if price_type in ("per_image", "per_request", "per_generation"):
+        return price_usd * num_images
+    
+    return price_usd if price_usd > 0 else 0.05
 
 
 @router.post("/generate", response_model=GenerateResponse)
@@ -92,7 +139,7 @@ async def generate_image(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        adapter, actual_model, provider, price_usd = await get_adapter_for_model(
+        adapter, actual_model, provider, price_usd, price_type, price_variants = await get_adapter_for_model(
             db=db,
             model_name=data.model,
             fallback_provider="kie",
@@ -119,6 +166,12 @@ async def generate_image(
     request_id = str(uuid.uuid4())
     normalized_model = normalize_model_name(data.model)
 
+    request_params = {
+        "aspect_ratio": data.aspect_ratio,
+        "resolution": data.resolution,
+        "output_format": data.output_format,
+    }
+
     request_record = Request(
         id=request_id,
         user_id=user.id,
@@ -127,6 +180,7 @@ async def generate_image(
         endpoint="/api/v1/images/generate",
         model=normalized_model,
         prompt=data.prompt,
+        params=request_params,
         status="processing",
         external_provider=provider,
         started_at=datetime.utcnow(),
@@ -141,8 +195,10 @@ async def generate_image(
             "model": actual_model,
             "aspect_ratio": data.aspect_ratio,
             "resolution": data.resolution,
+            "output_format": data.output_format,
             "width": data.width,
             "height": data.height,
+            "wait_for_result": data.wait_for_result,
         }
         if data.negative_prompt:
             params["negative_prompt"] = data.negative_prompt
@@ -152,11 +208,11 @@ async def generate_image(
             params["guidance"] = data.guidance
         if data.style:
             params["style"] = data.style
+        if data.image_input:
+            params["image_input"] = data.image_input
+            params["image_urls"] = data.image_input
 
-        if hasattr(adapter, 'generate_image'):
-            result = await adapter.generate_image(data.prompt, **params)
-        else:
-            result = await adapter.generate(data.prompt, **params)
+        result = await adapter.generate(data.prompt, **params)
 
         external_task_id = extract_task_id(result.raw_response, provider)
         if external_task_id:
@@ -164,7 +220,9 @@ async def generate_image(
             await log_sent_to_provider(db, request_id, external_task_id, provider, result.raw_response)
 
         if result.success:
-            provider_cost = result.provider_cost if result.provider_cost > 0 else price_usd
+            provider_cost = result.provider_cost if result.provider_cost > 0 else calculate_image_cost(
+                price_usd, price_type, price_variants, data.resolution
+            )
             credits_spent = provider_cost * 1000
 
             balance_result = await db.execute(
@@ -199,8 +257,26 @@ async def generate_image(
                 request_id=request_id,
                 credits_spent=credits_spent,
                 provider_used=provider,
+                status="completed",
             )
         else:
+            if external_task_id and not data.wait_for_result:
+                request_record.status = "processing"
+                await db.commit()
+                
+                poll_task.send_with_options(
+                    args=(request_id, external_task_id, provider, 1, 120, get_image_adapter_type(normalized_model)),
+                    delay=5000,
+                )
+                
+                return GenerateResponse(
+                    ok=True,
+                    task_id=external_task_id,
+                    request_id=request_id,
+                    provider_used=provider,
+                    status="processing",
+                )
+            
             request_record.status = "failed"
             request_record.error_code = result.error_code
             request_record.error_message = result.error_message
@@ -216,6 +292,7 @@ async def generate_image(
                 request_id=request_id,
                 error=result.error_message,
                 provider_used=provider,
+                status="failed",
             )
 
     except Exception as e:
@@ -232,6 +309,153 @@ async def generate_image(
             request_id=request_id,
             error=str(e),
             provider_used=provider,
+            status="failed",
+        )
+
+
+@router.post("/generate-async", response_model=GenerateResponse)
+async def generate_image_async(
+    data: GenerateRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        adapter, actual_model, provider, price_usd, price_type, price_variants = await get_adapter_for_model(
+            db=db,
+            model_name=data.model,
+            fallback_provider="kie",
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    provider_result = await db.execute(
+        select(Provider).where(Provider.name == provider)
+    )
+    provider_record = provider_result.scalar_one_or_none()
+
+    if not provider_record:
+        provider_record = Provider(
+            id=str(uuid.uuid4()),
+            name=provider,
+            display_name=provider.upper(),
+            type="image",
+            is_active=True,
+        )
+        db.add(provider_record)
+        await db.flush()
+
+    request_id = str(uuid.uuid4())
+    normalized_model = normalize_model_name(data.model)
+
+    estimated_cost = calculate_image_cost(price_usd, price_type, price_variants, data.resolution)
+    estimated_credits = estimated_cost * 1000
+
+    request_params = {
+        "aspect_ratio": data.aspect_ratio,
+        "resolution": data.resolution,
+        "output_format": data.output_format,
+    }
+
+    request_record = Request(
+        id=request_id,
+        user_id=user.id,
+        provider_id=provider_record.id,
+        type="image",
+        endpoint="/api/v1/images/generate-async",
+        model=normalized_model,
+        prompt=data.prompt,
+        params=request_params,
+        status="processing",
+        external_provider=provider,
+        credits_spent=Decimal(str(estimated_credits)),
+        provider_cost=Decimal(str(estimated_cost)),
+        started_at=datetime.utcnow(),
+    )
+    db.add(request_record)
+    await db.flush()
+
+    await log_created(db, request_id, provider, normalized_model)
+
+    try:
+        params = {
+            "model": actual_model,
+            "aspect_ratio": data.aspect_ratio,
+            "resolution": data.resolution,
+            "output_format": data.output_format,
+            "width": data.width,
+            "height": data.height,
+            "wait_for_result": False,
+        }
+        if data.negative_prompt:
+            params["negative_prompt"] = data.negative_prompt
+        if data.image_input:
+            params["image_input"] = data.image_input
+            params["image_urls"] = data.image_input
+
+        result = await adapter.generate(data.prompt, **params)
+
+        external_task_id = extract_task_id(result.raw_response, provider)
+
+        if external_task_id:
+            request_record.external_task_id = external_task_id
+            await log_sent_to_provider(db, request_id, external_task_id, provider, result.raw_response)
+
+            balance_result = await db.execute(
+                select(ProviderBalance).where(ProviderBalance.provider == provider)
+            )
+            provider_balance = balance_result.scalar_one_or_none()
+            if provider_balance:
+                provider_balance.balance_usd = provider_balance.balance_usd - Decimal(str(estimated_cost))
+                provider_balance.total_spent_usd = provider_balance.total_spent_usd + Decimal(str(estimated_cost))
+
+            user.credits_balance = user.credits_balance - Decimal(str(estimated_credits))
+
+            await db.commit()
+
+            poll_task.send_with_options(
+                args=(request_id, external_task_id, provider, 1, 60, get_image_adapter_type(normalized_model)),
+                delay=3000,
+            )
+
+            return GenerateResponse(
+                ok=True,
+                task_id=external_task_id,
+                request_id=request_id,
+                credits_spent=estimated_credits,
+                provider_used=provider,
+                status="processing",
+            )
+        else:
+            request_record.status = "failed"
+            request_record.error_code = result.error_code or "NO_TASK_ID"
+            request_record.error_message = result.error_message or "Provider did not return task ID"
+            request_record.completed_at = datetime.utcnow()
+
+            await log_failed(db, request_id, "NO_TASK_ID", result.error_message or "Provider did not return task ID", result.raw_response)
+            await db.commit()
+
+            return GenerateResponse(
+                ok=False,
+                request_id=request_id,
+                error=result.error_message or "Provider did not return task ID",
+                provider_used=provider,
+                status="failed",
+            )
+
+    except Exception as e:
+        request_record.status = "failed"
+        request_record.error_message = str(e)
+        request_record.completed_at = datetime.utcnow()
+
+        await log_failed(db, request_id, "EXCEPTION", str(e))
+        await db.commit()
+
+        return GenerateResponse(
+            ok=False,
+            request_id=request_id,
+            error=str(e),
+            provider_used=provider,
+            status="failed",
         )
 
 
@@ -242,7 +466,7 @@ async def generate_nano_banana(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        adapter, actual_model, provider, price_usd = await get_adapter_for_model(
+        adapter, actual_model, provider, price_usd, price_type, price_variants = await get_adapter_for_model(
             db=db,
             model_name=data.model,
             fallback_provider="kie",
@@ -267,6 +491,10 @@ async def generate_nano_banana(
         await db.flush()
 
     request_id = str(uuid.uuid4())
+    normalized_model = normalize_model_name(data.model)
+
+    estimated_cost = calculate_image_cost(price_usd, price_type, price_variants, data.resolution)
+    estimated_credits = estimated_cost * 1000
 
     request_record = Request(
         id=request_id,
@@ -274,16 +502,18 @@ async def generate_nano_banana(
         provider_id=provider_record.id,
         type="image",
         endpoint="/api/v1/images/nano-banana",
-        model=data.model,
+        model=normalized_model,
         prompt=data.prompt,
         status="processing",
         external_provider=provider,
+        credits_spent=Decimal(str(estimated_credits)),
+        provider_cost=Decimal(str(estimated_cost)),
         started_at=datetime.utcnow(),
     )
     db.add(request_record)
     await db.flush()
 
-    await log_created(db, request_id, provider, data.model)
+    await log_created(db, request_id, provider, normalized_model)
 
     try:
         params = {
@@ -291,6 +521,7 @@ async def generate_nano_banana(
             "aspect_ratio": data.aspect_ratio,
             "resolution": data.resolution,
             "output_format": data.output_format,
+            "wait_for_result": False,
         }
         if data.image_input:
             params["image_input"] = data.image_input
@@ -299,59 +530,51 @@ async def generate_nano_banana(
         result = await adapter.generate(data.prompt, **params)
 
         external_task_id = extract_task_id(result.raw_response, provider)
+        
         if external_task_id:
             request_record.external_task_id = external_task_id
             await log_sent_to_provider(db, request_id, external_task_id, provider, result.raw_response)
-
-        if result.success:
-            provider_cost = result.provider_cost if result.provider_cost > 0 else price_usd
-            credits_spent = provider_cost * 1000
 
             balance_result = await db.execute(
                 select(ProviderBalance).where(ProviderBalance.provider == provider)
             )
             provider_balance = balance_result.scalar_one_or_none()
             if provider_balance:
-                provider_balance.balance_usd = provider_balance.balance_usd - Decimal(str(provider_cost))
-                provider_balance.total_spent_usd = provider_balance.total_spent_usd + Decimal(str(provider_cost))
+                provider_balance.balance_usd = provider_balance.balance_usd - Decimal(str(estimated_cost))
+                provider_balance.total_spent_usd = provider_balance.total_spent_usd + Decimal(str(estimated_cost))
 
-            user.credits_balance = user.credits_balance - Decimal(str(credits_spent))
-
-            request_record.status = "completed"
-            request_record.credits_spent = Decimal(str(credits_spent))
-            request_record.provider_cost = Decimal(str(provider_cost))
-            request_record.result_url = result.content
-            request_record.result_urls = result.result_urls
-            request_record.completed_at = datetime.utcnow()
-
-            await log_completed(db, request_id, result.content, result.result_urls, result.raw_response)
+            user.credits_balance = user.credits_balance - Decimal(str(estimated_credits))
 
             await db.commit()
 
+            poll_task.send_with_options(
+                args=(request_id, external_task_id, provider, 1, 60, "nano_banana"),
+                delay=3000,
+            )
+
             return GenerateResponse(
                 ok=True,
-                image_url=result.content,
                 task_id=external_task_id,
                 request_id=request_id,
-                credits_spent=credits_spent,
+                credits_spent=estimated_credits,
                 provider_used=provider,
+                status="processing",
             )
         else:
             request_record.status = "failed"
-            request_record.error_code = result.error_code
-            request_record.error_message = result.error_message
+            request_record.error_code = result.error_code or "NO_TASK_ID"
+            request_record.error_message = result.error_message or "Provider did not return task ID"
             request_record.completed_at = datetime.utcnow()
 
-            await log_failed(db, request_id, result.error_code or "UNKNOWN", result.error_message or "Unknown error", result.raw_response)
-
+            await log_failed(db, request_id, "NO_TASK_ID", result.error_message or "Provider did not return task ID", result.raw_response)
             await db.commit()
 
             return GenerateResponse(
                 ok=False,
-                task_id=external_task_id,
                 request_id=request_id,
-                error=result.error_message,
+                error=result.error_message or "Provider did not return task ID",
                 provider_used=provider,
+                status="failed",
             )
 
     except Exception as e:
@@ -360,7 +583,6 @@ async def generate_nano_banana(
         request_record.completed_at = datetime.utcnow()
 
         await log_failed(db, request_id, "EXCEPTION", str(e))
-
         await db.commit()
 
         return GenerateResponse(
@@ -368,6 +590,7 @@ async def generate_nano_banana(
             request_id=request_id,
             error=str(e),
             provider_used=provider,
+            status="failed",
         )
 
 
@@ -378,7 +601,7 @@ async def generate_midjourney(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        adapter, actual_model, provider, price_usd = await get_adapter_for_model(
+        adapter, actual_model, provider, price_usd, price_type, price_variants = await get_adapter_for_model(
             db=db,
             model_name="midjourney",
             fallback_provider="kie",
@@ -404,6 +627,9 @@ async def generate_midjourney(
 
     request_id = str(uuid.uuid4())
 
+    estimated_cost = calculate_image_cost(price_usd, price_type, price_variants)
+    estimated_credits = estimated_cost * 1000
+
     request_record = Request(
         id=request_id,
         user_id=user.id,
@@ -414,6 +640,8 @@ async def generate_midjourney(
         prompt=data.prompt,
         status="processing",
         external_provider=provider,
+        credits_spent=Decimal(str(estimated_credits)),
+        provider_cost=Decimal(str(estimated_cost)),
         started_at=datetime.utcnow(),
     )
     db.add(request_record)
@@ -422,80 +650,64 @@ async def generate_midjourney(
     await log_created(db, request_id, provider, data.task_type)
 
     try:
-        if provider == "kie":
-            result = await adapter.generate(
-                prompt=data.prompt,
-                task_type=data.task_type,
-                file_url=data.file_url,
-                aspect_ratio=data.aspect_ratio,
-                version=data.version,
-                speed=data.speed,
-                stylization=data.stylization,
-                weirdness=data.weirdness,
-            )
-        else:
-            params = {
-                "model": actual_model,
-                "aspect_ratio": data.aspect_ratio,
-            }
-            if data.file_url:
-                params["image_urls"] = [data.file_url]
-            result = await adapter.generate(data.prompt, **params)
+        result = await adapter.generate(
+            prompt=data.prompt,
+            task_type=data.task_type,
+            file_url=data.file_url,
+            aspect_ratio=data.aspect_ratio,
+            version=data.version,
+            speed=data.speed,
+            stylization=data.stylization,
+            weirdness=data.weirdness,
+            wait_for_result=False,
+        )
 
         external_task_id = extract_task_id(result.raw_response, provider)
+        
         if external_task_id:
             request_record.external_task_id = external_task_id
             await log_sent_to_provider(db, request_id, external_task_id, provider, result.raw_response)
-
-        if result.success:
-            provider_cost = result.provider_cost if result.provider_cost > 0 else price_usd
-            credits_spent = provider_cost * 1000
 
             balance_result = await db.execute(
                 select(ProviderBalance).where(ProviderBalance.provider == provider)
             )
             provider_balance = balance_result.scalar_one_or_none()
             if provider_balance:
-                provider_balance.balance_usd = provider_balance.balance_usd - Decimal(str(provider_cost))
-                provider_balance.total_spent_usd = provider_balance.total_spent_usd + Decimal(str(provider_cost))
+                provider_balance.balance_usd = provider_balance.balance_usd - Decimal(str(estimated_cost))
+                provider_balance.total_spent_usd = provider_balance.total_spent_usd + Decimal(str(estimated_cost))
 
-            user.credits_balance = user.credits_balance - Decimal(str(credits_spent))
-
-            request_record.status = "completed"
-            request_record.credits_spent = Decimal(str(credits_spent))
-            request_record.provider_cost = Decimal(str(provider_cost))
-            request_record.result_url = result.content
-            request_record.result_urls = result.result_urls
-            request_record.completed_at = datetime.utcnow()
-
-            await log_completed(db, request_id, result.content, result.result_urls, result.raw_response)
+            user.credits_balance = user.credits_balance - Decimal(str(estimated_credits))
 
             await db.commit()
 
+            poll_task.send_with_options(
+                args=(request_id, external_task_id, provider, 1, 120, "midjourney"),
+                delay=5000,
+            )
+
             return GenerateResponse(
                 ok=True,
-                image_url=result.content,
                 task_id=external_task_id,
                 request_id=request_id,
-                credits_spent=credits_spent,
+                credits_spent=estimated_credits,
                 provider_used=provider,
+                status="processing",
             )
         else:
             request_record.status = "failed"
-            request_record.error_code = result.error_code
-            request_record.error_message = result.error_message
+            request_record.error_code = result.error_code or "NO_TASK_ID"
+            request_record.error_message = result.error_message or "Provider did not return task ID"
             request_record.completed_at = datetime.utcnow()
 
-            await log_failed(db, request_id, result.error_code or "UNKNOWN", result.error_message or "Unknown error", result.raw_response)
-
+            await log_failed(db, request_id, "NO_TASK_ID", result.error_message or "Provider did not return task ID", result.raw_response)
             await db.commit()
 
             return GenerateResponse(
                 ok=False,
-                task_id=external_task_id,
                 request_id=request_id,
-                error=result.error_message,
+                error=result.error_message or "Provider did not return task ID",
                 provider_used=provider,
+                status="failed",
             )
 
     except Exception as e:
@@ -504,7 +716,6 @@ async def generate_midjourney(
         request_record.completed_at = datetime.utcnow()
 
         await log_failed(db, request_id, "EXCEPTION", str(e))
-
         await db.commit()
 
         return GenerateResponse(
@@ -512,6 +723,7 @@ async def generate_midjourney(
             request_id=request_id,
             error=str(e),
             provider_used=provider,
+            status="failed",
         )
 
 
@@ -522,7 +734,7 @@ async def image_to_image(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        adapter, actual_model, provider, price_usd = await get_adapter_for_model(
+        adapter, actual_model, provider, price_usd, price_type, price_variants = await get_adapter_for_model(
             db=db,
             model_name=data.model,
             fallback_provider="kie",
@@ -547,6 +759,10 @@ async def image_to_image(
         await db.flush()
 
     request_id = str(uuid.uuid4())
+    normalized_model = normalize_model_name(data.model)
+
+    estimated_cost = calculate_image_cost(price_usd, price_type, price_variants)
+    estimated_credits = estimated_cost * 1000
 
     request_record = Request(
         id=request_id,
@@ -554,16 +770,18 @@ async def image_to_image(
         provider_id=provider_record.id,
         type="image",
         endpoint="/api/v1/images/image-to-image",
-        model=data.model,
+        model=normalized_model,
         prompt=data.prompt,
         status="processing",
         external_provider=provider,
+        credits_spent=Decimal(str(estimated_credits)),
+        provider_cost=Decimal(str(estimated_cost)),
         started_at=datetime.utcnow(),
     )
     db.add(request_record)
     await db.flush()
 
-    await log_created(db, request_id, provider, data.model)
+    await log_created(db, request_id, provider, normalized_model)
 
     try:
         if provider == "kie" and hasattr(adapter, 'image_to_image'):
@@ -581,62 +799,55 @@ async def image_to_image(
                 model=actual_model,
                 image_urls=[data.image_url],
                 aspect_ratio=data.aspect_ratio,
+                wait_for_result=False,
             )
 
         external_task_id = extract_task_id(result.raw_response, provider)
+        
         if external_task_id:
             request_record.external_task_id = external_task_id
             await log_sent_to_provider(db, request_id, external_task_id, provider, result.raw_response)
-
-        if result.success:
-            provider_cost = result.provider_cost if result.provider_cost > 0 else price_usd
-            credits_spent = provider_cost * 1000
 
             balance_result = await db.execute(
                 select(ProviderBalance).where(ProviderBalance.provider == provider)
             )
             provider_balance = balance_result.scalar_one_or_none()
             if provider_balance:
-                provider_balance.balance_usd = provider_balance.balance_usd - Decimal(str(provider_cost))
-                provider_balance.total_spent_usd = provider_balance.total_spent_usd + Decimal(str(provider_cost))
+                provider_balance.balance_usd = provider_balance.balance_usd - Decimal(str(estimated_cost))
+                provider_balance.total_spent_usd = provider_balance.total_spent_usd + Decimal(str(estimated_cost))
 
-            user.credits_balance = user.credits_balance - Decimal(str(credits_spent))
-
-            request_record.status = "completed"
-            request_record.credits_spent = Decimal(str(credits_spent))
-            request_record.provider_cost = Decimal(str(provider_cost))
-            request_record.result_url = result.content
-            request_record.result_urls = result.result_urls
-            request_record.completed_at = datetime.utcnow()
-
-            await log_completed(db, request_id, result.content, result.result_urls, result.raw_response)
+            user.credits_balance = user.credits_balance - Decimal(str(estimated_credits))
 
             await db.commit()
 
+            poll_task.send_with_options(
+                args=(request_id, external_task_id, provider, 1, 120, get_image_adapter_type(normalized_model)),
+                delay=5000,
+            )
+
             return GenerateResponse(
                 ok=True,
-                image_url=result.content,
                 task_id=external_task_id,
                 request_id=request_id,
-                credits_spent=credits_spent,
+                credits_spent=estimated_credits,
                 provider_used=provider,
+                status="processing",
             )
         else:
             request_record.status = "failed"
-            request_record.error_code = result.error_code
-            request_record.error_message = result.error_message
+            request_record.error_code = result.error_code or "NO_TASK_ID"
+            request_record.error_message = result.error_message or "Provider did not return task ID"
             request_record.completed_at = datetime.utcnow()
 
-            await log_failed(db, request_id, result.error_code or "UNKNOWN", result.error_message or "Unknown error", result.raw_response)
-
+            await log_failed(db, request_id, "NO_TASK_ID", result.error_message or "Provider did not return task ID", result.raw_response)
             await db.commit()
 
             return GenerateResponse(
                 ok=False,
-                task_id=external_task_id,
                 request_id=request_id,
-                error=result.error_message,
+                error=result.error_message or "Provider did not return task ID",
                 provider_used=provider,
+                status="failed",
             )
 
     except Exception as e:
@@ -645,7 +856,6 @@ async def image_to_image(
         request_record.completed_at = datetime.utcnow()
 
         await log_failed(db, request_id, "EXCEPTION", str(e))
-
         await db.commit()
 
         return GenerateResponse(
@@ -653,6 +863,7 @@ async def image_to_image(
             request_id=request_id,
             error=str(e),
             provider_used=provider,
+            status="failed",
         )
 
 
