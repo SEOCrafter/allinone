@@ -1059,7 +1059,7 @@ export default function Adapters() {
                         )}
                       </td>
                     </tr>
-                    {hasVariants && isExpanded && Object.entries(model.priceVariants!).map(([variantKey, variant]) => {
+                    {hasVariants && isExpanded && Object.entries(model.priceVariants!).filter(([variantKey]) => variantKey !== 'constraints' && variantKey !== 'display_name').map(([variantKey, variant]) => {
                       const variantSettingsKey = `${model.settingsKey}:${variantKey}`;
                       const variantSettings = modelSettings[variantSettingsKey] || { credits_price: null, is_enabled: true };
                       const isVariantEditing = editingCredits === variantSettingsKey;
