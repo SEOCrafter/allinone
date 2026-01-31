@@ -45,6 +45,7 @@ async def chat(
         "anthropic": settings.ANTHROPIC_API_KEY,
         "gemini": settings.GEMINI_API_KEY,
         "deepseek": settings.DEEPSEEK_API_KEY,
+        "xai": settings.XAI_API_KEY,
     }
     
     api_key = api_keys.get(data.provider)

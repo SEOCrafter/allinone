@@ -14,6 +14,7 @@ from app.adapters.runway import RunwayAdapter
 from app.adapters.seedance import SeedanceAdapter
 from app.adapters.flux import FluxAdapter
 from app.adapters.replicate import ReplicateAdapter
+from app.adapters.xai import XaiAdapter
 
 
 class AdapterRegistry:
@@ -98,3 +99,4 @@ AdapterRegistry.register(RunwayAdapter)
 AdapterRegistry.register(SeedanceAdapter)
 AdapterRegistry.register(FluxAdapter)
 AdapterRegistry.register(ReplicateAdapter)
+AdapterRegistry.register(XaiAdapter)

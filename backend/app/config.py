@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     DEEPSEEK_API_KEY: str = ""
     KIE_API_KEY: str = ""
     REPLICATE_API_KEY: str = ""
+    XAI_API_KEY: str = ""
 
     # FreeKassa
     FREEKASSA_MERCHANT_ID: int = 0
