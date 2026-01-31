@@ -482,12 +482,25 @@ class ReplicateAdapter(BaseAdapter):
         elif "runway" in model.lower():
             if "gen4-image" in model.lower():
                 input_data["aspect_ratio"] = aspect_ratio
-                if params.get("output_format"):
-                    input_data["output_format"] = params["output_format"]
+                resolution = params.get("resolution", "1080p")
+                if resolution not in ("720p", "1080p"):
+                    resolution = "1080p"
+                input_data["resolution"] = resolution
                 if params.get("seed") is not None:
                     input_data["seed"] = params["seed"]
                 if image_urls:
-                    input_data["image"] = image_urls[0]
+                    input_data["reference_images"] = image_urls[:3]
+                if params.get("reference_tags"):
+                    input_data["reference_tags"] = params["reference_tags"]
+            elif "aleph" in model.lower():
+                input_data["duration"] = duration
+                input_data["aspect_ratio"] = aspect_ratio
+                if params.get("seed") is not None:
+                    input_data["seed"] = params["seed"]
+                if video_urls:
+                    input_data["video"] = video_urls[0]
+                if image_urls:
+                    input_data["reference_image"] = image_urls[0]
             else:
                 input_data["duration"] = duration
                 input_data["aspect_ratio"] = aspect_ratio
