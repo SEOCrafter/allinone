@@ -689,7 +689,7 @@ async def generate_midjourney(
 
     request_id = str(uuid.uuid4())
 
-    estimated_cost = calculate_image_cost(price_usd, price_type, price_variants)
+    estimated_cost = calculate_image_cost(price_usd, price_type, price_variants, data.speed)
     estimated_credits = estimated_cost * 1000
 
     request_record = Request(
