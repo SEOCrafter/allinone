@@ -380,6 +380,10 @@ class ReplicateAdapter(BaseAdapter):
             input_data["aspect_ratio"] = aspect_ratio
             if image_urls:
                 input_data["image"] = image_urls[0]
+                if len(image_urls) >= 2:
+                    input_data["last_frame_image"] = image_urls[1]
+                if len(image_urls) >= 3:
+                    input_data["reference_images"] = image_urls[2:6]
 
         elif "face-swap" in model.lower():
             if image_urls and len(image_urls) >= 2:
