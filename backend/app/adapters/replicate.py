@@ -358,8 +358,16 @@ class ReplicateAdapter(BaseAdapter):
                 input_data["raw"] = params["raw"]
             if params.get("safety_tolerance") is not None:
                 input_data["safety_tolerance"] = params["safety_tolerance"]
+            if params.get("resolution"):
+                input_data["resolution"] = params["resolution"]
+            if params.get("width") is not None:
+                input_data["width"] = params["width"]
+            if params.get("height") is not None:
+                input_data["height"] = params["height"]
             if image_urls:
-                if "pro-ultra" in model.lower() or "1.1-pro" in model.lower():
+                if "flux-2" in model.lower():
+                    input_data["input_images"] = image_urls[:8]
+                elif "pro-ultra" in model.lower() or "1.1-pro" in model.lower():
                     input_data["image_prompt"] = image_urls[0]
                     if params.get("image_prompt_strength") is not None:
                         input_data["image_prompt_strength"] = params["image_prompt_strength"]
