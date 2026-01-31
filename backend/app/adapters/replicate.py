@@ -358,7 +358,10 @@ class ReplicateAdapter(BaseAdapter):
         elif "veo" in model.lower():
             input_data["duration"] = duration
             input_data["aspect_ratio"] = aspect_ratio
-            input_data["resolution"] = params.get("resolution", "1080p")
+            veo_resolution = params.get("resolution", "1080p")
+            if veo_resolution not in ("720p", "1080p"):
+                veo_resolution = "1080p"
+            input_data["resolution"] = veo_resolution
             generate_audio = params.get("generate_audio", True)
             input_data["generate_audio"] = generate_audio
             if image_urls:
