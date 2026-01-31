@@ -104,6 +104,14 @@ def calculate_video_cost(
         if variant and "price_usd" in variant:
             return float(variant["price_usd"])
         
+        size_label = "high" if mode == "pro" else "standard"
+        variant_key = f"{duration}s_{size_label}"
+        variant = price_variants.get(variant_key)
+        if variant and "price_usd" in variant:
+            return float(variant["price_usd"])
+        
+        variant = price_variants.get(resolution)
+        
         variant = price_variants.get(resolution)
         if variant and "price_per_second" in variant:
             return float(variant["price_per_second"]) * duration
