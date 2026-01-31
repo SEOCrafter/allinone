@@ -80,6 +80,10 @@ class ReplicateAdapter(BaseAdapter):
         for model_id, info in MODELS.items()
     }
 
+    COMMUNITY_VERSIONS = {
+        "cdingram/face-swap": "d1d6ea8c8be89d664a07a457526f7128109dee7030fdac424788d762c71ed111",
+    }
+
     def __init__(self, api_key: str, default_model: str = "black-forest-labs/flux-schnell", **kwargs):
         super().__init__(api_key, **kwargs)
         self.default_model = default_model
@@ -109,11 +113,17 @@ class ReplicateAdapter(BaseAdapter):
             payload["webhook"] = webhook
             payload["webhook_events_filter"] = ["completed"]
 
+        version = self.COMMUNITY_VERSIONS.get(model)
+        if version:
+            url = f"{self.BASE_URL}/predictions"
+            payload["version"] = version
+        else:
+            url = f"{self.BASE_URL}/models/{model}/predictions"
+
         print(f"Replicate API Request: model={model}, input={json.dumps(input_data)[:500]}, wait={wait}")
 
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
-                url = f"{self.BASE_URL}/models/{model}/predictions"
                 response = await client.post(
                     url,
                     headers=self._get_headers(wait=wait),
