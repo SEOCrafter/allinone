@@ -338,18 +338,35 @@ class ReplicateAdapter(BaseAdapter):
 
         if "flux" in model.lower():
             input_data["aspect_ratio"] = aspect_ratio
-            if params.get("num_outputs"):
-                input_data["num_outputs"] = params["num_outputs"]
+            if params.get("num_outputs") and params["num_outputs"] > 1:
+                input_data["num_outputs"] = min(params["num_outputs"], 4)
             if params.get("output_format"):
                 input_data["output_format"] = params["output_format"]
             if params.get("seed") is not None:
                 input_data["seed"] = params["seed"]
             if params.get("guidance") is not None:
                 input_data["guidance"] = params["guidance"]
+            if params.get("num_inference_steps") is not None:
+                input_data["num_inference_steps"] = params["num_inference_steps"]
+            if params.get("output_quality") is not None:
+                input_data["output_quality"] = params["output_quality"]
+            if params.get("go_fast") is not None:
+                input_data["go_fast"] = params["go_fast"]
+            if params.get("megapixels"):
+                input_data["megapixels"] = params["megapixels"]
+            if params.get("raw") is not None:
+                input_data["raw"] = params["raw"]
+            if params.get("safety_tolerance") is not None:
+                input_data["safety_tolerance"] = params["safety_tolerance"]
             if image_urls:
-                input_data["image"] = image_urls[0]
-                if params.get("prompt_strength") is not None:
-                    input_data["prompt_strength"] = params["prompt_strength"]
+                if "pro-ultra" in model.lower() or "1.1-pro" in model.lower():
+                    input_data["image_prompt"] = image_urls[0]
+                    if params.get("image_prompt_strength") is not None:
+                        input_data["image_prompt_strength"] = params["image_prompt_strength"]
+                else:
+                    input_data["image"] = image_urls[0]
+                    if params.get("prompt_strength") is not None:
+                        input_data["prompt_strength"] = params["prompt_strength"]
 
         elif "stable-diffusion" in model.lower():
             input_data["aspect_ratio"] = aspect_ratio
@@ -486,7 +503,7 @@ class ReplicateAdapter(BaseAdapter):
                     input_data["seed"] = params["seed"]
                 if image_urls:
                     input_data["start_image"] = image_urls[0]
-                    
+
         elif "runway" in model.lower():
             if "gen4-image" in model.lower():
                 input_data["aspect_ratio"] = aspect_ratio
