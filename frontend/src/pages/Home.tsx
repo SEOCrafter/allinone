@@ -7,7 +7,7 @@ import ModelIcon from '../components/ModelIcon'
 
 interface Props {
   selectedModel: Model | null
-  onSelectModel: (model: Model) => void
+  onSelectModel: (model: Model | null) => void
 }
 
 function declModels(n: number): string {

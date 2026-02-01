@@ -38,7 +38,7 @@ export default function App() {
 
         <Routes>
           <Route path="/" element={<Home selectedModel={selectedModel} onSelectModel={setSelectedModel} />} />
-          <Route path="/bots" element={<Bots onSelectModel={setSelectedModel} />} />
+          <Route path="/bots" element={<Bots />} />
           <Route path="/chat" element={<Chat selectedModel={selectedModel} />} />
           <Route path="/generate" element={<Generate selectedModel={selectedModel} />} />
           <Route path="/files" element={<Files />} />
