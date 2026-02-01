@@ -587,3 +587,85 @@ async def test_adapter(
         return {"ok": True, "frontend_request": frontend_request, "provider_request": provider_request, "provider_response_raw": provider_response_raw, "parsed": {"content": result.content, "tokens_input": result.tokens_input, "tokens_output": result.tokens_output, "provider_cost_usd": result.provider_cost}}
     else:
         return {"ok": False, "frontend_request": frontend_request, "provider_request": provider_request, "provider_response_raw": provider_response_raw, "error": {"code": result.error_code, "message": result.error_message}}
+    
+
+class UpdateVariantPriceRequest(BaseModel):
+    variant_key: str
+    price_usd: Optional[float] = None
+    price_per_second: Optional[float] = None
+
+
+class UpdateBasePriceRequest(BaseModel):
+    price_usd: float
+
+
+@router.patch("/models/prices/{provider}/{model_name}/variants")
+async def update_variant_price(
+    provider: str,
+    model_name: str,
+    data: UpdateVariantPriceRequest,
+    admin: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(ModelProviderPrice).where(
+            ModelProviderPrice.provider == provider,
+            ModelProviderPrice.model_name == model_name,
+        )
+    )
+    price_record = result.scalar_one_or_none()
+    if not price_record:
+        raise HTTPException(status_code=404, detail="Model price not found")
+
+    variants = dict(price_record.price_variants or {})
+    if data.variant_key not in variants:
+        raise HTTPException(status_code=404, detail=f"Variant '{data.variant_key}' not found")
+
+    if data.price_usd is not None:
+        variants[data.variant_key]["price_usd"] = data.price_usd
+    if data.price_per_second is not None:
+        variants[data.variant_key]["price_per_second"] = data.price_per_second
+
+    price_record.price_variants = variants
+    from sqlalchemy.orm.attributes import flag_modified
+    flag_modified(price_record, "price_variants")
+
+    await db.commit()
+    await db.refresh(price_record)
+
+    return {
+        "ok": True,
+        "model_name": price_record.model_name,
+        "provider": price_record.provider,
+        "price_variants": price_record.price_variants,
+    }
+
+
+@router.patch("/models/prices/{provider}/{model_name}")
+async def update_base_price(
+    provider: str,
+    model_name: str,
+    data: UpdateBasePriceRequest,
+    admin: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(ModelProviderPrice).where(
+            ModelProviderPrice.provider == provider,
+            ModelProviderPrice.model_name == model_name,
+        )
+    )
+    price_record = result.scalar_one_or_none()
+    if not price_record:
+        raise HTTPException(status_code=404, detail="Model price not found")
+
+    price_record.price_usd = Decimal(str(data.price_usd))
+    await db.commit()
+    await db.refresh(price_record)
+
+    return {
+        "ok": True,
+        "model_name": price_record.model_name,
+        "provider": price_record.provider,
+        "price_usd": float(price_record.price_usd),
+    }

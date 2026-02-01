@@ -113,6 +113,9 @@ export default function Adapters() {
 
   const [editingCredits, setEditingCredits] = useState<string | null>(null);
   const [creditsInput, setCreditsInput] = useState<string>('');
+  const [editingVariantPrice, setEditingVariantPrice] = useState<string | null>(null);
+  const [variantPriceInput, setVariantPriceInput] = useState<string>('');
+  const [variantPriceSaving, setVariantPriceSaving] = useState<Record<string, boolean>>({});
   const [savingSettings, setSavingSettings] = useState<Record<string, boolean>>({});
 
   const [selectedType, setSelectedType] = useState<string>('text');
@@ -282,6 +285,53 @@ export default function Adapters() {
   const handleCancelEdit = () => {
     setEditingCredits(null);
     setCreditsInput('');
+    setEditingVariantPrice(null);
+    setVariantPriceInput('');
+  };
+  const handleEditVariantPrice = (model: UnifiedModel, variantKey: string, variant: PriceVariant) => {
+    const editKey = `${model.provider}:${model.modelId}:${variantKey}`;
+    setEditingVariantPrice(editKey);
+    const currentPrice = variant.price_usd ?? variant.price_per_second ?? 0;
+    setVariantPriceInput(currentPrice.toString());
+  };
+  const handleSaveVariantPrice = async (model: UnifiedModel, variantKey: string, variant: PriceVariant) => {
+    const editKey = `${model.provider}:${model.modelId}:${variantKey}`;
+    const value = parseFloat(variantPriceInput);
+    if (isNaN(value) || value < 0) return;
+    setVariantPriceSaving(prev => ({ ...prev, [editKey]: true }));
+    const token = localStorage.getItem('token');
+    const headers = { Authorization: `Bearer ${token}` };
+    try {
+      const body: Record<string, unknown> = { variant_key: variantKey };
+      if (variant.price_per_second !== undefined) {
+        body.price_per_second = value;
+      } else {
+        body.price_usd = value;
+      }
+      await axios.patch(
+        `${BASE}/admin/adapters/models/prices/${model.provider}/${encodeURIComponent(model.modelId)}/variants`,
+        body,
+        { headers }
+      );
+      setProviderPrices(prev => prev.map(p => {
+        if (p.model_name === model.modelId && p.provider === model.provider && p.price_variants) {
+          const updated = { ...p.price_variants };
+          if (variant.price_per_second !== undefined) {
+            updated[variantKey] = { ...updated[variantKey], price_per_second: value };
+          } else {
+            updated[variantKey] = { ...updated[variantKey], price_usd: value };
+          }
+          return { ...p, price_variants: updated };
+        }
+        return p;
+      }));
+      setEditingVariantPrice(null);
+      setVariantPriceInput('');
+    } catch (e) {
+      console.error('Ошибка сохранения цены вариации:', e);
+    } finally {
+      setVariantPriceSaving(prev => ({ ...prev, [editKey]: false }));
+    }
   };
 
   const handleToggleEnabled = async (settingsKey: string) => {
@@ -1074,7 +1124,41 @@ export default function Adapters() {
                           <td className="py-2"></td>
                           <td className="py-2"></td>
                           <td className="py-2 text-green-400 font-mono text-sm">
-                            {getVariantPrice(variant)}
+                            {editingVariantPrice === `${model.provider}:${model.modelId}:${variantKey}` ? (
+                              <div className="flex items-center gap-1">
+                                <span className="text-gray-500 text-xs">$</span>
+                                <input
+                                  type="number"
+                                  step="0.001"
+                                  value={variantPriceInput}
+                                  onChange={(e) => setVariantPriceInput(e.target.value)}
+                                  className="w-20 px-2 py-1 bg-[#3f3f3f] border border-gray-600 rounded text-white text-sm"
+                                  autoFocus
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleSaveVariantPrice(model, variantKey, variant);
+                                    if (e.key === 'Escape') handleCancelEdit();
+                                  }}
+                                />
+                                <button
+                                  onClick={() => handleSaveVariantPrice(model, variantKey, variant)}
+                                  disabled={variantPriceSaving[`${model.provider}:${model.modelId}:${variantKey}`]}
+                                  className="p-1 text-green-400 hover:text-green-300"
+                                >
+                                  <Check className="w-3 h-3" />
+                                </button>
+                                <button onClick={handleCancelEdit} className="p-1 text-red-400 hover:text-red-300">
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => handleEditVariantPrice(model, variantKey, variant)}
+                                className="hover:text-green-300 cursor-pointer"
+                                title="Редактировать цену"
+                              >
+                                {getVariantPrice(variant)}
+                              </button>
+                            )}
                           </td>
                           <td className="py-2 text-sm">
                             <span className="text-gray-600">—</span>
