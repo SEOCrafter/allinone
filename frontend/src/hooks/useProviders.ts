@@ -4,6 +4,12 @@ import type { Model, ModelCategory, TaskType } from '../data/models'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
+export interface APIVariant {
+  key: string
+  label: string
+  credits_price: number | null
+}
+
 export interface APIModel {
   id: string
   display_name: string
@@ -11,6 +17,8 @@ export interface APIModel {
   pricing: { input_per_1k: number; output_per_1k: number }
   credits_price: number | null
   is_enabled: boolean
+  variants: APIVariant[] | null
+  min_credits_price: number | null
 }
 
 export interface APIProvider {
@@ -26,6 +34,8 @@ export interface BrandModel {
   type: string
   adapter: string
   creditsPrice: number | null
+  variants: APIVariant[] | null
+  minCreditsPrice: number | null
 }
 
 export interface Brand extends BrandDef {
@@ -61,6 +71,8 @@ function groupByBrand(providers: APIProvider[]): Brand[] {
         type: model.type,
         adapter: provider.name,
         creditsPrice: model.credits_price,
+        variants: model.variants || null,
+        minCreditsPrice: model.min_credits_price ?? null,
       })
       brand.modelCount = brand.models.length
     }
@@ -76,6 +88,7 @@ function groupByBrand(providers: APIProvider[]): Brand[] {
 export function brandModelToModel(brand: Brand, bm: BrandModel): Model {
   const cat: ModelCategory = bm.type === 'image' ? 'image' : bm.type === 'video' ? 'video' : 'text'
   const task: TaskType = cat === 'text' ? 'text' : cat === 'image' ? 't2i' : 't2v'
+
   return {
     id: bm.id,
     provider: bm.adapter,
@@ -84,7 +97,7 @@ export function brandModelToModel(brand: Brand, bm: BrandModel): Model {
     description: brand.description,
     category: cat,
     taskType: task,
-    cost: bm.creditsPrice ?? 0,
+    cost: bm.minCreditsPrice ?? bm.creditsPrice ?? 0,
     rating: 0,
     users: 0,
     icon: brand.icon,

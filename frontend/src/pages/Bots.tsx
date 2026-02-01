@@ -24,10 +24,17 @@ function modelsWord(n: number): string {
   return 'моделей'
 }
 
-function PriceTag({ price }: { price: number | null }) {
-  if (price === null) return <span className="brand-model-price muted">—</span>
-  if (price === 0) return <span className="brand-model-price free">Бесплатно</span>
-  return <span className="brand-model-price">🪙 {price}</span>
+function PriceTag({ price, model }: { price: number | null; model?: BrandModel }) {
+  const hasVariants = model?.variants && model.variants.length > 0
+  const displayPrice = hasVariants ? model.minCreditsPrice : price
+
+  if (displayPrice === null || displayPrice === undefined) return <span className="brand-model-price muted">—</span>
+  if (displayPrice === 0) return <span className="brand-model-price free">Бесплатно</span>
+  return (
+    <span className="brand-model-price">
+      🪙 {hasVariants ? `от ${displayPrice}` : displayPrice}
+    </span>
+  )
 }
 
 export default function Bots() {
@@ -86,7 +93,7 @@ export default function Bots() {
                 <span className="brand-model-name">{model.displayName}</span>
                 <span className="brand-model-type">{TYPE_LABELS[model.type] || model.type}</span>
               </div>
-              <PriceTag price={model.creditsPrice} />
+              <PriceTag price={model.creditsPrice} model={model} />
             </button>
           ))}
         </div>
