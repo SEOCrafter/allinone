@@ -5,6 +5,7 @@ from app.services.generation import generation_service
 from app.adapters import AdapterRegistry
 from app.database import get_db
 from app.models.model_setting import ModelSetting
+from app.models.model_provider_price import ModelProviderPrice
 
 router = APIRouter()
 
@@ -84,6 +85,45 @@ def _find_setting(settings_map, provider_name, model_id):
     return None
 
 
+def _find_price_record(prices_map, provider_name, model_id):
+    alias = MODEL_SETTINGS_ALIASES.get((provider_name, model_id))
+    if alias:
+        key = f"{alias[0]}:{alias[1]}"
+        if key in prices_map:
+            return prices_map[key]
+
+    key = f"{provider_name}:{model_id}"
+    if key in prices_map:
+        return prices_map[key]
+
+    for prefix in ("kie", "replicate"):
+        key = f"{prefix}:{model_id}"
+        if key in prices_map:
+            return prices_map[key]
+
+    return None
+
+
+def _build_variants(price_record, settings_map):
+    if not price_record or not price_record.price_variants:
+        return None
+    variants = []
+    price_key = f"{price_record.provider}:{price_record.model_name}"
+    for vk, vdata in price_record.price_variants.items():
+        if vk in ("constraints", "display_name"):
+            continue
+        if not isinstance(vdata, dict):
+            continue
+        variant_setting = settings_map.get(f"{price_key}:{vk}")
+        variant_credits = float(variant_setting.credits_price) if variant_setting and variant_setting.credits_price else None
+        variants.append({
+            "key": vk,
+            "label": vdata.get("label", vk),
+            "credits_price": variant_credits,
+        })
+    return variants if variants else None
+
+
 @router.get("")
 async def list_providers(
     type: str = Query(None, description="Filter by type: text, image, audio, video"),
@@ -104,6 +144,13 @@ async def list_providers(
             key = f"{s.provider}:{s.model_id}"
             settings_map[key] = s
 
+        price_result = await db.execute(select(ModelProviderPrice))
+        all_prices = price_result.scalars().all()
+        prices_map = {}
+        for p in all_prices:
+            key = f"{p.provider}:{p.model_name}"
+            prices_map[key] = p
+
         for provider in providers:
             if "models" not in provider:
                 continue
@@ -116,6 +163,16 @@ async def list_providers(
 
                 model["credits_price"] = credits_price
                 model["is_enabled"] = is_enabled
+
+                price_record = _find_price_record(prices_map, provider["name"], model["id"])
+                variants = _build_variants(price_record, settings_map)
+                model["variants"] = variants
+
+                if variants:
+                    variant_prices = [v["credits_price"] for v in variants if v["credits_price"] is not None]
+                    model["min_credits_price"] = min(variant_prices) if variant_prices else None
+                else:
+                    model["min_credits_price"] = None
 
                 if enabled_only and not is_enabled:
                     continue
@@ -143,6 +200,13 @@ async def list_all_models(
         key = f"{s.provider}:{s.model_id}"
         settings_map[key] = s
 
+    price_result = await db.execute(select(ModelProviderPrice))
+    all_prices = price_result.scalars().all()
+    prices_map = {}
+    for p in all_prices:
+        key = f"{p.provider}:{p.model_name}"
+        prices_map[key] = p
+
     models = []
     for provider in providers:
         for model in provider.get("models", []):
@@ -154,6 +218,14 @@ async def list_all_models(
             if enabled_only and not is_enabled:
                 continue
 
+            price_record = _find_price_record(prices_map, provider["name"], model["id"])
+            variants = _build_variants(price_record, settings_map)
+
+            min_credits = None
+            if variants:
+                variant_prices = [v["credits_price"] for v in variants if v["credits_price"] is not None]
+                min_credits = min(variant_prices) if variant_prices else None
+
             models.append({
                 "id": model["id"],
                 "provider": provider["name"],
@@ -162,6 +234,8 @@ async def list_all_models(
                 "pricing": model["pricing"],
                 "credits_price": credits_price,
                 "is_enabled": is_enabled,
+                "variants": variants,
+                "min_credits_price": min_credits,
             })
 
     return {"ok": True, "models": models}
