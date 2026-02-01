@@ -40,6 +40,18 @@ interface ProviderPrice {
   price_variants: Record<string, PriceVariant> | null;
 }
 
+interface ModelStat {
+  model: string;
+  provider: string;
+  type: string;
+  request_count: number;
+  avg_video_duration: number | null;
+  avg_tokens_input: number | null;
+  avg_tokens_output: number | null;
+  avg_tokens_total: number | null;
+  avg_provider_cost: number | null;
+}
+
 interface UnifiedModel {
   id: string;
   name: string;
@@ -129,6 +141,7 @@ const PRICE_TYPE_LABELS: Record<string, string> = {
 export default function UnitEconomics() {
   const [adapters, setAdapters] = useState<Adapter[]>([]);
   const [providerPrices, setProviderPrices] = useState<ProviderPrice[]>([]);
+  const [modelStats, setModelStats] = useState<Record<string, ModelStat>>({});
   const [loading, setLoading] = useState(true);
 
   const [savedCalculations, setSavedCalculations] = useState<TariffCalculation[]>([]);
@@ -149,6 +162,7 @@ export default function UnitEconomics() {
   const [selectedVariant, setSelectedVariant] = useState<string>('');
   const [avgDuration, setAvgDuration] = useState<number>(5);
   const [showVariantDetails, setShowVariantDetails] = useState(false);
+  const [useActualAvg, setUseActualAvg] = useState(false);
 
   const loadedRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -171,16 +185,19 @@ export default function UnitEconomics() {
     const t = Date.now();
 
     try {
-      const [adaptersRes, pricesRes] = await Promise.all([
+      const [adaptersRes, pricesRes, statsRes] = await Promise.all([
         axios.get(`/api/v1/admin/adapters?_t=${t}`, { headers, signal }),
         axios.get(`/api/v1/admin/adapters/models/prices?_t=${t}`, { headers, signal }),
+        axios.get(`/api/v1/admin/adapters/models/stats?_t=${t}`, { headers, signal }),
       ]);
       if (signal.aborted) return;
 
       const a = adaptersRes.data.adapters || [];
       const p = pricesRes.data.prices || [];
+      const s = statsRes.data.stats || {};
       setAdapters(a);
       setProviderPrices(p);
+      setModelStats(s);
     } catch (err) {
       if (axios.isCancel(err) || signal.aborted) return;
       console.error('Ошибка загрузки:', err);
@@ -284,8 +301,53 @@ export default function UnitEconomics() {
     return 0;
   };
 
+  const actualAvgCost = useMemo((): { cost: number | null; count: number } => {
+    if (!currentModel) return { cost: null, count: 0 };
+
+    let statsKey = `${currentModel.provider}:${currentModel.id.split(':')[1] || ''}`;
+    let stat = modelStats[statsKey];
+    if (!stat) {
+      const modelId = currentModel.id.includes(':') ? currentModel.id.split(':')[1] : currentModel.id;
+      statsKey = `${currentModel.provider}:${modelId}`;
+      stat = modelStats[statsKey];
+    }
+    if (!stat) {
+      const modelId = currentModel.id.includes(':') ? currentModel.id.split(':')[1] : currentModel.id;
+      statsKey = `direct:${modelId}`;
+      stat = modelStats[statsKey];
+    }
+    if (!stat || stat.request_count === 0) return { cost: null, count: 0 };
+
+    if (currentModel.priceType === 'per_second' && stat.avg_video_duration) {
+      return { cost: stat.avg_video_duration * currentModel.priceUsd, count: stat.request_count };
+    }
+    if (currentModel.priceType === 'per_1k_tokens') {
+      if (stat.avg_provider_cost && stat.avg_provider_cost > 0) {
+        return { cost: stat.avg_provider_cost, count: stat.request_count };
+      }
+      if (stat.avg_tokens_total) {
+        if (currentModel.priceUsdOutput && stat.avg_tokens_input && stat.avg_tokens_output) {
+          const inputCost = (stat.avg_tokens_input / 1000) * currentModel.priceUsd;
+          const outputCost = (stat.avg_tokens_output / 1000) * currentModel.priceUsdOutput;
+          return { cost: inputCost + outputCost, count: stat.request_count };
+        }
+        return { cost: (stat.avg_tokens_total / 1000) * currentModel.priceUsd, count: stat.request_count };
+      }
+    }
+    if (stat.avg_provider_cost && stat.avg_provider_cost > 0) {
+      return { cost: stat.avg_provider_cost, count: stat.request_count };
+    }
+    return { cost: null, count: 0 };
+  }, [currentModel, modelStats, avgDuration]);
+
+  const hasActualAvg = actualAvgCost.cost !== null && actualAvgCost.count > 0;
+
   const effectiveCost = useMemo((): number => {
     if (!currentModel) return 0;
+
+    if (useActualAvg && hasActualAvg && actualAvgCost.cost !== null) {
+      return actualAvgCost.cost;
+    }
 
     if (currentModel.priceType === 'per_1k_tokens') {
       return (avgTokensInput / 1000) * currentModel.priceUsd +
@@ -308,7 +370,7 @@ export default function UnitEconomics() {
     }
 
     return currentModel.priceUsd;
-  }, [currentModel, pricingMode, selectedVariant, avgDuration, avgTokensInput, avgTokensOutput, currentVariants]);
+  }, [currentModel, useActualAvg, hasActualAvg, actualAvgCost, pricingMode, selectedVariant, avgDuration, avgTokensInput, avgTokensOutput, currentVariants]);
 
   const calculation = useMemo((): CalculationResult | null => {
     if (!currentModel || requestsInPlan === 0 || creditsInPlan === 0) return null;
@@ -337,6 +399,7 @@ export default function UnitEconomics() {
     setPricingMode('base');
     setSelectedVariant('');
     setShowVariantDetails(false);
+    setUseActualAvg(false);
   };
 
   const handlePricingModeChange = (mode: PricingMode) => {
@@ -571,8 +634,43 @@ export default function UnitEconomics() {
                 )}
               </div>
 
+              {/* Actual avg toggle */}
+              {currentModel && hasActualAvg && (
+                <div className="bg-[#252525] rounded-lg p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-gray-300">
+                      <span className="font-medium">Себестоимость для расчёта</span>
+                    </div>
+                    <button
+                      onClick={() => setUseActualAvg(!useActualAvg)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        useActualAvg ? 'bg-yellow-600' : 'bg-gray-600'
+                      }`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        useActualAvg ? 'translate-x-6' : 'translate-x-1'
+                      }`} />
+                    </button>
+                  </div>
+                  <div className="flex gap-4 mt-2 text-xs">
+                    <div className={`${!useActualAvg ? 'text-purple-400 font-medium' : 'text-gray-500'}`}>
+                      Базовая: ${currentModel.priceType === 'per_1k_tokens'
+                        ? `${currentModel.priceUsd.toFixed(4)}/1K in + ${(currentModel.priceUsdOutput || 0).toFixed(4)}/1K out`
+                        : currentModel.priceType === 'per_second'
+                          ? `${currentModel.priceUsd.toFixed(4)}/сек × ${avgDuration}с = $${(currentModel.priceUsd * avgDuration).toFixed(4)}`
+                          : `$${currentModel.priceUsd.toFixed(4)}`
+                      }
+                    </div>
+                    <div className={`${useActualAvg ? 'text-yellow-400 font-medium' : 'text-gray-500'}`}>
+                      Средняя (факт): <span className="text-yellow-400">${actualAvgCost.cost!.toFixed(4)}</span>
+                      <span className="text-gray-600 ml-1">({actualAvgCost.count} запросов)</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Token inputs for text models */}
-              {isTokenBased && (
+              {isTokenBased && !useActualAvg && (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-gray-400 text-sm mb-1">Средн. токенов (вход)</label>
@@ -590,7 +688,7 @@ export default function UnitEconomics() {
               )}
 
               {/* Duration for per_second models without variants */}
-              {isPerSecond && (
+              {isPerSecond && !useActualAvg && (
                 <div>
                   <label className="block text-gray-400 text-sm mb-1">Средняя длительность (сек)</label>
                   <input type="number" min="1" max="60" value={avgDuration}
@@ -910,7 +1008,7 @@ export default function UnitEconomics() {
                         <div className="px-3 pb-3 border-t border-gray-700 pt-3 text-sm">
                           <div className="grid grid-cols-2 gap-2 text-gray-400">
                             <div>Модель: <span className="text-white">{model?.name || calc.selectedModel}</span></div>
-                            <div>Кред./запрос: <span className="text-white">{result.creditsPerRequest.toFixed(1)}</span></div>
+                            <div>Ток./запрос: <span className="text-white">{result.creditsPerRequest.toFixed(1)}</span></div>
                             <div>Себестоимость: <span className="text-red-400">{formatUSD(result.costWithOverhead)}</span></div>
                             <div>Прибыль: <span className={result.profitPerRequest >= 0 ? 'text-green-400' : 'text-red-400'}>{formatUSD(result.profitPerRequest)}</span></div>
                           </div>
@@ -936,7 +1034,7 @@ export default function UnitEconomics() {
                   <th className="pb-3">Тариф</th>
                   <th className="pb-3">Цена</th>
                   <th className="pb-3">Запросов</th>
-                  <th className="pb-3">Токен/запрос</th>
+                  <th className="pb-3">Ток./запрос</th>
                   <th className="pb-3">Себестоимость</th>
                   <th className="pb-3">Прибыль/запрос</th>
                   <th className="pb-3">Маржа</th>
