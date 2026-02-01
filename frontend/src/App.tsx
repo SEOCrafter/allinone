@@ -9,11 +9,10 @@ import Generate from './pages/Generate'
 import Files from './pages/Files'
 import Login from './pages/Login'
 import type { Model } from './data/models'
-import { MODELS } from './data/models'
 import { useAuth } from './context/AuthContext'
 
 export default function App() {
-  const [selectedModel, setSelectedModel] = useState<Model | null>(MODELS[0])
+  const [selectedModel, setSelectedModel] = useState<Model | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { loading } = useAuth()
 
@@ -36,7 +35,7 @@ export default function App() {
 
       <main className="main-content">
         <Header onMenuClick={() => setSidebarOpen(true)} />
-        
+
         <Routes>
           <Route path="/" element={<Home selectedModel={selectedModel} onSelectModel={setSelectedModel} />} />
           <Route path="/bots" element={<Bots onSelectModel={setSelectedModel} />} />

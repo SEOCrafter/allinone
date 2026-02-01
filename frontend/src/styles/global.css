@@ -626,9 +626,9 @@ input, textarea { font-family: inherit; border: none; outline: none; }
 
 /* Section (popular bots) */
 .section {
-  max-width: 760px;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 32px 24px;
+  padding: 32px 40px;
 }
 
 .section-header {
@@ -1197,8 +1197,7 @@ input, textarea { font-family: inherit; border: none; outline: none; }
 .bots-page {
   padding: 32px 40px;
   max-width: 1200px;
-  margin: 0 auto;
-}
+  width: 100%;
 
 .bots-title {
   font-size: 24px;
@@ -1719,4 +1718,6 @@ input, textarea { font-family: inherit; border: none; outline: none; }
 @media (max-width: 600px) {
   .brands-grid { grid-template-columns: 1fr; }
   .bots-page { padding: 20px 16px; }
+}
+
 }

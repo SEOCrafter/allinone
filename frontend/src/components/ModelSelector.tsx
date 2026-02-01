@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Model } from '../data/models'
-import { CATEGORIES, getModelsByCategory } from '../data/models'
+import { useProviders } from '../hooks/useProviders'
 import ModelIcon from './ModelIcon'
 
 interface Props {
@@ -8,11 +8,25 @@ interface Props {
   onSelect: (model: Model) => void
 }
 
+const CATEGORIES = [
+  { id: 'all', name: 'Все', icon: '🔥' },
+  { id: 'text', name: 'Текст', icon: '💬' },
+  { id: 'image', name: 'Изображения', icon: '🖼️' },
+  { id: 'video', name: 'Видео', icon: '🎬' },
+]
+
+const CATEGORY_LABELS: Record<string, string> = {
+  text: '💬 ТЕКСТОВЫЕ',
+  image: '🖼️ ИЗОБРАЖЕНИЯ',
+  video: '🎬 ВИДЕО',
+}
+
 export default function ModelSelector({ selected, onSelect }: Props) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('all')
   const ref = useRef<HTMLDivElement>(null)
+  const { allModels, loading } = useProviders()
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -24,27 +38,24 @@ export default function ModelSelector({ selected, onSelect }: Props) {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  const filtered = getModelsByCategory(category).filter(m =>
-    m.name.toLowerCase().includes(search.toLowerCase()) ||
-    m.description.toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = allModels.filter(m => {
+    if (category !== 'all' && m.category !== category) return false
+    if (search) {
+      const q = search.toLowerCase()
+      return m.name.toLowerCase().includes(q) || m.description.toLowerCase().includes(q)
+    }
+    return true
+  })
 
   const grouped = filtered.reduce((acc, model) => {
-    const cat = model.category
-    if (!acc[cat]) acc[cat] = []
-    acc[cat].push(model)
+    if (!acc[model.category]) acc[model.category] = []
+    acc[model.category].push(model)
     return acc
   }, {} as Record<string, Model[]>)
 
-  const categoryLabels: Record<string, string> = {
-    text: '💬 ТЕКСТОВЫЕ',
-    image: '🖼️ ИЗОБРАЖЕНИЯ',
-    video: '🎬 ВИДЕО',
-  }
-
   const renderModelItem = (model: Model) => (
     <button
-      key={model.id}
+      key={`${model.provider}-${model.id}`}
       className={`model-item ${selected?.id === model.id ? 'active' : ''}`}
       onClick={() => { onSelect(model); setOpen(false) }}
     >
@@ -56,8 +67,7 @@ export default function ModelSelector({ selected, onSelect }: Props) {
         <span className="model-item-desc">{model.description}</span>
       </div>
       <span className="model-cost">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="#facc15"><circle cx="12" cy="12" r="10"/></svg>
-        {model.cost}
+        {model.cost > 0 ? (<>🪙 {model.cost}</>) : (<span style={{ color: '#22c55e' }}>Бесплатно</span>)}
       </span>
     </button>
   )
@@ -112,12 +122,12 @@ export default function ModelSelector({ selected, onSelect }: Props) {
           </div>
 
           <div className="model-list">
-            {category === 'all' ? (
+            {loading ? (
+              <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8' }}>Загрузка...</div>
+            ) : category === 'all' ? (
               Object.entries(grouped).map(([cat, models]) => (
                 <div key={cat} className="model-group">
-                  <div className="model-group-title">
-                    {categoryLabels[cat] || cat}
-                  </div>
+                  <div className="model-group-title">{CATEGORY_LABELS[cat] || cat}</div>
                   {models.map(renderModelItem)}
                 </div>
               ))

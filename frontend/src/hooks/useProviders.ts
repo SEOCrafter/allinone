@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { detectBrand, isVariant, type BrandDef } from '../data/brands'
+import type { Model, ModelCategory, TaskType } from '../data/models'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
@@ -72,6 +73,26 @@ function groupByBrand(providers: APIProvider[]): Brand[] {
   })
 }
 
+export function brandModelToModel(brand: Brand, bm: BrandModel): Model {
+  const cat: ModelCategory = bm.type === 'image' ? 'image' : bm.type === 'video' ? 'video' : 'text'
+  const task: TaskType = cat === 'text' ? 'text' : cat === 'image' ? 't2i' : 't2v'
+  return {
+    id: bm.id,
+    provider: bm.adapter,
+    name: bm.displayName || bm.id,
+    shortName: '',
+    description: brand.description,
+    category: cat,
+    taskType: task,
+    cost: bm.creditsPrice ?? 0,
+    rating: 0,
+    users: 0,
+    icon: brand.icon,
+    color: '#6366f1',
+    backendModel: bm.id,
+  }
+}
+
 export function useProviders() {
   const [brands, setBrands] = useState<Brand[]>(cachedBrands || [])
   const [loading, setLoading] = useState(!cachedBrands)
@@ -100,5 +121,15 @@ export function useProviders() {
     return () => ctrl.abort()
   }, [])
 
-  return { brands, loading, error }
+  const allModels = useMemo(() => {
+    const models: Model[] = []
+    for (const brand of brands) {
+      for (const bm of brand.models) {
+        models.push(brandModelToModel(brand, bm))
+      }
+    }
+    return models
+  }, [brands])
+
+  return { brands, allModels, loading, error }
 }

@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useProviders, brandModelToModel } from '../hooks/useProviders'
+import type { Brand } from '../hooks/useProviders'
 import type { Model } from '../data/models'
-import { MODELS, getPopularModels } from '../data/models'
-import BotCard from '../components/BotCard'
 import ModelIcon from '../components/ModelIcon'
 
 interface Props {
@@ -10,18 +10,31 @@ interface Props {
   onSelectModel: (model: Model) => void
 }
 
+function declModels(n: number): string {
+  const abs = Math.abs(n) % 100
+  const last = abs % 10
+  if (abs > 10 && abs < 20) return 'моделей'
+  if (last > 1 && last < 5) return 'модели'
+  if (last === 1) return 'модель'
+  return 'моделей'
+}
+
 export default function Home({ selectedModel, onSelectModel }: Props) {
   const [message, setMessage] = useState('')
   const navigate = useNavigate()
-  const popular = getPopularModels()
-  const topModels = MODELS.slice(0, 5)
+  const { brands, allModels, loading } = useProviders()
+  const topBrands = brands.slice(0, 5)
+  const popularBrands = brands.slice(0, 9)
+  const totalModels = allModels.length
 
   const handleSend = () => {
     if (!message.trim()) return
     navigate('/chat', { state: { message } })
   }
 
-  const handleModelClick = (model: Model) => {
+  const handleBrandClick = (brand: Brand) => {
+    if (brand.models.length === 0) return
+    const model = brandModelToModel(brand, brand.models[0])
     onSelectModel(model)
     if (model.category === 'text') {
       navigate('/chat')
@@ -62,20 +75,22 @@ export default function Home({ selectedModel, onSelectModel }: Props) {
         </div>
 
         <div className="bot-selector">
-          {topModels.map((model) => (
-            <button
-              key={model.id}
-              className={`bot-chip ${selectedModel?.id === model.id ? 'active' : ''}`}
-              onClick={() => onSelectModel(model)}
-            >
-              <span className="bot-chip-icon">
-                <ModelIcon icon={model.icon} name={model.name} size={24} />
-              </span>
-              {model.shortName && <span>{model.shortName}</span>}
-            </button>
-          ))}
+          {topBrands.map(brand => {
+            const firstModel = brand.models[0] ? brandModelToModel(brand, brand.models[0]) : null
+            return (
+              <button
+                key={brand.id}
+                className={`bot-chip ${firstModel && selectedModel?.id === firstModel.id ? 'active' : ''}`}
+                onClick={() => handleBrandClick(brand)}
+              >
+                <span className="bot-chip-icon">
+                  <ModelIcon icon={brand.icon} name={brand.name} size={24} />
+                </span>
+              </button>
+            )
+          })}
           <button className="bot-chip bot-chip-all" onClick={() => navigate('/bots')}>
-            <span className="bot-count">{MODELS.length}+</span>
+            <span className="bot-count">{totalModels}+</span>
             <span>Все нейронки</span>
           </button>
         </div>
@@ -90,10 +105,31 @@ export default function Home({ selectedModel, onSelectModel }: Props) {
           <button className="section-link" onClick={() => navigate('/bots')}>Все нейросети</button>
         </div>
 
-        <div className="bots-grid">
-          {popular.map((model) => (
-            <BotCard key={model.id} model={model} onClick={() => handleModelClick(model)} />
-          ))}
+        <div className="brands-grid">
+          {loading ? (
+            <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+              Загрузка...
+            </div>
+          ) : (
+            popularBrands.map(brand => (
+              <div key={brand.id} className="brand-card" onClick={() => handleBrandClick(brand)}>
+                <div className="brand-card-header">
+                  <img
+                    className="brand-card-icon"
+                    src={brand.icon}
+                    alt={brand.name}
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                  />
+                </div>
+                <div className="brand-card-name">{brand.name}</div>
+                <div className="brand-card-desc">{brand.description}</div>
+                <div className="brand-card-footer">
+                  <span className="brand-card-count">{brand.modelCount} {declModels(brand.modelCount)}</span>
+                  <span className="brand-card-arrow">›</span>
+                </div>
+              </div>
+            ))
+          )}
         </div>
 
         <button className="show-more-btn" onClick={() => navigate('/bots')}>Показать все нейросети</button>

@@ -25,7 +25,6 @@ const BRANDS: Record<string, BrandDef> = {
   seedance: { id: 'seedance', name: 'Seedance', icon: '/icons/seedance.svg', description: 'Генерация видео', category: 'video' },
   runway: { id: 'runway', name: 'Runway', icon: '/icons/runway.svg', description: 'Генерация видео и изображений', category: 'mixed' },
   luma: { id: 'luma', name: 'Luma', icon: '/icons/luma.svg', description: 'Генерация видео и изображений', category: 'mixed' },
-  minimax: { id: 'minimax', name: 'MiniMax', icon: '/icons/hailuo.svg', description: 'Модели от MiniMax', category: 'mixed' },
 }
 
 const ADAPTER_TO_BRAND: Record<string, string> = {
@@ -53,6 +52,9 @@ const OWNER_TO_BRAND: Record<string, string> = {
   'kwaivgi': 'kling',
   'cdingram': 'face-swap',
   'bytedance': 'seedance',
+  'minimax': 'hailuo',
+  'openai': 'sora',
+  'google': 'imagen',
 }
 
 const NAME_PATTERNS: [string, string][] = [
@@ -73,9 +75,6 @@ const NAME_PATTERNS: [string, string][] = [
   ['gen-4', 'runway'],
   ['ray', 'luma'],
   ['photon', 'luma'],
-  ['speech', 'minimax'],
-  ['image-01', 'minimax'],
-  ['video-01', 'minimax'],
 ]
 
 export function detectBrand(adapterName: string, modelId: string): BrandDef | null {
