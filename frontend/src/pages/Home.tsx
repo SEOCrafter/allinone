@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import type { Model } from '../data/models'
 import { MODELS, getPopularModels } from '../data/models'
 import BotCard from '../components/BotCard'
+import ModelIcon from '../components/ModelIcon'
 
 interface Props {
   selectedModel: Model | null
@@ -22,7 +23,11 @@ export default function Home({ selectedModel, onSelectModel }: Props) {
 
   const handleModelClick = (model: Model) => {
     onSelectModel(model)
-    navigate('/chat')
+    if (model.category === 'text') {
+      navigate('/chat')
+    } else {
+      navigate('/generate')
+    }
   }
 
   return (
@@ -63,8 +68,10 @@ export default function Home({ selectedModel, onSelectModel }: Props) {
               className={`bot-chip ${selectedModel?.id === model.id ? 'active' : ''}`}
               onClick={() => onSelectModel(model)}
             >
-              <span className="bot-chip-icon" style={{ background: model.color }}>{model.icon}</span>
-              <span>{model.name}</span>
+              <span className="bot-chip-icon">
+                <ModelIcon icon={model.icon} name={model.name} size={24} />
+              </span>
+              {model.shortName && <span>{model.shortName}</span>}
             </button>
           ))}
           <button className="bot-chip bot-chip-all" onClick={() => navigate('/bots')}>

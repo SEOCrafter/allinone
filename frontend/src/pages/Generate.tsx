@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Model } from '../data/models'
 import { useAuth } from '../context/AuthContext'
+import ModelIcon from '../components/ModelIcon'
 import { 
   generateNanoBanana, 
   generateMidjourney, 
@@ -190,6 +191,30 @@ export default function Generate({ selectedModel }: Props) {
           const localUrl = await saveAndGetLocalUrl(response.video_url, true)
           setResult(localUrl)
         }
+      } else if (selectedModel.category === 'video') {
+        response = await generateVideo({
+          prompt: prompt.trim(),
+          provider: selectedModel.provider,
+          model: selectedModel.backendModel,
+          image_urls: uploadedImage?.url ? [uploadedImage.url] : undefined,
+          duration: settings.duration,
+          aspect_ratio: settings.aspectRatio,
+        })
+        if (response.ok && response.video_url) {
+          const localUrl = await saveAndGetLocalUrl(response.video_url, true)
+          setResult(localUrl)
+        }
+      } else if (selectedModel.category === 'image') {
+        response = await generateNanoBanana({
+          prompt: prompt.trim(),
+          model: selectedModel.backendModel,
+          aspect_ratio: settings.aspectRatio,
+          resolution: settings.resolution,
+        })
+        if (response.ok && response.image_url) {
+          const localUrl = await saveAndGetLocalUrl(response.image_url, false)
+          setResult(localUrl)
+        }
       }
 
       if (response && !response.ok) {
@@ -225,8 +250,8 @@ export default function Generate({ selectedModel }: Props) {
     <div className="generate-page">
       <div className="generate-header">
         <div className="generate-model-info">
-          <span className="generate-model-icon" style={{ background: selectedModel.color }}>
-            {selectedModel.icon}
+          <span className="generate-model-icon">
+            <ModelIcon icon={selectedModel.icon} name={selectedModel.name} size={48} />
           </span>
           <div>
             <h1 className="generate-model-name">{selectedModel.name}</h1>

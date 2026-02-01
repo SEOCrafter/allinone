@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom'
 import type { Model } from '../data/models'
 import { sendMessage } from '../api/chat'
 import { useAuth } from '../context/AuthContext'
+import ModelIcon from '../components/ModelIcon'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -90,8 +91,8 @@ export default function Chat({ selectedModel }: Props) {
         <div className="chat-model-info">
           {selectedModel && (
             <>
-              <span className="chat-model-icon" style={{ background: selectedModel.color }}>
-                {selectedModel.icon}
+              <span className="chat-model-icon">
+                <ModelIcon icon={selectedModel.icon} name={selectedModel.name} size={32} />
               </span>
               <span className="chat-model-name">{selectedModel.name}</span>
               <span className="chat-model-cost">
@@ -126,8 +127,9 @@ export default function Chat({ selectedModel }: Props) {
             {selectedModel && (
               <div className="chat-selected-model">
                 <span>Выбрана:</span>
-                <span className="model-badge" style={{ background: selectedModel.color }}>
-                  {selectedModel.icon} {selectedModel.name}
+                <span className="model-badge">
+                  <ModelIcon icon={selectedModel.icon} name={selectedModel.name} size={20} />
+                  {selectedModel.name}
                 </span>
               </div>
             )}
@@ -147,8 +149,8 @@ export default function Chat({ selectedModel }: Props) {
             {messages.map((msg, i) => (
               <div key={i} className={`chat-message ${msg.role}`}>
                 {msg.role === 'assistant' && selectedModel && (
-                  <div className="chat-message-avatar" style={{ background: selectedModel.color }}>
-                    {selectedModel.icon}
+                  <div className="chat-message-avatar">
+                    <ModelIcon icon={selectedModel.icon} name={selectedModel.name} size={32} />
                   </div>
                 )}
                 <div className="chat-message-content">
@@ -159,8 +161,8 @@ export default function Chat({ selectedModel }: Props) {
             {isLoading && (
               <div className="chat-message assistant">
                 {selectedModel && (
-                  <div className="chat-message-avatar" style={{ background: selectedModel.color }}>
-                    {selectedModel.icon}
+                  <div className="chat-message-avatar">
+                    <ModelIcon icon={selectedModel.icon} name={selectedModel.name} size={32} />
                   </div>
                 )}
                 <div className="chat-message-content">

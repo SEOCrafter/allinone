@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Model } from '../data/models'
 import { CATEGORIES, getModelsByCategory } from '../data/models'
+import ModelIcon from './ModelIcon'
 
 interface Props {
   selected: Model | null
@@ -35,17 +36,45 @@ export default function ModelSelector({ selected, onSelect }: Props) {
     return acc
   }, {} as Record<string, Model[]>)
 
+  const categoryLabels: Record<string, string> = {
+    text: '💬 ТЕКСТОВЫЕ',
+    image: '🖼️ ИЗОБРАЖЕНИЯ',
+    video: '🎬 ВИДЕО',
+  }
+
+  const renderModelItem = (model: Model) => (
+    <button
+      key={model.id}
+      className={`model-item ${selected?.id === model.id ? 'active' : ''}`}
+      onClick={() => { onSelect(model); setOpen(false) }}
+    >
+      <span className="model-icon">
+        <ModelIcon icon={model.icon} name={model.name} size={20} />
+      </span>
+      <div className="model-info">
+        <span className="model-item-name">{model.name}</span>
+        <span className="model-item-desc">{model.description}</span>
+      </div>
+      <span className="model-cost">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="#facc15"><circle cx="12" cy="12" r="10"/></svg>
+        {model.cost}
+      </span>
+    </button>
+  )
+
   return (
     <div className="model-selector" ref={ref}>
       <button className="model-selector-btn" onClick={() => setOpen(!open)}>
         {selected ? (
           <>
-            <span className="model-icon" style={{ background: selected.color }}>{selected.icon}</span>
+            <span className="model-icon">
+              <ModelIcon icon={selected.icon} name={selected.name} size={20} />
+            </span>
             <span className="model-name">{selected.name}</span>
           </>
         ) : (
           <>
-            <span className="model-icon">🤖</span>
+            <span className="model-icon model-icon-placeholder">?</span>
             <span className="model-name">Выбрать нейросеть</span>
           </>
         )}
@@ -87,47 +116,13 @@ export default function ModelSelector({ selected, onSelect }: Props) {
               Object.entries(grouped).map(([cat, models]) => (
                 <div key={cat} className="model-group">
                   <div className="model-group-title">
-                    {cat === 'text' && '💬 Текстовые'}
-                    {cat === 'image' && '🖼️ Изображения'}
-                    {cat === 'video' && '🎬 Видео'}
+                    {categoryLabels[cat] || cat}
                   </div>
-                  {models.map(model => (
-                    <button
-                      key={model.id}
-                      className={`model-item ${selected?.id === model.id ? 'active' : ''}`}
-                      onClick={() => { onSelect(model); setOpen(false) }}
-                    >
-                      <span className="model-icon" style={{ background: model.color }}>{model.icon}</span>
-                      <div className="model-info">
-                        <span className="model-item-name">{model.name}</span>
-                        <span className="model-item-desc">{model.description}</span>
-                      </div>
-                      <span className="model-cost">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="#facc15"><circle cx="12" cy="12" r="10"/></svg>
-                        {model.cost}
-                      </span>
-                    </button>
-                  ))}
+                  {models.map(renderModelItem)}
                 </div>
               ))
             ) : (
-              filtered.map(model => (
-                <button
-                  key={model.id}
-                  className={`model-item ${selected?.id === model.id ? 'active' : ''}`}
-                  onClick={() => { onSelect(model); setOpen(false) }}
-                >
-                  <span className="model-icon" style={{ background: model.color }}>{model.icon}</span>
-                  <div className="model-info">
-                    <span className="model-item-name">{model.name}</span>
-                    <span className="model-item-desc">{model.description}</span>
-                  </div>
-                  <span className="model-cost">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="#facc15"><circle cx="12" cy="12" r="10"/></svg>
-                    {model.cost}
-                  </span>
-                </button>
-              ))
+              filtered.map(renderModelItem)
             )}
           </div>
 
