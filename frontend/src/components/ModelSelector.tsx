@@ -42,7 +42,7 @@ export default function ModelSelector({ selected, onSelect }: Props) {
     if (category !== 'all' && m.category !== category) return false
     if (search) {
       const q = search.toLowerCase()
-      return m.name.toLowerCase().includes(q) || m.description.toLowerCase().includes(q)
+      return m.name.toLowerCase().includes(q) || m.description.toLowerCase().includes(q) || m.provider.toLowerCase().includes(q) || m.id.toLowerCase().includes(q)
     }
     return true
   })

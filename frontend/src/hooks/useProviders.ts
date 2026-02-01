@@ -92,7 +92,7 @@ export function brandModelToModel(brand: Brand, bm: BrandModel): Model {
   return {
     id: bm.id,
     provider: bm.adapter,
-    name: bm.displayName || bm.id,
+    name: `${brand.name} — ${bm.displayName || bm.id}`,
     shortName: '',
     description: brand.description,
     category: cat,
