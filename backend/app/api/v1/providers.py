@@ -111,7 +111,7 @@ async def list_providers(
             for model in provider["models"]:
                 setting = _find_setting(settings_map, provider["name"], model["id"])
 
-                is_enabled = setting.is_enabled if setting else True
+                is_enabled = setting.is_enabled if setting else False
                 credits_price = float(setting.credits_price) if setting and setting.credits_price else None
 
                 model["credits_price"] = credits_price
@@ -148,7 +148,7 @@ async def list_all_models(
         for model in provider.get("models", []):
             setting = _find_setting(settings_map, provider["name"], model["id"])
 
-            is_enabled = setting.is_enabled if setting else True
+            is_enabled = setting.is_enabled if setting else False
             credits_price = float(setting.credits_price) if setting and setting.credits_price else None
 
             if enabled_only and not is_enabled:
