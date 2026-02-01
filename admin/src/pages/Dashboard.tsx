@@ -74,7 +74,7 @@ export default function Dashboard() {
             <span className="text-gray-400">Расходы провайдеров</span>
           </div>
           <p className="text-3xl font-bold text-white">${stats.costs.total_provider_cost_usd.toFixed(6)}</p>
-          <p className="text-sm text-gray-500">{stats.costs.total_credits_spent.toFixed(2)} кредитов</p>
+          <p className="text-sm text-gray-500">{stats.costs.total_credits_spent.toFixed(2)} токенов</p>
         </div>
 
         <div className="bg-[#2f2f2f] rounded-lg p-4">

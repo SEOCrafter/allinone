@@ -936,7 +936,7 @@ export default function UnitEconomics() {
                   <th className="pb-3">Тариф</th>
                   <th className="pb-3">Цена</th>
                   <th className="pb-3">Запросов</th>
-                  <th className="pb-3">Кред./запрос</th>
+                  <th className="pb-3">Токен/запрос</th>
                   <th className="pb-3">Себестоимость</th>
                   <th className="pb-3">Прибыль/запрос</th>
                   <th className="pb-3">Маржа</th>
