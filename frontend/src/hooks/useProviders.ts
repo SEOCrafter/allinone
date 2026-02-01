@@ -1,16 +1,13 @@
 import { useState, useEffect } from 'react'
 import { detectBrand, isVariant, type BrandDef } from '../data/brands'
 
-const API_BASE = import.meta.env.VITE_API_BASE || ''
+const API_BASE = import.meta.env.VITE_API_URL || ''
 
 export interface APIModel {
   id: string
   display_name: string
   type: string
-  pricing: {
-    input_per_1k: number
-    output_per_1k: number
-  }
+  pricing: { input_per_1k: number; output_per_1k: number }
   credits_price: number | null
   is_enabled: boolean
 }
@@ -46,10 +43,11 @@ function groupByBrand(providers: APIProvider[]): Brand[] {
       if (isVariant(model.id)) continue
 
       const def = detectBrand(provider.name, model.id)
-      const key = `${def.id}:${model.id}`
+      if (!def) continue
 
-      if (seen.has(key)) continue
-      seen.add(key)
+      const dedupeKey = `${def.id}:${model.id}`
+      if (seen.has(dedupeKey)) continue
+      seen.add(dedupeKey)
 
       if (!brandMap.has(def.id)) {
         brandMap.set(def.id, { ...def, models: [], modelCount: 0 })
@@ -81,7 +79,6 @@ export function useProviders() {
 
   useEffect(() => {
     if (cachedBrands) return
-
     const ctrl = new AbortController()
 
     fetch(`${API_BASE}/api/v1/providers?enabled_only=true`, { signal: ctrl.signal })

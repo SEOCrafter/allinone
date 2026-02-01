@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useProviders, type Brand, type BrandModel } from '../hooks/useProviders'
+import { useProviders, type BrandModel } from '../hooks/useProviders'
 
 const TYPE_LABELS: Record<string, string> = {
   text: 'Текст',
@@ -24,10 +24,10 @@ function modelsWord(n: number): string {
   return 'моделей'
 }
 
-function formatPrice(price: number | null): string {
-  if (price === null) return '—'
-  if (price === 0) return 'Бесплатно'
-  return `${price} кр.`
+function PriceTag({ price }: { price: number | null }) {
+  if (price === null) return <span className="brand-model-price muted">—</span>
+  if (price === 0) return <span className="brand-model-price free">Бесплатно</span>
+  return <span className="brand-model-price">🪙 {price}</span>
 }
 
 export default function Bots() {
@@ -55,70 +55,48 @@ export default function Bots() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="main-area">
-        <div className="bots-status">Загрузка нейросетей...</div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="main-area">
-        <div className="bots-status bots-error">Ошибка: {error}</div>
-      </div>
-    )
-  }
+  if (loading) return <div className="bots-page"><div className="bots-status">Загрузка...</div></div>
+  if (error) return <div className="bots-page"><div className="bots-status bots-error">Ошибка: {error}</div></div>
 
   if (activeBrand) {
     return (
-      <div className="main-area">
-        <div className="brand-detail">
-          <button className="brand-back" onClick={() => setSelectedBrand(null)}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M19 12H5M12 19l-7-7 7-7" />
-            </svg>
-            Все нейросети
-          </button>
+      <div className="bots-page">
+        <button className="brand-back" onClick={() => setSelectedBrand(null)}>
+          ← Все нейросети
+        </button>
 
-          <div className="brand-detail-header">
-            {activeBrand.icon && (
-              <img src={activeBrand.icon} alt={activeBrand.name} className="brand-detail-icon" draggable={false} />
-            )}
-            <div>
-              <h2 className="brand-detail-name">{activeBrand.name}</h2>
-              <p className="brand-detail-desc">{activeBrand.description}</p>
-            </div>
+        <div className="brand-detail-header">
+          {activeBrand.icon && (
+            <img src={activeBrand.icon} alt="" className="brand-detail-icon" draggable={false} />
+          )}
+          <div>
+            <h2 className="brand-detail-name">{activeBrand.name}</h2>
+            <p className="brand-detail-desc">{activeBrand.description}</p>
           </div>
+        </div>
 
-          <div className="brand-models-list">
-            {activeBrand.models.map(model => (
-              <button
-                key={`${model.adapter}:${model.id}`}
-                className="brand-model-row"
-                onClick={() => handleModelClick(model)}
-              >
-                <div className="brand-model-info">
-                  <span className="brand-model-name">{model.displayName}</span>
-                  <span className="brand-model-type">{TYPE_LABELS[model.type] || model.type}</span>
-                </div>
-                <span className={`brand-model-price ${!model.creditsPrice ? 'free' : ''}`}>
-                  {formatPrice(model.creditsPrice)}
-                </span>
-              </button>
-            ))}
-          </div>
+        <div className="brand-models-list">
+          {activeBrand.models.map(model => (
+            <button
+              key={`${model.adapter}:${model.id}`}
+              className="brand-model-row"
+              onClick={() => handleModelClick(model)}
+            >
+              <div className="brand-model-info">
+                <span className="brand-model-name">{model.displayName}</span>
+                <span className="brand-model-type">{TYPE_LABELS[model.type] || model.type}</span>
+              </div>
+              <PriceTag price={model.creditsPrice} />
+            </button>
+          ))}
         </div>
       </div>
     )
   }
 
   return (
-    <div className="main-area">
-      <div className="section-header" style={{ marginBottom: 16 }}>
-        <h2 className="section-title">Все нейросети</h2>
-      </div>
+    <div className="bots-page">
+      <h2 className="bots-title">Все нейросети</h2>
 
       <div className="bots-filters">
         <div className="bots-search">
@@ -149,11 +127,11 @@ export default function Bots() {
       <div className="brands-grid">
         {filtered.map(brand => (
           <div key={brand.id} className="brand-card" onClick={() => setSelectedBrand(brand.id)}>
-            <div className="brand-card-icon">
+            <div className="brand-card-top">
               {brand.icon ? (
-                <img src={brand.icon} alt={brand.name} draggable={false} />
+                <img src={brand.icon} alt="" className="brand-card-icon" draggable={false} />
               ) : (
-                <span className="brand-card-icon-fallback">{brand.name.charAt(0)}</span>
+                <span className="brand-card-fallback">{brand.name.charAt(0)}</span>
               )}
             </div>
             <div className="brand-card-body">
@@ -164,9 +142,7 @@ export default function Bots() {
               <span className="brand-card-count">
                 {brand.modelCount} {modelsWord(brand.modelCount)}
               </span>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M9 18l6-6-6-6" />
-              </svg>
+              <span className="brand-card-arrow">›</span>
             </div>
           </div>
         ))}
