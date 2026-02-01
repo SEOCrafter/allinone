@@ -256,7 +256,9 @@ export default function Adapters() {
 
   const handleSaveCredits = async (settingsKey: string) => {
     const value = creditsInput ? parseFloat(creditsInput) : null;
-    const [adapterName, modelId] = settingsKey.split(':');
+    const parts = settingsKey.split(':');
+    const adapterName = parts[0];
+    const modelId = parts.slice(1).join(':');
     
     setSavingSettings(prev => ({ ...prev, [settingsKey]: true }));
     try {
