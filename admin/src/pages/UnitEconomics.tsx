@@ -506,7 +506,7 @@ export default function UnitEconomics() {
               )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-gray-400 text-sm mb-1">Кредитов в тарифе</label>
+                  <label className="block text-gray-400 text-sm mb-1">Токенов в тарифе</label>
                   <input type="number" value={creditsInPlan}
                     onChange={e => setCreditsInPlan(Number(e.target.value))}
                     className="w-full px-3 py-2 bg-[#3f3f3f] border border-gray-600 rounded text-white" />
@@ -767,11 +767,11 @@ export default function UnitEconomics() {
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-[#252525] rounded-lg p-3">
-                    <div className="text-gray-400 text-sm">Кредитов за запрос</div>
+                    <div className="text-gray-400 text-sm">Токенов за запрос</div>
                     <div className="text-2xl font-bold text-white">{calculation.creditsPerRequest.toFixed(1)}</div>
                   </div>
                   <div className="bg-[#252525] rounded-lg p-3">
-                    <div className="text-gray-400 text-sm">Цена кредита</div>
+                    <div className="text-gray-400 text-sm">Цена токена</div>
                     <div className="text-2xl font-bold text-white">{formatUSD(calculation.pricePerCredit, 4)}</div>
                   </div>
                 </div>

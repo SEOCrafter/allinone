@@ -348,7 +348,7 @@ export default function Tariffs() {
               <tr>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Название</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Цена</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Кредиты</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Токены</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Блоков</th>
                 <th className="px-4 py-3 text-center text-sm font-medium text-gray-400">Статус</th>
                 <th className="px-4 py-3 text-right text-sm font-medium text-gray-400">Действия</th>
@@ -492,7 +492,7 @@ export default function Tariffs() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">Кредиты</label>
+                  <label className="block text-sm font-medium text-gray-400 mb-1">Токены</label>
                   <input
                     type="number"
                     value={editingTariff.credits}

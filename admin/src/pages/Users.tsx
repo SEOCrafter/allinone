@@ -152,7 +152,7 @@ export default function Users() {
             <tr className="text-gray-400 text-left bg-[#252525]">
               <th className="p-4 rounded-tl-lg">Email</th>
               <th className="p-4">Роль</th>
-              <th className="p-4">Кредиты</th>
+              <th className="p-4">Токены</th>
               <th className="p-4">Статус</th>
               <th className="p-4">Создан</th>
               <th className="p-4 w-10 rounded-tr-lg"></th>

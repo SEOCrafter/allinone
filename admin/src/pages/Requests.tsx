@@ -314,7 +314,7 @@ export default function Requests() {
                     <p className="text-white">${(selectedRequest.costs?.provider_cost_usd || 0).toFixed(6)}</p>
                   </div>
                   <div className="bg-[#252525] p-3 rounded">
-                    <p className="text-xs text-gray-500">Кредиты</p>
+                    <p className="text-xs text-gray-500">Токены</p>
                     <p className="text-white">{(selectedRequest.costs?.credits_spent || 0).toFixed(4)}</p>
                   </div>
                 </div>

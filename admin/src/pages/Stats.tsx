@@ -117,7 +117,7 @@ export default function Stats() {
             <p className="text-2xl font-bold text-white">{stats.requests.total}</p>
           </div>
           <div className="bg-[#252525] p-4 rounded-lg">
-            <p className="text-gray-400 text-sm">Кредитов потрачено</p>
+            <p className="text-gray-400 text-sm">Токенов потрачено</p>
             <p className="text-2xl font-bold text-white">{stats.costs.total_credits_spent.toFixed(4)}</p>
           </div>
           <div className="bg-[#252525] p-4 rounded-lg">

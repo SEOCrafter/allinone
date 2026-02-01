@@ -922,7 +922,7 @@ export default function Adapters() {
                 <th className="pb-3">Тип цены</th>
                 <th className="pb-3">Себестоимость</th>
                 <th className="pb-3">Среднее</th>
-                <th className="pb-3">Кредиты</th>
+                <th className="pb-3">Токены</th>
                 <th className="pb-3 text-center">Статус</th>
               </tr>
             </thead>
