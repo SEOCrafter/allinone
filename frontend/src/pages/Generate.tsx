@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import type { Model } from '../data/models'
 import { useAuth } from '../context/AuthContext'
 import ModelIcon from '../components/ModelIcon'
-import { 
-  generateNanoBanana, 
+import {  
   generateMidjourney, 
   generateImageAsync,
   getTaskStatus,
@@ -156,19 +155,7 @@ export default function Generate({ selectedModel }: Props) {
     try {
       let response
 
-      if (selectedModel.provider === 'nano_banana') {
-        response = await generateNanoBanana({
-          prompt: prompt.trim(),
-          model: selectedModel.backendModel,
-          aspect_ratio: settings.aspectRatio,
-          resolution: settings.resolution,
-          image_input: uploadedImage?.url ? [uploadedImage.url] : undefined,
-        })
-        if (response.ok && response.image_url) {
-          const localUrl = await saveAndGetLocalUrl(response.image_url, false)
-          setResult(localUrl)
-        }
-      } else if (selectedModel.provider === 'midjourney') {
+      if (selectedModel.provider === 'midjourney') {
         if (selectedModel.taskType === 'i2v') {
           response = await generateMidjourneyVideo({
             prompt: prompt.trim(),
