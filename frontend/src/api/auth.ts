@@ -32,7 +32,8 @@ export async function register(email: string, password: string, name: string): P
   return response.user
 }
 export async function getProfile(): Promise<User> {
-  return api.request<User>('/api/v1/user/me')
+  const res = await api.request<{ ok: boolean; user: User }>('/api/v1/user/me')
+  return res.user
 }
 export function logout() {
   api.setTokens(null, null)
