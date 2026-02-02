@@ -222,7 +222,7 @@ export default function Account() {
       <div className="account-content-title">Профиль</div>
       <div className="account-content-desc">Управляйте персональными данными: редактируйте имя, электронную почту и номер телефона.</div>
       <div className="profile-fields">
-        {renderField('ИМЯ И ФАМИЛИЯ', 'name', profile?.name, 'Не указано')}
+        {renderField('ИМЯ', 'name', profile?.name, 'Не указано')}
         {renderField('ЭЛЕКТРОННАЯ ПОЧТА', 'email', profile?.email, 'Не указана')}
         {renderField('ТЕЛЕФОН', 'phone', profile?.phone, 'Не указан')}
         <div className="profile-field">

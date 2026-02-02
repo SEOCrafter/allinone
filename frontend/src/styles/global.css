@@ -28,6 +28,9 @@
   box-sizing: border-box;
 }
 
+html {
+  overflow-y: scroll;
+}
 :root {
   --primary: #2563eb;
   --primary-hover: #1d4ed8;
@@ -1912,11 +1915,13 @@ input, textarea { font-family: inherit; border: none; outline: none; }
 .account-page {
   display: flex;
   max-width: 1100px;
+  width: 1100px;
   margin: 0 auto;
   padding: 40px;
   min-height: calc(100vh - 68px);
   gap: 0;
 }
+
 .account-sidebar {
   width: 200px;
   min-width: 200px;
@@ -1995,7 +2000,7 @@ input, textarea { font-family: inherit; border: none; outline: none; }
   flex: 1;
   padding-left: 40px;
   min-width: 0;
-  max-width: calc(100% - 240px);
+  width: calc(100% - 240px);
 }
 
 /* Overview */
