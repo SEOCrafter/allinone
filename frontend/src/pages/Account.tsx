@@ -257,7 +257,7 @@ export default function Account() {
           <div className="account-balance-label">Баланс токенов</div>
           <div className="account-balance-value">{(profile?.credits_balance || 0).toFixed(0)}</div>
         </div>
-        <button className="account-balance-btn" onClick={() => navigate('/tarifs')}>Пополнить</button>
+        <button className="account-balance-btn" onClick={() => navigate('/tariffs')}>Пополнить</button>
       </div>
       <div className="account-tariff-card">
         {subStatus?.has_tariff ? (
@@ -374,7 +374,7 @@ export default function Account() {
     <>
       <div className="payments-header">
         <div className="account-content-title">Платежи</div>
-        <button className="payments-topup-btn" onClick={() => navigate('/tarifs')}>Пополнить баланс</button>
+        <button className="payments-topup-btn" onClick={() => navigate('/tariffs')}>Пополнить баланс</button>
       </div>
 
       <div className="payments-section-title">✓ История пополнений</div>
