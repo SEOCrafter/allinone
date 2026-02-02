@@ -2,7 +2,7 @@ import uuid
 from decimal import Decimal
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import String, BigInteger, Boolean, Text, DECIMAL, DateTime
+from sqlalchemy import String, BigInteger, Boolean, Text, DECIMAL, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 from app.models.base import UUIDMixin, TimestampMixin
@@ -27,6 +27,8 @@ class User(Base, UUIDMixin, TimestampMixin):
     rate_limit_rpm: Mapped[Optional[int]] = mapped_column(nullable=True)
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     avatar_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    active_tariff_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("tariffs.id"), nullable=True)
+    tariff_activated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     api_keys: Mapped[list["ApiKey"]] = relationship(back_populates="user")
     requests: Mapped[list["Request"]] = relationship(back_populates="user")

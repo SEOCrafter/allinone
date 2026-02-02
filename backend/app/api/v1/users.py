@@ -9,6 +9,7 @@ from app.models.user import User
 from app.models.request import Request, Result
 from app.models.provider import Provider
 from app.services.billing import billing_service
+from app.models.tariff import Tariff
 
 router = APIRouter()
 
@@ -191,3 +192,134 @@ async def get_history(
             "pages": (total + limit - 1) // limit if total else 0,
         }
     )
+
+@router.get("/subscription-status")
+async def get_subscription_status(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from app.models.request import Request
+    from datetime import datetime, timedelta
+
+    tariff = None
+    if current_user.active_tariff_id:
+        from sqlalchemy import select as sel
+        result = await db.execute(
+            select(func.count(Request.id)).where(
+                Request.user_id == current_user.id,
+                Request.created_at >= datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0),
+                Request.status == "completed",
+            )
+        )
+        today_requests = result.scalar() or 0
+
+        tariff_result = await db.execute(
+            sel(Tariff).where(Tariff.id == current_user.active_tariff_id)
+        )
+        tariff_obj = tariff_result.scalar_one_or_none()
+        if tariff_obj:
+            tariff = {
+                "id": str(tariff_obj.id),
+                "name": tariff_obj.name,
+                "description": tariff_obj.description,
+                "price": float(tariff_obj.price),
+                "credits": float(tariff_obj.credits),
+            }
+    else:
+        today_requests = 0
+
+    return {
+        "ok": True,
+        "has_tariff": current_user.active_tariff_id is not None,
+        "tariff": tariff,
+        "is_free": tariff is not None and tariff["price"] == 0,
+        "today_requests": today_requests,
+        "daily_limit": 15 if (tariff and tariff["price"] == 0) else None,
+        "telegram_connected": current_user.telegram_id is not None,
+    }
+
+
+@router.post("/check-channel")
+async def check_channel_subscription(
+    current_user: User = Depends(get_current_user),
+):
+    import httpx
+    from app.config import settings
+
+    if not current_user.telegram_id:
+        return {"ok": False, "subscribed": False, "error": "Telegram не привязан"}
+
+    if not settings.TELEGRAM_BOT_TOKEN:
+        return {"ok": False, "subscribed": False, "error": "Бот не настроен"}
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/getChatMember",
+                params={"chat_id": "@umnik_ai", "user_id": current_user.telegram_id},
+            )
+            data = resp.json()
+
+        if data.get("ok"):
+            status = data["result"]["status"]
+            subscribed = status in ("member", "creator", "administrator", "restricted")
+            return {"ok": True, "subscribed": subscribed, "status": status}
+        else:
+            return {"ok": True, "subscribed": False, "status": "not_found"}
+    except Exception as e:
+        return {"ok": False, "subscribed": False, "error": str(e)}
+
+
+@router.post("/activate-free")
+async def activate_free_tariff(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    import httpx
+    from app.config import settings
+    from datetime import datetime
+
+    if not current_user.telegram_id:
+        raise HTTPException(status_code=400, detail="Сначала привяжите Telegram")
+
+    if not settings.TELEGRAM_BOT_TOKEN:
+        raise HTTPException(status_code=500, detail="Бот не настроен")
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/getChatMember",
+                params={"chat_id": "@umnik_ai", "user_id": current_user.telegram_id},
+            )
+            data = resp.json()
+    except Exception:
+        raise HTTPException(status_code=502, detail="Не удалось проверить подписку")
+
+    if not data.get("ok"):
+        raise HTTPException(status_code=400, detail="Не удалось проверить подписку")
+
+    status = data["result"]["status"]
+    if status not in ("member", "creator", "administrator", "restricted"):
+        raise HTTPException(status_code=400, detail="Вы не подписаны на канал @umnik_ai")
+
+    free_tariff = await db.execute(
+        select(Tariff).where(Tariff.price == 0)
+    )
+    free_tariff = free_tariff.scalar_one_or_none()
+    if not free_tariff:
+        raise HTTPException(status_code=500, detail="Бесплатный тариф не найден")
+
+    current_user.active_tariff_id = free_tariff.id
+    current_user.tariff_activated_at = datetime.utcnow()
+    await db.commit()
+
+    return {
+        "ok": True,
+        "tariff": {
+            "id": str(free_tariff.id),
+            "name": free_tariff.name,
+            "description": free_tariff.description,
+            "price": 0,
+            "credits": 0,
+        }
+    }
