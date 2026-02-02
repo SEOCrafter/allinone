@@ -3466,7 +3466,7 @@ input, textarea { font-family: inherit; border: none; outline: none; }
   display: flex;
   align-items: center;
   gap: 12px;
-  margin: 20px 0;
+  margin: 0 0;
 }
 
 .auth-divider::before,

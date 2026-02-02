@@ -55,11 +55,11 @@ export default function Sidebar({ isOpen, onClose }: Props) {
 
         <div className="sidebar-footer">
           {collapsed ? (
-            <NavLink to="/tarifs" className="sidebar-token-btn" onClick={onClose} title="Выбрать тариф">
+            <NavLink to="/tariffs" className="sidebar-token-btn" onClick={onClose} title="Выбрать тариф">
               <img src="/icons/token.svg" alt="" width="22" height="22" />
             </NavLink>
           ) : (
-            <NavLink to="/tarifs" className="sidebar-tariff-btn" onClick={onClose}>
+            <NavLink to="/tariffs" className="sidebar-tariff-btn" onClick={onClose}>
               Выбрать тариф
             </NavLink>
           )}
