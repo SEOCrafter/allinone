@@ -36,7 +36,21 @@ MODEL_NAME_ALIASES = {
     "flux-kontext/pro-image-to-image": "flux-kontext-pro",
     "google/nano-banana": "nano-banana",
     "google/nano-banana-edit": "nano-banana-edit",
+    "black-forest-labs/flux-pro": "flux-pro",
+    "black-forest-labs/flux-dev": "flux-dev",
+    "black-forest-labs/flux-schnell": "flux-schnell",
+    "black-forest-labs/flux-1.1-pro-ultra": "flux-1.1-pro-ultra",
+    "google/imagen-4": "imagen-4",
+    "google/imagen-4-fast": "imagen-4-fast",
+    "google/imagen-4-ultra": "imagen-4-ultra",
+    "minimax/image-01": "minimax-image",
+    "luma/photon-flash": "luma-photon-flash",
+    "runwayml/gen4-image": "runway-gen4-image",
+    "runwayml/gen4-image-turbo": "runway-gen4-image-turbo",
+    "cdingram/face-swap": "face-swap",
 }
+
+
 
 MODEL_TO_KIE_MODEL = {
     "flux-2-pro": "flux-2/pro-text-to-image",
