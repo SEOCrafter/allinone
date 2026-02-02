@@ -172,12 +172,17 @@ export default function Generate({ selectedModel }: Props) {
             prompt: prompt.trim(),
             image_url: uploadedImage!.url!,
           })
-          if (response.ok && response.video_url) {
-            const localUrl = await saveAndGetLocalUrl(response.video_url, true)
-            setResult(localUrl)
+          if (response.ok) {
+            if (response.video_url) {
+              const localUrl = await saveAndGetLocalUrl(response.video_url, true)
+              setResult(localUrl)
+            } else if (response.request_id) {
+              const resultUrl = await pollForResult(response.request_id)
+              const localUrl = await saveAndGetLocalUrl(resultUrl, true)
+              setResult(localUrl)
+            }
           }
-        } else if (selectedModel.taskType === 'i2i') {
-          response = await imageToImage({
+        response = await imageToImage({
             prompt: prompt.trim(),
             provider: 'midjourney',
             image_url: uploadedImage!.url!,
@@ -186,9 +191,15 @@ export default function Generate({ selectedModel }: Props) {
             speed: settings.speed,
             stylization: settings.stylization,
           })
-          if (response.ok && response.image_url) {
-            const localUrl = await saveAndGetLocalUrl(response.image_url, false)
-            setResult(localUrl)
+          if (response.ok) {
+            if (response.image_url) {
+              const localUrl = await saveAndGetLocalUrl(response.image_url, false)
+              setResult(localUrl)
+            } else if (response.request_id) {
+              const resultUrl = await pollForResult(response.request_id)
+              const localUrl = await saveAndGetLocalUrl(resultUrl, false)
+              setResult(localUrl)
+            }
           }
         } else {
           response = await generateMidjourney({
@@ -199,9 +210,15 @@ export default function Generate({ selectedModel }: Props) {
             speed: settings.speed,
             stylization: settings.stylization,
           })
-          if (response.ok && response.image_url) {
-            const localUrl = await saveAndGetLocalUrl(response.image_url, false)
-            setResult(localUrl)
+          if (response.ok) {
+            if (response.image_url) {
+              const localUrl = await saveAndGetLocalUrl(response.image_url, false)
+              setResult(localUrl)
+            } else if (response.request_id) {
+              const resultUrl = await pollForResult(response.request_id)
+              const localUrl = await saveAndGetLocalUrl(resultUrl, false)
+              setResult(localUrl)
+            }
           }
         }
       } else if (selectedModel.provider === 'kling') {
