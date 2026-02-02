@@ -43,6 +43,23 @@ export interface Brand extends BrandDef {
   modelCount: number
 }
 
+interface ModelMeta {
+  aspectRatios?: string[]
+  resolutions?: string[]
+}
+
+const MODEL_METADATA: Record<string, ModelMeta> = {
+  'flux-2/pro-text-to-image': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'], resolutions: ['1K', '2K'] },
+  'flux-2/pro-image-to-image': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'], resolutions: ['1K', '2K'] },
+  'flux-2/flex-text-to-image': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'], resolutions: ['1K', '2K'] },
+  'flux-2/flex-image-to-image': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'], resolutions: ['1K', '2K'] },
+  'nano-banana-pro': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4'], resolutions: ['1K', '2K', '4K'] },
+  'nano-banana-pro-i2i': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4'], resolutions: ['1K', '2K'] },
+  'midjourney/text-to-image': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'] },
+  'midjourney/image-to-image': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'] },
+  'midjourney/image-to-video': { aspectRatios: ['16:9', '9:16'] },
+}
+
 let cachedBrands: Brand[] | null = null
 
 function groupByBrand(providers: APIProvider[]): Brand[] {
@@ -88,6 +105,7 @@ function groupByBrand(providers: APIProvider[]): Brand[] {
 export function brandModelToModel(brand: Brand, bm: BrandModel): Model {
   const cat: ModelCategory = bm.type === 'image' ? 'image' : bm.type === 'video' ? 'video' : 'text'
   const task: TaskType = cat === 'text' ? 'text' : cat === 'image' ? 't2i' : 't2v'
+  const meta = MODEL_METADATA[bm.id]
 
   return {
     id: bm.id,
@@ -103,6 +121,7 @@ export function brandModelToModel(brand: Brand, bm: BrandModel): Model {
     icon: brand.icon,
     color: '#6366f1',
     backendModel: bm.id,
+    ...(meta || {}),
   }
 }
 
