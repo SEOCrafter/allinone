@@ -456,7 +456,6 @@ export default function Generate({ selectedModel }: Props) {
                     >
                       <option value="jpg">JPG</option>
                       <option value="png">PNG</option>
-                      <option value="webp">WebP</option>
                     </select>
                   </div>
                 </>
