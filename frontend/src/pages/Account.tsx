@@ -186,8 +186,8 @@ export default function Account() {
       <div className="account-email">Вы вошли как: {profile?.email}</div>
       <div className="account-balance-card">
         <div>
-          <div className="account-balance-label">Баланс кредитов</div>
-          <div className="account-balance-value">{(profile?.credits_balance || 0).toFixed(2)}</div>
+          <div className="account-balance-label">Баланс токенов</div>
+          <div className="account-balance-value">{(profile?.credits_balance || 0).toFixed(0)}</div>
         </div>
         <button className="account-balance-btn" onClick={() => navigate('/tarifs')}>Пополнить</button>
       </div>
@@ -208,7 +208,7 @@ export default function Account() {
               <div className="account-recent-prompt">{g.prompt || '—'}</div>
               <div className="account-recent-meta">
                 <span>{fmtDate(g.created_at)}</span>
-                <span className="account-recent-cost">{g.credits_spent.toFixed(2)} кр.</span>
+                <span className="account-recent-cost">{g.credits_spent.toFixed(0)} токенов</span>
               </div>
             </div>
           ))}
@@ -265,7 +265,7 @@ export default function Account() {
               <span className={`payment-status ${p.status === 'completed' ? 'completed' : p.status === 'pending' ? 'pending' : 'failed'}`}>
                 {p.status === 'completed' ? 'Оплачено' : p.status === 'pending' ? 'В ожидании' : 'Ошибка'}
               </span>
-              <div className="payment-amount">+{p.credits.toFixed(2)} кр.</div>
+              <div className="payment-amount">+{p.credits.toFixed(0)} токенов</div>
             </div>
           ))}
         </div>
@@ -280,7 +280,7 @@ export default function Account() {
             <div key={s.id} className="spending-row">
               <span className="spending-date">{fmtDateTime(s.created_at)}</span>
               <span className="spending-model">{s.model}</span>
-              <span className="spending-cost">−{s.credits_spent.toFixed(2)} кр.</span>
+              <span className="spending-cost">−{s.credits_spent.toFixed(0)} токенов</span>
               <span className="spending-link" onClick={() => setTab('generations')}>Результат →</span>
             </div>
           ))}
@@ -320,7 +320,7 @@ export default function Account() {
                   </div>
                 </div>
                 <div className="generation-meta">
-                  <div className="generation-cost">{g.credits_spent.toFixed(2)} кр.</div>
+                  <div className="generation-cost">{g.credits_spent.toFixed(0)} токенов</div>
                   <div className="generation-date">{fmtDateTime(g.created_at)}</div>
                 </div>
                 {isMedia && thumb && (
@@ -359,11 +359,11 @@ export default function Account() {
       <div className="referral-stats">
         <div className="referral-stat-card">
           <div className="referral-stat-label">Доступно</div>
-          <div className="referral-stat-value">0 кр.</div>
+          <div className="referral-stat-value">0 токенов</div>
         </div>
         <div className="referral-stat-card">
           <div className="referral-stat-label">В ожидании</div>
-          <div className="referral-stat-value yellow">0 кр.</div>
+          <div className="referral-stat-value yellow">0 токенов</div>
           <div className="referral-stat-sub">Подтверждение через 5 дней</div>
         </div>
         <div className="referral-stat-card">
@@ -373,7 +373,7 @@ export default function Account() {
         </div>
         <div className="referral-stat-card">
           <div className="referral-stat-label">Заработано</div>
-          <div className="referral-stat-value green">0 кр.</div>
+          <div className="referral-stat-value green">0 токенов</div>
           <div className="referral-stat-sub">За всё время</div>
         </div>
       </div>
