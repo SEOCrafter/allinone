@@ -67,11 +67,12 @@ class AuthService:
         return user
 
     @staticmethod
-    async def create_telegram_user(db: AsyncSession, telegram_id: int, name: str = None, username: str = None) -> User:
+    async def create_telegram_user(db: AsyncSession, telegram_id: int, name: str = None, username: str = None, avatar_url: str = None) -> User:
         user = User(
             telegram_id=telegram_id,
             name=name,
             credits_balance=10.0,
+            avatar_url=avatar_url,
         )
         db.add(user)
         await db.flush()

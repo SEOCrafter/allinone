@@ -61,6 +61,7 @@ def user_to_dict(user) -> dict:
         "role": user.role,
         "credits_balance": float(user.credits_balance),
         "telegram_id": user.telegram_id,
+        "avatar_url": getattr(user, 'avatar_url', None),
     }
 
 
@@ -122,16 +123,22 @@ async def telegram_auth(data: TelegramAuthRequest, db: AsyncSession = Depends(ge
         if data.last_name:
             name += f" {data.last_name}"
         user = await auth_service.create_telegram_user(
-            db, telegram_id=data.id, name=name, username=data.username
+            db, telegram_id=data.id, name=name, username=data.username, avatar_url=data.photo_url
         )
 
     if user.is_blocked:
         raise HTTPException(status_code=403, detail="User is blocked")
 
+    changed = False
     if not user.name and data.first_name:
         user.name = data.first_name
         if data.last_name:
             user.name += f" {data.last_name}"
+        changed = True
+    if data.photo_url and getattr(user, 'avatar_url', None) != data.photo_url:
+        user.avatar_url = data.photo_url
+        changed = True
+    if changed:
         await db.flush()
 
     return TokenResponse(

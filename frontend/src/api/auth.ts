@@ -14,6 +14,7 @@ export interface User {
   role: string
   credits_balance: number
   telegram_id?: number | null
+  avatar_url?: string | null
 }
 
 export async function login(email: string, password: string): Promise<User> {

@@ -76,10 +76,14 @@ export default function Header({ onMenuClick, selectedModel, onSelectModel }: Pr
             <span className="notification-dot"></span>
           </button>
           <button className="header-icon-btn header-account-btn" onClick={handleAccountClick} title={user ? 'Аккаунт' : 'Войти'}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-              <circle cx="12" cy="7" r="4"/>
-            </svg>
+            {user?.avatar_url ? (
+              <img src={user.avatar_url} alt="" className="header-avatar" />
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+              </svg>
+            )}
           </button>
         </div>
       </div>

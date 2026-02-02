@@ -26,6 +26,7 @@ class User(Base, UUIDMixin, TimestampMixin):
     blocked_until: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     rate_limit_rpm: Mapped[Optional[int]] = mapped_column(nullable=True)
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    avatar_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
     api_keys: Mapped[list["ApiKey"]] = relationship(back_populates="user")
     requests: Mapped[list["Request"]] = relationship(back_populates="user")

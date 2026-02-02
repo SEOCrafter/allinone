@@ -62,6 +62,7 @@ async def get_current_user_info(
             "role": current_user.role,
             "language": current_user.language,
             "created_at": current_user.created_at.isoformat(),
+            "avatar_url": getattr(current_user, 'avatar_url', None),
         }
     )
 
@@ -99,6 +100,7 @@ async def update_profile(
             "role": current_user.role,
             "language": current_user.language,
             "created_at": current_user.created_at.isoformat(),
+            "avatar_url": getattr(current_user, 'avatar_url', None),
         }
     }
 

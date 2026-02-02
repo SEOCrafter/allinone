@@ -3487,3 +3487,14 @@ input, textarea { font-family: inherit; border: none; outline: none; }
   justify-content: center;
   min-height: 40px;
 }
+
+/* ================================================================
+   21. HEADER AVATAR
+   ================================================================ */
+
+.header-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+}
