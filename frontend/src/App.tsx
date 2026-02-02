@@ -14,6 +14,7 @@ import Tariffs from './pages/Tariffs'
 import PaymentSuccess from './pages/PaymentSuccess'
 import type { Model } from './data/models'
 import { useAuth } from './context/AuthContext'
+import ToastContainer from './components/Toast'
 
 export default function App() {
   const [selectedModel, setSelectedModel] = useState<Model | null>(null)
@@ -50,8 +51,9 @@ export default function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/account" element={<Account />} />
           <Route path="/tarifs" element={<Tariffs />} />
-          <Route path="/payment/success" element={<PaymentSuccess />} />
+          <Route path="/payment/success" element={<PaymentSuccess />} />          
         </Routes>
+        <ToastContainer />
       </div>
     </div>
   )
