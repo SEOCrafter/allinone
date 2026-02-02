@@ -14,10 +14,12 @@ import Tariffs from './pages/Tariffs'
 import PaymentSuccess from './pages/PaymentSuccess'
 import type { Model } from './data/models'
 import { useAuth } from './context/AuthContext'
+
 export default function App() {
   const [selectedModel, setSelectedModel] = useState<Model | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { loading } = useAuth()
+
   if (loading) {
     return (
       <div className="app-loading">
@@ -25,6 +27,7 @@ export default function App() {
       </div>
     )
   }
+
   return (
     <div className="app">
       <Sidebar
@@ -38,10 +41,10 @@ export default function App() {
           onSelectModel={setSelectedModel}
         />
         <Routes>
-          <Route path="/" element={<Home onSelectModel={setSelectedModel} />} />
-          <Route path="/bots" element={<Bots onSelectModel={setSelectedModel} />} />
-          <Route path="/chat" element={<Chat selectedModel={selectedModel} onSelectModel={setSelectedModel} />} />
-          <Route path="/generate" element={<Generate selectedModel={selectedModel} onSelectModel={setSelectedModel} />} />
+          <Route path="/" element={<Home selectedModel={selectedModel} onSelectModel={setSelectedModel} />} />
+          <Route path="/bots" element={<Bots />} />
+          <Route path="/chat" element={<Chat selectedModel={selectedModel} />} />
+          <Route path="/generate" element={<Generate selectedModel={selectedModel} />} />
           <Route path="/files" element={<Files />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
