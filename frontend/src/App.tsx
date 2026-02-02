@@ -12,6 +12,7 @@ import Register from './pages/Register'
 import Account from './pages/Account'
 import Tariffs from './pages/Tariffs'
 import PaymentSuccess from './pages/PaymentSuccess'
+import TelegramCallback from './pages/TelegramCallback'
 import type { Model } from './data/models'
 import { useAuth } from './context/AuthContext'
 import ToastContainer from './components/Toast'
@@ -22,15 +23,11 @@ export default function App() {
   const { loading } = useAuth()
 
   if (loading) {
-    return (
-      <div className="app-loading">
-        <div className="spinner" />
-      </div>
-    )
+    return <div className="app-loading" />
   }
 
   return (
-    <div className="app">
+    <>
       <Sidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -50,11 +47,12 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/account" element={<Account />} />
-          <Route path="/tarifs" element={<Tariffs />} />
-          <Route path="/payment/success" element={<PaymentSuccess />} />          
+          <Route path="/tariffs" element={<Tariffs />} />
+          <Route path="/payment/success" element={<PaymentSuccess />} />
+          <Route path="/auth/telegram-callback" element={<TelegramCallback />} />
         </Routes>
-        <ToastContainer />
       </div>
-    </div>
+      <ToastContainer />
+    </>
   )
 }

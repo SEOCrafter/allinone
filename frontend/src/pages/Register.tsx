@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { register as apiRegister, telegramLogin } from '../api/auth'
+import { register as apiRegister } from '../api/auth'
 
 const TG_BOT_USERNAME = 'umn_ai_bot'
+const TG_REDIRECT = encodeURIComponent('https://umnik.ai/auth/telegram-callback')
 
 export default function Register() {
   const [email, setEmail] = useState('')
@@ -16,47 +17,6 @@ export default function Register() {
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   const { login } = useAuth()
-  const tgRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    (window as any).onTelegramAuth = async (tgUser: any) => {
-      setError('')
-      setLoading(true)
-      try {
-        const user = await telegramLogin({
-          id: tgUser.id,
-          first_name: tgUser.first_name || '',
-          last_name: tgUser.last_name || '',
-          username: tgUser.username || '',
-          photo_url: tgUser.photo_url || '',
-          auth_date: tgUser.auth_date,
-          hash: tgUser.hash,
-        })
-        login(user)
-        navigate('/')
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Ошибка входа через Telegram')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    if (tgRef.current && !tgRef.current.querySelector('iframe')) {
-      const script = document.createElement('script')
-      script.src = 'https://telegram.org/js/telegram-widget.js?22'
-      script.setAttribute('data-telegram-login', TG_BOT_USERNAME)
-      script.setAttribute('data-size', 'large')
-      script.setAttribute('data-radius', '12')
-      script.setAttribute('data-onauth', 'onTelegramAuth(user)')
-      script.setAttribute('data-request-access', 'write')
-      script.async = true
-      tgRef.current.appendChild(script)
-    }
-
-    return () => {
-      delete (window as any).onTelegramAuth
-    }
-  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -82,6 +42,11 @@ export default function Register() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleTelegram = () => {
+    const url = `https://oauth.telegram.org/auth?bot_id=${TG_BOT_USERNAME}&origin=${encodeURIComponent(window.location.origin)}&embed=0&request_access=write&return_to=${TG_REDIRECT}`
+    window.location.href = url
   }
 
   return (
@@ -168,7 +133,10 @@ export default function Register() {
           <span>или</span>
         </div>
 
-        <div className="auth-telegram-widget" ref={tgRef} />
+        <button className="auth-btn auth-btn-telegram" onClick={handleTelegram}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="#2AABEE"><path d="M12 0C5.37 0 0 5.37 0 12s5.37 12 12 12 12-5.37 12-12S18.63 0 12 0zm5.53 8.16l-1.84 8.66c-.14.62-.5.77-.99.48l-2.75-2.03-1.33 1.28c-.15.15-.27.27-.55.27l.2-2.8 5.1-4.6c.22-.2-.05-.3-.34-.13l-6.3 3.97-2.72-.85c-.59-.18-.6-.59.12-.87l10.62-4.1c.5-.18.93.12.77.87z"/></svg>
+          Войти через Telegram
+        </button>
 
         <Link to="/login" className="auth-link">Уже есть аккаунт</Link>
       </div>
