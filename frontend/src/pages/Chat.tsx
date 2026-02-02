@@ -8,6 +8,8 @@ import ModelIcon from '../components/ModelIcon'
 interface Message {
   role: 'user' | 'assistant'
   content: string
+  modelIcon?: string
+  modelName?: string
 }
 
 interface Props {
@@ -23,10 +25,15 @@ export default function Chat({ selectedModel }: Props) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const activeModelRef = useRef<Model | null>(null)
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  useEffect(() => {
+    activeModelRef.current = selectedModel
+  }, [selectedModel])
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return
@@ -43,6 +50,7 @@ export default function Chat({ selectedModel }: Props) {
       return
     }
 
+    const currentModel = selectedModel
     const userMessage: Message = { role: 'user', content: input.trim() }
     setMessages(prev => [...prev, userMessage])
     setInput('')
@@ -52,12 +60,17 @@ export default function Chat({ selectedModel }: Props) {
     try {
       const response = await sendMessage({
         message: input.trim(),
-        provider: selectedModel.provider,
-        model: selectedModel.backendModel || undefined,
+        provider: currentModel.provider,
+        model: currentModel.backendModel || undefined,
       })
 
       if (response.ok && response.content) {
-        setMessages(prev => [...prev, { role: 'assistant', content: response.content! }])
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: response.content!,
+          modelIcon: currentModel.icon,
+          modelName: currentModel.name,
+        }])
         if (response.credits_spent && user) {
           updateCredits((user.credits_balance ?? 0) - response.credits_spent)
         }
@@ -96,9 +109,7 @@ export default function Chat({ selectedModel }: Props) {
               </span>
               <span className="chat-model-name">{selectedModel.name}</span>
               <span className="chat-model-cost">
-                <svg viewBox="0 0 24 24" fill="#facc15" width="14" height="14">
-                  <circle cx="12" cy="12" r="10"/>
-                </svg>
+                <img src="/icons/token.svg" alt="" width="14" height="14" />
                 {selectedModel.cost} / сообщение
               </span>
             </>
@@ -148,9 +159,13 @@ export default function Chat({ selectedModel }: Props) {
           <>
             {messages.map((msg, i) => (
               <div key={i} className={`chat-message ${msg.role}`}>
-                {msg.role === 'assistant' && selectedModel && (
+                {msg.role === 'assistant' && (
                   <div className="chat-message-avatar">
-                    <ModelIcon icon={selectedModel.icon} name={selectedModel.name} size={32} />
+                    <ModelIcon
+                      icon={msg.modelIcon || selectedModel?.icon || ''}
+                      name={msg.modelName || selectedModel?.name || ''}
+                      size={32}
+                    />
                   </div>
                 )}
                 <div className="chat-message-content">
@@ -203,9 +218,9 @@ export default function Chat({ selectedModel }: Props) {
                 <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
               </svg>
             </button>
-            <button 
-              className="send-btn" 
-              disabled={!input.trim() || isLoading || !selectedModel || !user} 
+            <button
+              className="send-btn"
+              disabled={!input.trim() || isLoading || !selectedModel || !user}
               onClick={handleSend}
             >
               {isLoading ? (

@@ -32,7 +32,8 @@ function PriceTag({ price, model }: { price: number | null; model?: BrandModel }
   if (displayPrice === 0) return <span className="brand-model-price free">Бесплатно</span>
   return (
     <span className="brand-model-price">
-      🪙 {hasVariants ? `от ${displayPrice}` : displayPrice}
+      <img src="/icons/token.svg" alt="" width="14" height="14" style={{ verticalAlign: 'middle', marginRight: 4 }} />
+      {hasVariants ? `от ${displayPrice}` : displayPrice}
     </span>
   )
 }

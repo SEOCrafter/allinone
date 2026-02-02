@@ -259,9 +259,7 @@ export default function Generate({ selectedModel }: Props) {
           </div>
         </div>
         <div className="generate-model-cost">
-          <svg viewBox="0 0 24 24" fill="#facc15" width="18" height="18">
-            <circle cx="12" cy="12" r="10"/>
-          </svg>
+          <img src="/icons/token.svg" alt="" width="18" height="18" />
           <span>{selectedModel.cost} кредитов / генерация</span>
         </div>
       </div>
@@ -509,9 +507,7 @@ export default function Generate({ selectedModel }: Props) {
               <>
                 {isVideo ? '🎬 Создать видео' : '🖼️ Создать изображение'}
                 <span className="btn-cost">
-                  <svg viewBox="0 0 24 24" fill="#facc15" width="14" height="14">
-                    <circle cx="12" cy="12" r="10"/>
-                  </svg>
+                  <img src="/icons/token.svg" alt="" width="14" height="14" />
                   {selectedModel.cost}
                 </span>
               </>

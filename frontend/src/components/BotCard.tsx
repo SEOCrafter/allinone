@@ -22,9 +22,7 @@ export default function BotCard({ model, onClick }: Props) {
       <div className="bot-card-desc">{model.description}</div>
       <div className="bot-card-stats">
         <div className="bot-card-stat">
-          <svg viewBox="0 0 24 24" fill="#facc15" width="14" height="14">
-            <circle cx="12" cy="12" r="10"/>
-          </svg>
+          <img src="/icons/token.svg" alt="" width="14" height="14" />
           <span>{model.cost}</span>
         </div>
         <div className="bot-card-stat">

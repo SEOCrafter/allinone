@@ -67,7 +67,7 @@ export default function ModelSelector({ selected, onSelect }: Props) {
         <span className="model-item-desc">{model.description}</span>
       </div>
       <span className="model-cost">
-        {model.cost > 0 ? (<>🪙 {model.cost}</>) : (<span style={{ color: '#22c55e' }}>Бесплатно</span>)}
+        {model.cost > 0 ? (<><img src="/icons/token.svg" alt="" width="14" height="14" /> {model.cost}</>) : (<span style={{ color: '#22c55e' }}>Бесплатно</span>)}
       </span>
     </button>
   )
