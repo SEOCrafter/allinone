@@ -48,6 +48,9 @@ MODEL_NAME_ALIASES = {
     "runwayml/gen4-image": "runway-gen4-image",
     "runwayml/gen4-image-turbo": "runway-gen4-image-turbo",
     "cdingram/face-swap": "face-swap",
+    "stability-ai/stable-diffusion-3.5-large": "sd-3.5-large",
+    "stability-ai/stable-diffusion-3.5-large-turbo": "sd-3.5-large-turbo",
+    "stability-ai/stable-diffusion-3.5-medium": "sd-3.5-medium",
 }
 
 
