@@ -3498,3 +3498,88 @@ input, textarea { font-family: inherit; border: none; outline: none; }
   border-radius: 50%;
   object-fit: cover;
 }
+
+.account-tariff-card {
+  background: linear-gradient(135deg, #f0f4ff 0%, #e8f0fe 100%);
+  border: 1px solid #c5d5f0;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+.account-tariff-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.account-tariff-name {
+  font-weight: 600;
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+.account-tariff-counter {
+  font-size: 14px;
+  color: #5b6b7f;
+  font-weight: 500;
+}
+.account-tariff-desc {
+  font-size: 13px;
+  color: #5b6b7f;
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+.account-tariff-progress {
+  margin-bottom: 16px;
+}
+.account-tariff-bar {
+  height: 6px;
+  background: #d0daf0;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.account-tariff-bar-fill {
+  height: 100%;
+  background: #4f6ef7;
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+.account-tariff-btn {
+  background: #4f6ef7;
+  color: #fff;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.account-tariff-btn:hover { background: #3d5bd9; }
+.account-tariff-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.account-tariff-upgrade {
+  background: none;
+  border: 1px solid #4f6ef7;
+  color: #4f6ef7;
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.account-tariff-upgrade:hover { background: #f0f4ff; }
+.account-tariff-subscribe {
+  margin-top: 12px;
+}
+.account-tariff-subscribe-msg {
+  font-size: 13px;
+  color: #5b6b7f;
+  margin-bottom: 12px;
+}
+.account-tariff-subscribe-msg a {
+  color: #4f6ef7;
+  font-weight: 500;
+}
+.account-tariff-error {
+  color: #e53e3e;
+  font-size: 13px;
+  margin-top: 8px;
+}

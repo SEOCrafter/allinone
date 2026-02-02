@@ -44,6 +44,15 @@ interface PaymentItem {
   completed_at: string | null
 }
 
+interface SubscriptionStatus {
+  has_tariff: boolean
+  tariff: { id: string; name: string; description: string | null; price: number; credits: number } | null
+  is_free: boolean
+  today_requests: number
+  daily_limit: number | null
+  telegram_connected: boolean
+}
+
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' })
 }
@@ -88,10 +97,14 @@ export default function Account() {
   const [editValue, setEditValue] = useState('')
   const [saving, setSaving] = useState(false)
   const [refCopied, setRefCopied] = useState(false)
+  const [subStatus, setSubStatus] = useState<SubscriptionStatus | null>(null)
+  const [activating, setActivating] = useState(false)
+  const [channelCheck, setChannelCheck] = useState<'idle' | 'not_subscribed' | 'checking' | 'error'>('idle')
 
   useEffect(() => {
     if (!user) { navigate('/login'); return }
     loadProfile()
+    loadSubscription()
     loadRecent()
   }, [user])
 
@@ -113,6 +126,59 @@ export default function Account() {
       const res: any = await api.request('/api/v1/user/history?limit=3')
       if (res.data) setRecentGens(res.data)
     } catch (e) {}
+  }
+
+  const loadSubscription = async () => {
+    try {
+      const res: any = await api.request('/api/v1/user/subscription-status')
+      if (res.ok) setSubStatus(res)
+    } catch (e) {}
+  }
+
+  const handleActivateFree = async () => {
+    if (!subStatus?.telegram_connected) {
+      const origin = encodeURIComponent(window.location.origin)
+      const returnTo = encodeURIComponent('https://umnik.ai/auth/telegram-link-callback')
+      window.location.href = `https://oauth.telegram.org/auth?bot_id=8464718685&origin=${origin}&embed=0&request_access=write&return_to=${returnTo}`
+      return
+    }
+
+    setActivating(true)
+    try {
+      const check: any = await api.request('/api/v1/user/check-channel', { method: 'POST' })
+      if (!check.subscribed) {
+        setChannelCheck('not_subscribed')
+        setActivating(false)
+        return
+      }
+      const res: any = await api.request('/api/v1/user/activate-free', { method: 'POST' })
+      if (res.ok) {
+        await loadSubscription()
+        setChannelCheck('idle')
+      }
+    } catch (e: any) {
+      setChannelCheck('error')
+    } finally {
+      setActivating(false)
+    }
+  }
+
+  const handleCheckChannel = async () => {
+    setChannelCheck('checking')
+    try {
+      const check: any = await api.request('/api/v1/user/check-channel', { method: 'POST' })
+      if (check.subscribed) {
+        const res: any = await api.request('/api/v1/user/activate-free', { method: 'POST' })
+        if (res.ok) {
+          await loadSubscription()
+          setChannelCheck('idle')
+        }
+      } else {
+        setChannelCheck('not_subscribed')
+      }
+    } catch (e) {
+      setChannelCheck('error')
+    }
   }
 
   const loadGenerations = async () => {
@@ -193,6 +259,59 @@ export default function Account() {
         </div>
         <button className="account-balance-btn" onClick={() => navigate('/tarifs')}>Пополнить</button>
       </div>
+      <div className="account-tariff-card">
+        {subStatus?.has_tariff ? (
+          <>
+            <div className="account-tariff-header">
+              <div className="account-tariff-name">Тариф: {subStatus.tariff?.name}</div>
+              {subStatus.is_free && subStatus.daily_limit && (
+                <div className="account-tariff-counter">
+                  {subStatus.today_requests} / {subStatus.daily_limit} запросов сегодня
+                </div>
+              )}
+            </div>
+            {subStatus.tariff?.description && (
+              <div className="account-tariff-desc">
+                {subStatus.tariff.description.split('\n').map((line, i) => (
+                  <div key={i}>{line}</div>
+                ))}
+              </div>
+            )}
+            {subStatus.is_free && (
+              <div className="account-tariff-progress">
+                <div className="account-tariff-bar">
+                  <div className="account-tariff-bar-fill" style={{ width: `${Math.min(100, ((subStatus.today_requests || 0) / (subStatus.daily_limit || 15)) * 100)}%` }} />
+                </div>
+              </div>
+            )}
+            <button className="account-tariff-upgrade" onClick={() => navigate('/tariffs')}>Улучшить тариф</button>
+          </>
+        ) : (
+          <>
+            <div className="account-tariff-name">Бесплатный тариф</div>
+            <div className="account-tariff-desc">
+              <div>— 3 модели: DeepSeek Chat, GPT-4 Mini, Gemini Flash</div>
+              <div>— 15 запросов в сутки</div>
+              <div>— Подпишитесь на Telegram-канал для активации</div>
+            </div>
+            {channelCheck === 'not_subscribed' ? (
+              <div className="account-tariff-subscribe">
+                <div className="account-tariff-subscribe-msg">
+                  Подпишитесь на канал <a href="https://t.me/umnik_ai" target="_blank" rel="noreferrer">@umnik_ai</a> и нажмите «Проверить»
+                </div>
+                <button className="account-tariff-btn" onClick={handleCheckChannel} disabled={activating}>
+                  {activating ? 'Проверяем...' : 'Проверить подписку'}
+                </button>
+              </div>
+            ) : (
+              <button className="account-tariff-btn" onClick={handleActivateFree} disabled={activating}>
+                {activating ? 'Проверяем...' : !subStatus?.telegram_connected ? 'Привязать Telegram' : 'Начать бесплатно'}
+              </button>
+            )}
+            {channelCheck === 'error' && <div className="account-tariff-error">Ошибка проверки, попробуйте позже</div>}
+          </>
+        )}
+      </div>
       <div className="account-recent-title">
         <span>Недавние генерации</span>
         <span className="account-recent-link" onClick={() => setTab('generations')}>Все генерации →</span>
@@ -218,6 +337,7 @@ export default function Account() {
       )}
     </>
   )
+
 
   const renderProfile = () => (
     <>
