@@ -47,7 +47,9 @@ export default function Generate({ selectedModel }: Props) {
 
   const isVideo = selectedModel?.category === 'video'
   const requiresImage = selectedModel?.requiresImage
+  const supportsImageInput = selectedModel?.supportsImageInput
   const requiresVideo = selectedModel?.requiresVideo
+  const showImageUpload = requiresImage || supportsImageInput
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -425,9 +427,9 @@ export default function Generate({ selectedModel }: Props) {
             </div>
           </div>
 
-          {requiresImage && (
+          {showImageUpload && (
             <div className="form-section">
-              <label className="form-label">Исходное изображение {requiresImage && <span className="required">*</span>}</label>
+              <label className="form-label">{requiresImage ? 'Исходное изображение' : 'Референсные изображения (до 8)'} {requiresImage && <span className="required">*</span>}</label>
               <div 
                 className={`upload-area ${uploadedImage ? 'has-file' : ''} ${isUploading ? 'uploading' : ''}`}
                 onClick={() => fileInputRef.current?.click()}

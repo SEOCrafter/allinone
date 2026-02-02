@@ -16,6 +16,7 @@ export interface Model {
   color: string
   backendModel: string
   requiresImage?: boolean
+  supportsImageInput?: boolean
   requiresVideo?: boolean
   aspectRatios?: string[]
   resolutions?: string[]
