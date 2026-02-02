@@ -120,13 +120,15 @@ class ReplicateAdapter(BaseAdapter):
         else:
             url = f"{self.BASE_URL}/models/{model}/predictions"
 
+        headers = self._get_headers(wait=wait)
         print(f"Replicate API Request: model={model}, input={json.dumps(input_data)[:500]}, wait={wait}")
+        print(f"Replicate DEBUG: url={url}, auth={headers.get('Authorization','')[:25]}...")
 
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
                 response = await client.post(
                     url,
-                    headers=self._get_headers(wait=wait),
+                    headers=headers,
                     json=payload,
                 )
 
