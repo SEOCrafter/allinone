@@ -60,6 +60,18 @@ const MODEL_METADATA: Record<string, ModelMeta> = {
   'midjourney/text-to-image': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'] },
   'midjourney/image-to-image': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'] },
   'midjourney/image-to-video': { aspectRatios: ['16:9', '9:16'] },
+  'black-forest-labs/flux-pro': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'] },
+  'black-forest-labs/flux-dev': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'] },
+  'black-forest-labs/flux-schnell': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'] },
+  'google/imagen-4': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'] },
+  'google/imagen-4-fast': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'] },
+  'google/imagen-4-ultra': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'] },
+  'stability-ai/stable-diffusion-3.5-large': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'] },
+  'stability-ai/stable-diffusion-3.5-large-turbo': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'] },
+  'minimax/image-01': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4'] },
+  'luma/photon-flash': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'] },
+  'runwayml/gen4-image': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'] },
+  'runwayml/gen4-image-turbo': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'] },
 }
 
 let cachedBrands: Brand[] | null = null
