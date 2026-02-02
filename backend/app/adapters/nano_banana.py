@@ -56,8 +56,8 @@ class NanoBananaAdapter(BaseAdapter, KieBaseAdapter):
     ) -> dict:
         kie_model = self._get_kie_model(model)
         
-        if output_format.lower() == "jpg":
-            output_format = "jpeg"
+        if output_format.lower() == "jpeg":
+            output_format = "jpg"
         
         if kie_model == "nano-banana-pro":
             input_data = {
