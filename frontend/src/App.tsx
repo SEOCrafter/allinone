@@ -12,6 +12,7 @@ import Register from './pages/Register'
 import Account from './pages/Account'
 import type { Model } from './data/models'
 import { useAuth } from './context/AuthContext'
+import Tariffs from './pages/Tariffs'
 
 export default function App() {
   const [selectedModel, setSelectedModel] = useState<Model | null>(null)
@@ -47,6 +48,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/account" element={<Account />} />
+          <Route path="/tarifs" element={<Tariffs />} />
         </Routes>
       </main>
     </div>
