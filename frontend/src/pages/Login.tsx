@@ -3,8 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { login as apiLogin } from '../api/auth'
 import { useAuth } from '../context/AuthContext'
 
-const TG_BOT_USERNAME = 'umn_ai_bot'
-const TG_REDIRECT = encodeURIComponent('https://umnik.ai/auth/telegram-callback')
+const TG_BOT_ID = '8464718685'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -31,8 +30,9 @@ export default function Login() {
   }
 
   const handleTelegram = () => {
-    const url = `https://oauth.telegram.org/auth?bot_id=${TG_BOT_USERNAME}&origin=${encodeURIComponent(window.location.origin)}&embed=0&request_access=write&return_to=${TG_REDIRECT}`
-    window.location.href = url
+    const origin = encodeURIComponent(window.location.origin)
+    const returnTo = encodeURIComponent('https://umnik.ai/auth/telegram-callback')
+    window.location.href = `https://oauth.telegram.org/auth?bot_id=${TG_BOT_ID}&origin=${origin}&embed=0&request_access=write&return_to=${returnTo}`
   }
 
   return (
