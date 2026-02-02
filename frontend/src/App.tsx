@@ -8,6 +8,8 @@ import Chat from './pages/Chat'
 import Generate from './pages/Generate'
 import Files from './pages/Files'
 import Login from './pages/Login'
+import Register from './pages/Register'
+import Account from './pages/Account'
 import type { Model } from './data/models'
 import { useAuth } from './context/AuthContext'
 
@@ -27,15 +29,15 @@ export default function App() {
   return (
     <div className="app-layout">
       <Sidebar
-        selectedModel={selectedModel}
-        onSelectModel={setSelectedModel}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
-
       <main className="main-content">
-        <Header onMenuClick={() => setSidebarOpen(true)} />
-
+        <Header
+          onMenuClick={() => setSidebarOpen(true)}
+          selectedModel={selectedModel}
+          onSelectModel={setSelectedModel}
+        />
         <Routes>
           <Route path="/" element={<Home selectedModel={selectedModel} onSelectModel={setSelectedModel} />} />
           <Route path="/bots" element={<Bots />} />
@@ -43,6 +45,8 @@ export default function App() {
           <Route path="/generate" element={<Generate selectedModel={selectedModel} />} />
           <Route path="/files" element={<Files />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/account" element={<Account />} />
         </Routes>
       </main>
     </div>
