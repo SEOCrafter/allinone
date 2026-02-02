@@ -96,8 +96,6 @@ export default function Chat({ selectedModel }: Props) {
     setError(null)
   }
 
-  const credits = user?.credits_balance ?? 0
-
   return (
     <div className="chat-page">
       <div className="chat-header-bar">
@@ -116,11 +114,6 @@ export default function Chat({ selectedModel }: Props) {
           )}
         </div>
         <div className="chat-header-actions">
-          {user && (
-            <span className="user-credits">
-              Баланс: {credits.toFixed(2)} кредитов
-            </span>
-          )}
           {messages.length > 0 && (
             <button className="clear-chat-btn" onClick={clearChat}>
               Очистить чат
