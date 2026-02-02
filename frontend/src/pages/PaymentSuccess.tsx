@@ -14,7 +14,7 @@ interface Transaction {
 }
 
 export default function PaymentSuccess() {
-  const { user, refreshUser } = useAuth()
+  const { refreshUser } = useAuth()
   const navigate = useNavigate()
   const [status, setStatus] = useState<'checking' | 'success' | 'pending'>('checking')
   const [credits, setCredits] = useState(0)
