@@ -28,5 +28,5 @@ class ModelSetting(Base):
             "model_id": self.model_id,
             "credits_price": float(self.credits_price) if self.credits_price else None,
             "is_enabled": self.is_enabled,
-            "updated_at": self.updated_at.isoformat() + "Z" if self.updated_at else None,
+            "updated_at": self.updated_at.isoformat().replace("+00:00", "") + "Z" if self.updated_at else None,
         }

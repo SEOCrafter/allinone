@@ -559,11 +559,11 @@ export default function Generate({ selectedModel }: Props) {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
               </svg>
-              {error}
+              {error?.includes('No response from MidJourney') ? 'Midjourney временно недоступен. Попробуйте позже.' : error?.includes('Генерация не удалась') ? 'Генерация не удалась. Попробуйте ещё раз.' : error}
             </div>
           )}
-
-          <button 
+          
+          <button
             className="btn btn-primary btn-generate"
             onClick={handleGenerate}
             disabled={!prompt.trim() || isLoading || !user || isUploading || (requiresImage && !uploadedImage?.url)}

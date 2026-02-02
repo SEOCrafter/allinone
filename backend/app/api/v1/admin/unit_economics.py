@@ -80,8 +80,8 @@ async def list_calculations(
                 "overhead_percent": float(c.overhead_percent),
                 "selected_model": c.selected_model,
                 "notes": c.notes,
-                "created_at": c.created_at.isoformat() + "Z" if c.created_at else None,
-                "updated_at": c.updated_at.isoformat() + "Z" if c.updated_at else None,
+                "created_at": c.created_at.isoformat().replace("+00:00", "") + "Z" if c.created_at else None,
+                "updated_at": c.updated_at.isoformat().replace("+00:00", "") + "Z" if c.updated_at else None,
             }
             for c in calculations
         ]
@@ -126,8 +126,8 @@ async def create_calculation(
             "overhead_percent": float(calculation.overhead_percent),
             "selected_model": calculation.selected_model,
             "notes": calculation.notes,
-            "created_at": calculation.created_at.isoformat() + "Z" if calculation.created_at else None,
-            "updated_at": calculation.updated_at.isoformat() + "Z" if calculation.updated_at else None,
+            "created_at": calculation.created_at.isoformat().replace("+00:00", "") + "Z" if calculation.created_at else None,
+            "updated_at": calculation.updated_at.isoformat().replace("+00:00", "") + "Z" if calculation.updated_at else None,
         }
     }
 

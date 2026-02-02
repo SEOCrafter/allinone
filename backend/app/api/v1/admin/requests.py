@@ -15,7 +15,12 @@ router = APIRouter()
 def format_dt(dt):
     if dt is None:
         return None
-    return dt.isoformat() + "Z"
+    s = dt.isoformat()
+    if s.endswith("+00:00"):
+        s = s[:-6] + "Z"
+    elif not s.endswith("Z"):
+        s = s + "Z"
+    return s
 
 
 @router.get("")
