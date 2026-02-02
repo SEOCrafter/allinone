@@ -6,6 +6,8 @@ import ModelIcon from '../components/ModelIcon'
 import { 
   generateNanoBanana, 
   generateMidjourney, 
+  generateImageAsync,
+  getTaskStatus,
   imageToImage,
   generateVideo,
   generateMidjourneyVideo,
@@ -108,6 +110,22 @@ export default function Generate({ selectedModel }: Props) {
     setIsLoading(true)
     setResult(null)
 
+    const pollForResult = async (requestId: string): Promise<string> => {
+      const maxAttempts = 120
+      const interval = 3000
+      for (let i = 0; i < maxAttempts; i++) {
+        await new Promise(r => setTimeout(r, interval))
+        const status = await getTaskStatus(requestId)
+        if (status.status === 'completed' && status.result_url) {
+          return status.result_url
+        }
+        if (status.status === 'failed') {
+          throw new Error(status.error_message || 'Генерация не удалась')
+        }
+      }
+      throw new Error('Таймаут генерации — попробуйте проверить позже')
+    }
+
     const saveAndGetLocalUrl = async (url: string, isVideoResult: boolean): Promise<string> => {
       try {
         const saved = await saveFromUrl({
@@ -203,6 +221,25 @@ export default function Generate({ selectedModel }: Props) {
         if (response.ok && response.video_url) {
           const localUrl = await saveAndGetLocalUrl(response.video_url, true)
           setResult(localUrl)
+        }
+      } else if (selectedModel.provider === 'flux') {
+          response = await generateImageAsync({
+          prompt: prompt.trim(),
+          provider: 'flux',
+          model: selectedModel.backendModel,
+          aspect_ratio: settings.aspectRatio,
+          resolution: settings.resolution,
+          image_input: uploadedImage?.url ? [uploadedImage.url] : undefined,
+        })
+        if (response.ok) {
+          if (response.image_url) {
+            const localUrl = await saveAndGetLocalUrl(response.image_url, false)
+            setResult(localUrl)
+          } else if (response.request_id) {
+            const resultUrl = await pollForResult(response.request_id)
+            const localUrl = await saveAndGetLocalUrl(resultUrl, false)
+            setResult(localUrl)
+          }
         }
       } else if (selectedModel.category === 'image') {
         response = await generateNanoBanana({

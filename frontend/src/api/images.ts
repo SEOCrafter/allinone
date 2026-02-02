@@ -12,6 +12,7 @@ export interface GenerateImageRequest {
   steps?: number
   guidance?: number
   style?: string
+  image_input?: string[]
 }
 
 export interface GenerateResponse {
@@ -19,8 +20,22 @@ export interface GenerateResponse {
   image_url?: string
   video_url?: string
   request_id?: string
+  task_id?: string
   credits_spent?: number
+  status?: string
   error?: string
+}
+
+export interface TaskStatusResponse {
+  request_id: string
+  status: string
+  type: string
+  model: string
+  result_url?: string
+  result_urls?: string[]
+  credits_spent?: number
+  error_code?: string
+  error_message?: string
 }
 
 export interface NanoBananaRequest {
@@ -75,6 +90,19 @@ export async function generateImage(request: GenerateImageRequest): Promise<Gene
   return api.request<GenerateResponse>('/api/v1/images/generate', {
     method: 'POST',
     body: request,
+  })
+}
+
+export async function generateImageAsync(request: GenerateImageRequest): Promise<GenerateResponse> {
+  return api.request<GenerateResponse>('/api/v1/images/generate-async', {
+    method: 'POST',
+    body: request,
+  })
+}
+
+export async function getTaskStatus(requestId: string): Promise<TaskStatusResponse> {
+  return api.request<TaskStatusResponse>(`/api/v1/tasks/${requestId}`, {
+    method: 'GET',
   })
 }
 
