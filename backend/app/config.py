@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     FREEKASSA_SECRET2: str = ""
     FREEKASSA_API_KEY: str = ""
 
+    # Telegram
+    TELEGRAM_BOT_TOKEN: str = ""
+    TELEGRAM_CHANNEL: str = "@umnik_ai"
+
 @lru_cache
 def get_settings() -> Settings:
     return Settings()

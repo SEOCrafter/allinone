@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { login as apiLogin } from '../api/auth'
+import { login as apiLogin, telegramLogin } from '../api/auth'
 import { useAuth } from '../context/AuthContext'
+
+const TG_BOT_USERNAME = 'umn_ai_bot'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -11,6 +13,47 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   const { login } = useAuth()
+  const tgRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    (window as any).onTelegramAuth = async (tgUser: any) => {
+      setError('')
+      setLoading(true)
+      try {
+        const user = await telegramLogin({
+          id: tgUser.id,
+          first_name: tgUser.first_name || '',
+          last_name: tgUser.last_name || '',
+          username: tgUser.username || '',
+          photo_url: tgUser.photo_url || '',
+          auth_date: tgUser.auth_date,
+          hash: tgUser.hash,
+        })
+        login(user)
+        navigate('/')
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Ошибка входа через Telegram')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    if (tgRef.current && !tgRef.current.querySelector('iframe')) {
+      const script = document.createElement('script')
+      script.src = 'https://telegram.org/js/telegram-widget.js?22'
+      script.setAttribute('data-telegram-login', TG_BOT_USERNAME)
+      script.setAttribute('data-size', 'large')
+      script.setAttribute('data-radius', '12')
+      script.setAttribute('data-onauth', 'onTelegramAuth(user)')
+      script.setAttribute('data-request-access', 'write')
+      script.async = true
+      tgRef.current.appendChild(script)
+    }
+
+    return () => {
+      delete (window as any).onTelegramAuth
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -27,10 +70,6 @@ export default function Login() {
     }
   }
 
-  const handleTelegram = () => {
-    window.open('https://t.me/umnik_ai_bot?start=auth', '_blank')
-  }
-
   return (
     <div className="auth-page">
       <div className="auth-card">
@@ -39,7 +78,7 @@ export default function Login() {
 
         {error && <div className="auth-error">{error}</div>}
 
-        <form onSubmit={handleSubmit} className="auth-form">
+        <form onSubmit={handleSubmit}>
           <input
             type="email"
             value={email}
@@ -48,7 +87,8 @@ export default function Login() {
             className="auth-input"
             required
           />
-          <div className="auth-input-wrapper">
+
+          <div className="auth-password-wrapper">
             <input
               type={showPassword ? 'text' : 'password'}
               value={password}
@@ -60,9 +100,7 @@ export default function Login() {
             <button type="button" className="auth-eye-btn" onClick={() => setShowPassword(!showPassword)}>
               {showPassword ? (
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="1.5">
-                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-                  <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-                  <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/>
+                  <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
                   <line x1="1" y1="1" x2="23" y2="23"/>
                 </svg>
               ) : (
@@ -74,21 +112,20 @@ export default function Login() {
             </button>
           </div>
 
-          <div className="auth-forgot">
-            <Link to="/forgot-password">Забыли пароль?</Link>
-          </div>
-
-          <button type="submit" className="auth-btn auth-btn-primary" disabled={loading}>
+          <button type="submit" className="auth-submit-btn" disabled={loading}>
             {loading ? 'Вход...' : 'Войти'}
           </button>
         </form>
 
-        <button className="auth-btn auth-btn-telegram" onClick={handleTelegram}>
-          Войти через Telegram
-          <img src="/icons/telegram.svg" alt="" width="20" height="20" />
-        </button>
+        <div className="auth-divider">
+          <span>или</span>
+        </div>
 
-        <Link to="/register" className="auth-link">Регистрация</Link>
+        <div className="auth-telegram-widget" ref={tgRef} />
+
+        <div className="auth-links">
+          <Link to="/register" className="auth-link">Регистрация</Link>
+        </div>
       </div>
     </div>
   )

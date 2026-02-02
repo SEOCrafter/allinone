@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import api from '../api/client'
+import { register as apiRegister, telegramLogin } from '../api/auth'
+
+const TG_BOT_USERNAME = 'umn_ai_bot'
 
 export default function Register() {
   const [email, setEmail] = useState('')
@@ -14,6 +16,47 @@ export default function Register() {
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   const { login } = useAuth()
+  const tgRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    (window as any).onTelegramAuth = async (tgUser: any) => {
+      setError('')
+      setLoading(true)
+      try {
+        const user = await telegramLogin({
+          id: tgUser.id,
+          first_name: tgUser.first_name || '',
+          last_name: tgUser.last_name || '',
+          username: tgUser.username || '',
+          photo_url: tgUser.photo_url || '',
+          auth_date: tgUser.auth_date,
+          hash: tgUser.hash,
+        })
+        login(user)
+        navigate('/')
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Ошибка входа через Telegram')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    if (tgRef.current && !tgRef.current.querySelector('iframe')) {
+      const script = document.createElement('script')
+      script.src = 'https://telegram.org/js/telegram-widget.js?22'
+      script.setAttribute('data-telegram-login', TG_BOT_USERNAME)
+      script.setAttribute('data-size', 'large')
+      script.setAttribute('data-radius', '12')
+      script.setAttribute('data-onauth', 'onTelegramAuth(user)')
+      script.setAttribute('data-request-access', 'write')
+      script.async = true
+      tgRef.current.appendChild(script)
+    }
+
+    return () => {
+      delete (window as any).onTelegramAuth
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -31,33 +74,14 @@ export default function Register() {
 
     setLoading(true)
     try {
-      const res: any = await api.request('/auth/register', {
-        method: 'POST',
-        body: { email, password },
-      })
-      if (res.access_token) {
-        localStorage.setItem('token', res.access_token)
-        if (res.refresh_token) {
-          localStorage.setItem('refresh_token', res.refresh_token)
-        }
-        const me: any = await api.request('/users/me')
-        login(me)
-        navigate('/')
-      }
+      const user = await apiRegister(email, password, '')
+      login(user)
+      navigate('/')
     } catch (err: any) {
-      const msg = err?.response?.data?.detail
-      if (typeof msg === 'string') {
-        setError(msg)
-      } else {
-        setError('Ошибка регистрации')
-      }
+      setError(err instanceof Error ? err.message : 'Ошибка регистрации')
     } finally {
       setLoading(false)
     }
-  }
-
-  const handleTelegram = () => {
-    window.open('https://t.me/umnik_ai_bot?start=auth', '_blank')
   }
 
   return (
@@ -140,10 +164,11 @@ export default function Register() {
           </button>
         </form>
 
-        <button className="auth-btn auth-btn-telegram" onClick={handleTelegram}>
-          Войти через Telegram
-          <img src="/icons/telegram.svg" alt="" width="20" height="20" />
-        </button>
+        <div className="auth-divider">
+          <span>или</span>
+        </div>
+
+        <div className="auth-telegram-widget" ref={tgRef} />
 
         <Link to="/login" className="auth-link">Уже есть аккаунт</Link>
       </div>

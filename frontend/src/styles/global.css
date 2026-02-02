@@ -3457,3 +3457,33 @@ input, textarea { font-family: inherit; border: none; outline: none; }
     transform: translateX(0);
   }
 }
+
+/* ================================================================
+   20. AUTH TELEGRAM WIDGET
+   ================================================================ */
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.auth-divider span {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.auth-telegram-widget {
+  display: flex;
+  justify-content: center;
+  min-height: 40px;
+}
