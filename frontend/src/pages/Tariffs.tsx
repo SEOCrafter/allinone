@@ -314,7 +314,7 @@ export default function Tariffs() {
                       <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
                     </svg>
                     <div>
-                      <div className="pay-method-name">Оплата через СБП</div>
+                      <div className="pay-method-name">OnlyPay - Оплата через СБП</div>
                       <div className="pay-method-desc">Система быстрых платежей — мгновенное зачисление</div>
                     </div>
                   </div>
@@ -335,6 +335,7 @@ export default function Tariffs() {
             {user && modalStep === 'qr' && (
               <>
                 <h2 className="pay-modal-title">Оплата через СБП</h2>
+                <h2 className="pay-modal-title">OnlyPay, Kassa.ai</h2>
                 <div className="pay-qr-amount">{formatPrice(selectedTariff.price)}</div>
                 <p className="pay-qr-hint">Отсканируйте QR-код в приложении вашего банка</p>
                 <div className="pay-qr-wrapper">
