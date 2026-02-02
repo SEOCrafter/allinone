@@ -162,7 +162,11 @@ export default function Tariffs() {
 
   if (loading) {
     return (
-      <div className="tariffs-page" style={{padding: '2rem', textAlign: 'center'}}>Загрузка тарифов...</div>
+      <div className="tariffs-page">
+        <div className="tariffs-loading">
+          <div className="spinner" />
+        </div>
+      </div>
     )
   }
 
