@@ -41,6 +41,7 @@ interface PaymentItem {
   credits: number
   status: string
   created_at: string
+  completed_at: string | null
 }
 
 function fmtDate(iso: string) {
@@ -48,7 +49,8 @@ function fmtDate(iso: string) {
 }
 
 function fmtDateTime(iso: string) {
-  const d = new Date(iso)
+  const normalized = iso.endsWith('Z') || iso.includes('+') ? iso : iso + 'Z'
+  const d = new Date(normalized)
   return d.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' }) + ' ' +
     d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
 }
@@ -260,7 +262,7 @@ export default function Account() {
             <div key={p.id} className="payment-row">
               <div className="payment-info">
                 <div className="payment-id">#{p.id.slice(0, 8)}</div>
-                <div className="payment-date">{fmtDateTime(p.created_at)}</div>
+                <div className="payment-date">{fmtDateTime(p.completed_at || p.created_at)}</div>
               </div>
               <span className={`payment-status ${p.status === 'completed' ? 'completed' : p.status === 'pending' ? 'pending' : 'failed'}`}>
                 {p.status === 'completed' ? 'Оплачено' : p.status === 'pending' ? 'В ожидании' : 'Ошибка'}
