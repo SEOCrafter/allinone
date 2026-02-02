@@ -281,6 +281,8 @@ export default function Generate({ selectedModel }: Props) {
           ...(selectedModel.backendModel?.includes('imagen') ? {
             safety_filter_level: settings.safetyFilter,
             output_format: settings.outputFormat,
+          } : selectedModel.provider === 'nano_banana' ? {
+            output_format: settings.outputFormat,
           } : {}),
         })
         if (response.ok) {
@@ -434,31 +436,31 @@ export default function Generate({ selectedModel }: Props) {
                 </>
                             )}
               {selectedModel.backendModel?.includes('imagen') && (
-                <>
-                  <div className="setting-item">
-                    <span>Фильтр контента</span>
-                    <select
-                      value={settings.safetyFilter}
-                      onChange={(e) => setSettings({...settings, safetyFilter: e.target.value})}
-                      disabled={isLoading}
-                    >
-                      <option value="block_only_high">Минимальный</option>
-                      <option value="block_medium_and_above">Средний</option>
-                      <option value="block_low_and_above">Строгий</option>
-                    </select>
-                  </div>
-                  <div className="setting-item">
-                    <span>Формат</span>
-                    <select
-                      value={settings.outputFormat}
-                      onChange={(e) => setSettings({...settings, outputFormat: e.target.value})}
-                      disabled={isLoading}
-                    >
-                      <option value="jpg">JPG</option>
-                      <option value="png">PNG</option>
-                    </select>
-                  </div>
-                </>
+                <div className="setting-item">
+                  <span>Фильтр контента</span>
+                  <select
+                    value={settings.safetyFilter}
+                    onChange={(e) => setSettings({...settings, safetyFilter: e.target.value})}
+                    disabled={isLoading}
+                  >
+                    <option value="block_only_high">Минимальный</option>
+                    <option value="block_medium_and_above">Средний</option>
+                    <option value="block_low_and_above">Строгий</option>
+                  </select>
+                </div>
+              )}
+              {(selectedModel.backendModel?.includes('imagen') || selectedModel.provider === 'nano_banana') && (
+                <div className="setting-item">
+                  <span>Формат</span>
+                  <select
+                    value={settings.outputFormat}
+                    onChange={(e) => setSettings({...settings, outputFormat: e.target.value})}
+                    disabled={isLoading}
+                  >
+                    <option value="jpg">JPG</option>
+                    <option value="png">PNG</option>
+                  </select>
+                </div>
               )}
               {selectedModel.durations && (
                 <div className="setting-item">
