@@ -32,10 +32,11 @@ class FluxAdapter(BaseAdapter, KieBaseAdapter):
         image_urls: Optional[List[str]] = None,
         aspect_ratio: str = "1:1",
         resolution: str = "1K",
+        wait_for_result: bool = True,
         **params
     ) -> GenerationResult:
         model = model or self.default_model
-        
+
         images = image_urls or ([image_url] if image_url else None)
         if images and "text-to-image" in model:
             model = model.replace("text-to-image", "image-to-image")
@@ -48,6 +49,22 @@ class FluxAdapter(BaseAdapter, KieBaseAdapter):
 
         if images:
             input_data["input_urls"] = images[:8]
+
+        if not wait_for_result:
+            create_result = await self.create_task(model, input_data)
+            if not create_result.success:
+                return GenerationResult(
+                    success=False,
+                    error_code=create_result.error_code,
+                    error_message=create_result.error_message,
+                    raw_response=create_result.raw_response,
+                )
+            return GenerationResult(
+                success=False,
+                content=None,
+                provider_cost=self.calculate_cost(model=model, resolution=resolution),
+                raw_response=create_result.raw_response,
+            )
 
         result = await self.generate_and_wait(model, input_data)
 
