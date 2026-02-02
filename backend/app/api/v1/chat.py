@@ -82,7 +82,7 @@ async def chat(
     if credits_price is not None and user.credits_balance < Decimal(str(credits_price)):
         return ChatResponse(
             ok=False,
-            error=f"Недостаточно кредитов. Нужно {credits_price}, у вас {float(user.credits_balance):.2f}",
+            error=f"Недостаточно токенов. Нужно {int(credits_price)}, у вас {int(user.credits_balance)}",
         )
 
     request_record = Request(
