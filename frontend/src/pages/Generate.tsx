@@ -51,6 +51,14 @@ export default function Generate({ selectedModel }: Props) {
   const requiresVideo = selectedModel?.requiresVideo
   const showImageUpload = requiresImage || supportsImageInput
 
+  const currentCost = (() => {
+    if (selectedModel?.variants && settings.speed) {
+      const variant = selectedModel.variants.find((v: any) => v.key === settings.speed)
+      if (variant?.credits_price) return variant.credits_price
+    }
+    return selectedModel?.cost || 0
+  })()
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -307,7 +315,7 @@ export default function Generate({ selectedModel }: Props) {
         </div>
         <div className="generate-model-cost">
           <img src="/icons/token.svg" alt="" width="18" height="18" />
-          <span>{selectedModel.cost} кредитов / генерация</span>
+          <span>{currentCost} токенов / генерация</span>
         </div>
       </div>
 
@@ -386,7 +394,7 @@ export default function Generate({ selectedModel }: Props) {
                     >
                       <option value="turbo">Turbo</option>
                       <option value="fast">Fast</option>
-                      <option value="relax">Relax</option>
+                      <option value="relaxed">Relaxed</option>
                     </select>
                   </div>
                   <div className="setting-item">
@@ -555,7 +563,7 @@ export default function Generate({ selectedModel }: Props) {
                 {isVideo ? '🎬 Создать видео' : '🖼️ Создать изображение'}
                 <span className="btn-cost">
                   <img src="/icons/token.svg" alt="" width="14" height="14" />
-                  {selectedModel.cost}
+                  {currentCost}
                 </span>
               </>
             )}

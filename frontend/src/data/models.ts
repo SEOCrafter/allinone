@@ -10,6 +10,7 @@ export interface Model {
   category: ModelCategory
   taskType: TaskType
   cost: number
+  variants?: { key: string; label: string; credits_price: number | null }[]
   rating: number
   users: number
   icon: string
