@@ -8,6 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.services.auth import AuthService
+from app.api.deps import get_current_user
+from app.models.user import User
 
 router = APIRouter()
 auth_service = AuthService()
@@ -165,3 +167,44 @@ async def refresh(data: RefreshRequest, db: AsyncSession = Depends(get_db)):
         refresh_token=auth_service.create_refresh_token(user.id),
         user=user_to_dict(user),
     )
+
+@router.post("/telegram-link")
+async def telegram_link(
+    data: TelegramAuthRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if not settings.TELEGRAM_BOT_TOKEN:
+        raise HTTPException(status_code=500, detail="Telegram bot not configured")
+
+    if abs(time.time() - data.auth_date) > 86400:
+        raise HTTPException(status_code=401, detail="Telegram auth expired")
+
+    auth_data = {
+        "id": str(data.id),
+        "first_name": data.first_name,
+        "last_name": data.last_name,
+        "username": data.username,
+        "photo_url": data.photo_url,
+        "auth_date": str(data.auth_date),
+        "hash": data.hash,
+    }
+
+    if not verify_telegram_auth(auth_data, settings.TELEGRAM_BOT_TOKEN):
+        raise HTTPException(status_code=401, detail="Invalid Telegram auth")
+
+    existing = await auth_service.get_user_by_telegram_id(db, data.id)
+    if existing and existing.id != current_user.id:
+        raise HTTPException(status_code=400, detail="Этот Telegram уже привязан к другому аккаунту")
+
+    current_user.telegram_id = data.id
+    if data.photo_url:
+        current_user.avatar_url = data.photo_url
+    if not current_user.name and data.first_name:
+        current_user.name = data.first_name
+        if data.last_name:
+            current_user.name += f" {data.last_name}"
+    await db.commit()
+    await db.refresh(current_user)
+
+    return {"ok": True, "user": user_to_dict(current_user)}

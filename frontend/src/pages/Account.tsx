@@ -236,7 +236,11 @@ export default function Account() {
           </div>
           {!profile?.telegram_id && (
             <button className="profile-telegram-btn"
-              onClick={() => window.open('https://t.me/umnik_ai_bot?start=auth', '_blank')}>
+              onClick={() => {
+                const origin = encodeURIComponent(window.location.origin)
+                const returnTo = encodeURIComponent('https://umnik.ai/auth/telegram-link-callback')
+                window.location.href = `https://oauth.telegram.org/auth?bot_id=8464718685&origin=${origin}&embed=0&request_access=write&return_to=${returnTo}`
+              }}>
               <img src="/icons/telegram.svg" alt="" width={16} height={16} />
               Подключить
             </button>
