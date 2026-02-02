@@ -244,15 +244,23 @@ export default function Generate({ selectedModel }: Props) {
           }
         }
       } else if (selectedModel.category === 'image') {
-        response = await generateNanoBanana({
+        response = await generateImageAsync({
           prompt: prompt.trim(),
+          provider: selectedModel.provider,
           model: selectedModel.backendModel,
           aspect_ratio: settings.aspectRatio,
           resolution: settings.resolution,
+          image_input: uploadedImage?.url ? [uploadedImage.url] : undefined,
         })
-        if (response.ok && response.image_url) {
-          const localUrl = await saveAndGetLocalUrl(response.image_url, false)
-          setResult(localUrl)
+        if (response.ok) {
+          if (response.image_url) {
+            const localUrl = await saveAndGetLocalUrl(response.image_url, false)
+            setResult(localUrl)
+          } else if (response.request_id) {
+            const resultUrl = await pollForResult(response.request_id)
+            const localUrl = await saveAndGetLocalUrl(resultUrl, false)
+            setResult(localUrl)
+          }
         }
       }
 
