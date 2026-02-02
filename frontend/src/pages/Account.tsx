@@ -100,7 +100,7 @@ export default function Account() {
 
   const loadProfile = async () => {
     try {
-      const res: any = await api.request('/users/me')
+      const res: any = await api.request('/user/me')
       if (res.user) setProfile(res.user)
     } catch (e) { console.error(e) }
     finally { setLoading(false) }
@@ -108,7 +108,7 @@ export default function Account() {
 
   const loadRecent = async () => {
     try {
-      const res: any = await api.request('/users/history?limit=3')
+      const res: any = await api.request('/user/history?limit=3')
       if (res.data) setRecentGens(res.data)
     } catch (e) {}
   }
@@ -117,7 +117,7 @@ export default function Account() {
     try {
       const p = new URLSearchParams({ page: String(genPage), limit: '20' })
       if (genFilter) p.set('type', genFilter)
-      const res: any = await api.request(`/users/history?${p}`)
+      const res: any = await api.request(`/user/history?${p}`)
       if (res.data) { setGenerations(res.data); setGenPages(res.pagination?.pages || 0) }
     } catch (e) {}
   }
@@ -131,7 +131,7 @@ export default function Account() {
 
   const loadSpendings = async () => {
     try {
-      const res: any = await api.request('/users/history?limit=30')
+      const res: any = await api.request('/user/history?limit=30')
       if (res.data) setSpendings(res.data)
     } catch (e) {}
   }
@@ -142,7 +142,7 @@ export default function Account() {
     try {
       const body: any = {}
       body[field] = editValue.trim()
-      const res: any = await api.request('/users/me', { method: 'PATCH', body })
+      const res: any = await api.request('/user/me', { method: 'PATCH', body })
       if (res.user) setProfile(res.user)
       setEditing(null)
     } catch (e: any) { alert(e.message || 'Ошибка') }
