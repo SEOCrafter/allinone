@@ -151,7 +151,7 @@ export default function Tariffs() {
                 className={`tariff-btn ${isFree ? 'free' : ''} ${isBest ? 'best' : ''}`}
                 onClick={() => isFree ? navigate('/register') : handleSelect(t)}
               >
-                {isFree ? 'Начать бесплатно' : selectedId === t.id ? 'Выбрано ✓' : 'Выбрать'}
+                {isFree ? 'Начать бесплатно' : 'Выбрать'}
               </button>
             </div>
           )

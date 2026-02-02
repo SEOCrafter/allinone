@@ -2827,6 +2827,13 @@ input, textarea { font-family: inherit; border: none; outline: none; }
 .tariff-btn.best:hover {
   opacity: 0.85;
 }
+
+.tariff-card.selected .tariff-btn {
+  background: var(--text-primary);
+  color: var(--bg-primary);
+  border-color: var(--text-primary);
+}
+
 .tariff-btn.free {
   border-color: var(--border);
   color: var(--text-secondary);
