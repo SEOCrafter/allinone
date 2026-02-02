@@ -18,6 +18,8 @@ export interface Model {
   backendModel: string
   requiresImage?: boolean
   supportsImageInput?: boolean
+  supportsNegativePrompt?: boolean
+  supportsOutputFormat?: boolean
   requiresVideo?: boolean
   aspectRatios?: string[]
   resolutions?: string[]

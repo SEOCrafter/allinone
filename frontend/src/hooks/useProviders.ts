@@ -48,6 +48,8 @@ interface ModelMeta {
   resolutions?: string[]
   supportsImageInput?: boolean
   requiresImage?: boolean
+  supportsNegativePrompt?: boolean
+  supportsOutputFormat?: boolean
 }
 
 const MODEL_METADATA: Record<string, ModelMeta> = {
@@ -71,8 +73,8 @@ const MODEL_METADATA: Record<string, ModelMeta> = {
   'google/imagen-4': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'] },
   'google/imagen-4-fast': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'] },
   'google/imagen-4-ultra': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'] },
-  'stability-ai/stable-diffusion-3.5-large': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'], supportsImageInput: true },
-  'stability-ai/stable-diffusion-3.5-large-turbo': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'], supportsImageInput: true },
+  'stability-ai/stable-diffusion-3.5-large': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'], supportsImageInput: true, supportsNegativePrompt: true, supportsOutputFormat: true },
+  'stability-ai/stable-diffusion-3.5-large-turbo': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'], supportsImageInput: true, supportsNegativePrompt: true, supportsOutputFormat: true },
   'minimax/image-01': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4'], supportsImageInput: true },
   'luma/photon-flash': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'], supportsImageInput: true },
   'runwayml/gen4-image': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'], resolutions: ['720p', '1080p'], supportsImageInput: true },

@@ -198,7 +198,7 @@ def _get_kie_adapter_name(model_name: str) -> str:
     elif "imagen" in model_lower:
         return "imagen"
     elif "sd-" in model_lower or "stable-diffusion" in model_lower:
-        return "stable_diffusion"
+        return "replicate"
     elif "luma-photon" in model_lower:
         return "luma"
     elif "face-swap" in model_lower:

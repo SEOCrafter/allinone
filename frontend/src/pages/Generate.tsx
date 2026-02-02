@@ -44,6 +44,7 @@ export default function Generate({ selectedModel }: Props) {
     sound: false,
     safetyFilter: 'block_only_high',
     outputFormat: 'jpg',
+    negativePrompt: '',
   })
 
   const isVideo = selectedModel?.category === 'video'
@@ -268,8 +269,11 @@ export default function Generate({ selectedModel }: Props) {
           ...(selectedModel.backendModel?.includes('imagen') ? {
             safety_filter_level: settings.safetyFilter,
             output_format: settings.outputFormat,
-          } : selectedModel.provider === 'nano_banana' ? {
+          } : selectedModel.provider === 'nano_banana' || selectedModel.supportsOutputFormat ? {
             output_format: settings.outputFormat,
+          } : {}),
+          ...(selectedModel.supportsNegativePrompt && settings.negativePrompt ? {
+            negative_prompt: settings.negativePrompt,
           } : {}),
         })
         if (response.ok) {
@@ -347,7 +351,19 @@ export default function Generate({ selectedModel }: Props) {
               disabled={isLoading}
             />
           </div>
-
+          {selectedModel.supportsNegativePrompt && (
+          <div className="form-group">
+            <label className="form-label">Негативный промпт</label>
+            <textarea
+              className="form-textarea"
+              placeholder="Что не должно быть на изображении..."
+              rows={2}
+              value={settings.negativePrompt || ''}
+              onChange={(e) => setSettings({...settings, negativePrompt: e.target.value})}
+              disabled={isLoading}
+            />
+          </div>
+          )}
           <div className="form-section">
             <label className="form-label">Настройки</label>
             <div className="settings-grid">
@@ -436,7 +452,7 @@ export default function Generate({ selectedModel }: Props) {
                   </select>
                 </div>
               )}
-              {(selectedModel.backendModel?.includes('imagen') || selectedModel.provider === 'nano_banana') && (
+              {(selectedModel.backendModel?.includes('imagen') || selectedModel.provider === 'nano_banana' || selectedModel.supportsOutputFormat) && (
                 <div className="setting-item">
                   <span>Формат</span>
                   <select
@@ -446,6 +462,7 @@ export default function Generate({ selectedModel }: Props) {
                   >
                     <option value="jpg">JPG</option>
                     <option value="png">PNG</option>
+                    {selectedModel.supportsOutputFormat && <option value="webp">WebP</option>}
                   </select>
                 </div>
               )}
