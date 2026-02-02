@@ -30,6 +30,7 @@ class CreatePaymentRequest(BaseModel):
     currency: str = "RUB"
     email: EmailStr
     telegram_id: Optional[int] = None
+    tariff_id: Optional[str] = None
 
 
 class PaymentResponse(BaseModel):
@@ -81,7 +82,8 @@ async def create_payment(
         status="pending",
         extra_data={
             "email": data.email,
-            "telegram_id": data.telegram_id
+            "telegram_id": data.telegram_id,
+            "tariff_id": data.tariff_id
         }
     )
     db.add(transaction)
@@ -238,6 +240,10 @@ async def freekassa_notify(request: Request, db: AsyncSession = Depends(get_db))
 
         if user:
             user.credits_balance += transaction.credits_added
+            tariff_id = extra.get("tariff_id")
+            if tariff_id:
+                user.active_tariff_id = tariff_id
+                user.tariff_activated_at = datetime.utcnow()
 
     await db.commit()
 

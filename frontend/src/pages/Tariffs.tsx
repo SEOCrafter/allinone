@@ -136,7 +136,8 @@ export default function Tariffs() {
           credits: selectedTariff.credits,
           email: user.email || 'noemail@placeholder.com',
           telegram_id: user.telegram_id || null,
-          currency: 'RUB'
+          currency: 'RUB',
+          tariff_id: selectedTariff.id
         }
       })
 
