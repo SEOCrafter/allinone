@@ -2695,7 +2695,7 @@ input, textarea { font-family: inherit; border: none; outline: none; }
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 20px;
-  align-items: start;
+  align-items: stretch;
 }
 .tariff-card {
   position: relative;
@@ -2706,13 +2706,14 @@ input, textarea { font-family: inherit; border: none; outline: none; }
   display: flex;
   flex-direction: column;
   transition: all 0.2s;
+  min-height: 420px;
 }
 .tariff-card:hover {
   border-color: var(--text-muted);
   box-shadow: 0 4px 24px rgba(0,0,0,0.06);
 }
 .tariff-card.best {
-  border-color: var(--text-primary);
+  border: 2px solid var(--text-primary);
   box-shadow: 0 4px 24px rgba(0,0,0,0.08);
 }
 .tariff-card.selected {
@@ -2742,11 +2743,13 @@ input, textarea { font-family: inherit; border: none; outline: none; }
   align-items: baseline;
   gap: 8px;
   margin-bottom: 4px;
+  flex-wrap: wrap;
 }
 .tariff-price {
   font-size: 28px;
   font-weight: 800;
   color: var(--text-primary);
+  white-space: nowrap;
 }
 .tariff-period {
   font-size: 13px;
@@ -2801,7 +2804,7 @@ input, textarea { font-family: inherit; border: none; outline: none; }
 .tariff-btn {
   width: 100%;
   padding: 14px;
-  border: 1px solid var(--text-primary);
+  border: 1px solid var(--border);
   border-radius: 12px;
   font-size: 15px;
   font-weight: 600;
@@ -2809,10 +2812,12 @@ input, textarea { font-family: inherit; border: none; outline: none; }
   transition: all 0.15s;
   background: transparent;
   color: var(--text-primary);
+  margin-top: auto;
 }
 .tariff-btn:hover {
   background: var(--text-primary);
   color: var(--bg-primary);
+  border-color: var(--text-primary);
 }
 .tariff-btn.best {
   background: var(--text-primary);
@@ -2827,8 +2832,9 @@ input, textarea { font-family: inherit; border: none; outline: none; }
   color: var(--text-secondary);
 }
 .tariff-btn.free:hover {
-  border-color: var(--text-primary);
+  border-color: var(--text-muted);
   color: var(--text-primary);
+  background: var(--bg-input);
 }
 .tariffs-login-hint {
   text-align: center;
@@ -2842,4 +2848,3 @@ input, textarea { font-family: inherit; border: none; outline: none; }
   cursor: pointer;
   text-decoration: underline;
 }
-
