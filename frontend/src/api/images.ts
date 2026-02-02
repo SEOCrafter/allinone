@@ -11,6 +11,8 @@ export interface GenerateImageRequest {
   resolution?: string
   steps?: number
   guidance?: number
+  safety_filter_level?: string
+  output_format?: string
   style?: string
   image_input?: string[]
 }

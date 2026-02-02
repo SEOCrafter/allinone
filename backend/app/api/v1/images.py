@@ -49,6 +49,7 @@ class GenerateRequest(BaseModel):
     image_input: Optional[List[str]] = None
     seed: Optional[int] = None
     prompt_strength: Optional[float] = None
+    safety_filter_level: Optional[str] = None
     num_outputs: int = 1
     wait_for_result: bool = False
 
@@ -231,6 +232,8 @@ def build_generate_params(data: GenerateRequest, actual_model: str, wait: bool =
         params["prompt_strength"] = data.prompt_strength
     if data.num_outputs > 1:
         params["num_outputs"] = data.num_outputs
+    if data.safety_filter_level:
+        params["safety_filter_level"] = data.safety_filter_level
     return params
 
 

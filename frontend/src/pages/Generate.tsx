@@ -43,6 +43,8 @@ export default function Generate({ selectedModel }: Props) {
     stylization: 100,
     duration: '5',
     sound: false,
+    safetyFilter: 'block_only_high',
+    outputFormat: 'jpg',
   })
 
   const isVideo = selectedModel?.category === 'video'
@@ -276,6 +278,10 @@ export default function Generate({ selectedModel }: Props) {
           aspect_ratio: settings.aspectRatio,
           resolution: settings.resolution,
           image_input: uploadedImage?.url ? [uploadedImage.url] : undefined,
+          ...(selectedModel.backendModel?.includes('imagen') ? {
+            safety_filter_level: settings.safetyFilter,
+            output_format: settings.outputFormat,
+          } : {}),
         })
         if (response.ok) {
           if (response.image_url) {
@@ -426,8 +432,35 @@ export default function Generate({ selectedModel }: Props) {
                     />
                   </div>
                 </>
+                            )}
+              {selectedModel.backendModel?.includes('imagen') && (
+                <>
+                  <div className="setting-item">
+                    <span>Фильтр контента</span>
+                    <select
+                      value={settings.safetyFilter}
+                      onChange={(e) => setSettings({...settings, safetyFilter: e.target.value})}
+                      disabled={isLoading}
+                    >
+                      <option value="block_only_high">Минимальный</option>
+                      <option value="block_medium_and_above">Средний</option>
+                      <option value="block_low_and_above">Строгий</option>
+                    </select>
+                  </div>
+                  <div className="setting-item">
+                    <span>Формат</span>
+                    <select
+                      value={settings.outputFormat}
+                      onChange={(e) => setSettings({...settings, outputFormat: e.target.value})}
+                      disabled={isLoading}
+                    >
+                      <option value="jpg">JPG</option>
+                      <option value="png">PNG</option>
+                      <option value="webp">WebP</option>
+                    </select>
+                  </div>
+                </>
               )}
-
               {selectedModel.durations && (
                 <div className="setting-item">
                   <span>Длительность (сек)</span>
@@ -562,7 +595,7 @@ export default function Generate({ selectedModel }: Props) {
               {error?.includes('No response from MidJourney') ? 'Midjourney временно недоступен. Попробуйте позже.' : error?.includes('Генерация не удалась') ? 'Генерация не удалась. Попробуйте ещё раз.' : error}
             </div>
           )}
-          
+
           <button
             className="btn btn-primary btn-generate"
             onClick={handleGenerate}
