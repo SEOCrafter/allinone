@@ -57,6 +57,8 @@ const MODEL_METADATA: Record<string, ModelMeta> = {
   'flux-2/flex-image-to-image': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'], resolutions: ['1K', '2K'], requiresImage: true },
   'nano-banana-pro': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4'], resolutions: ['1K', '2K', '4K'] },
   'nano-banana-pro-i2i': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4'], resolutions: ['1K', '2K'] },
+  'google/nano-banana': { aspectRatios: ['1:1', '9:16', '16:9', '3:4', '4:3', '3:2', '2:3'] },
+  'google/nano-banana-edit': { aspectRatios: ['1:1', '9:16', '16:9', '3:4', '4:3', '3:2', '2:3'], requiresImage: true },
   'midjourney/text-to-image': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'] },
   'midjourney/image-to-image': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'], requiresImage: true },
   'midjourney/image-to-video': { aspectRatios: ['16:9', '9:16'], requiresImage: true },
