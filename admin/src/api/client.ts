@@ -118,3 +118,15 @@ export const getActiveProvider = (model_name: string) =>
 
 export const getModelSettings = (config?: { signal?: AbortSignal }) =>
   api.get('/admin/models/settings', config);
+
+export const getStatsUsersDetails = (page = 1, limit = 50, config?: { signal?: AbortSignal }) =>
+  api.get('/admin/stats/users-details', { params: { page, limit }, ...config });
+
+export const getUserGenerations = (userId: string, page = 1, limit = 50, config?: { signal?: AbortSignal }) =>
+  api.get(`/admin/stats/users/${userId}/generations`, { params: { page, limit }, ...config });
+
+export const getStatsPeriods = (config?: { signal?: AbortSignal }) =>
+  api.get('/admin/stats/periods', config);
+
+export const getStatsCharts = (days = 30, config?: { signal?: AbortSignal }) =>
+  api.get('/admin/stats/charts', { params: { days }, ...config });
