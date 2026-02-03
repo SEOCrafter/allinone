@@ -37,15 +37,6 @@ export default function Generate({ selectedModel }: Props) {
   const [uploadedVideo, setUploadedVideo] = useState<{ file: File; preview: string; url?: string } | null>(null)
   const [isUploading, setIsUploading] = useState(false)
 
-  useEffect(() => {
-    setUploadedImage(null)
-    setReferenceImages([])
-    setSwapImage(null)
-    setUploadedVideo(null)
-    setResult(null)
-    setError(null)
-  }, [selectedModel?.id])
-
   const [settings, setSettings] = useState({
     aspectRatio: '1:1',
     resolution: '1K',
@@ -59,6 +50,21 @@ export default function Generate({ selectedModel }: Props) {
     negativePrompt: '',
     promptOptimizer: true,
   })
+
+  useEffect(() => {
+    setUploadedImage(null)
+    setReferenceImages([])
+    setSwapImage(null)
+    setUploadedVideo(null)
+    setResult(null)
+    setError(null)
+    setSettings(prev => ({
+      ...prev,
+      duration: selectedModel?.durations?.[0] || '5',
+      aspectRatio: selectedModel?.aspectRatios?.[0] || '1:1',
+      resolution: selectedModel?.resolutions?.[0] || '1K',
+    }))
+  }, [selectedModel?.id])
 
   const isVideo = selectedModel?.category === 'video'
   const requiresImage = selectedModel?.requiresImage
