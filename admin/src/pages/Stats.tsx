@@ -37,12 +37,12 @@ interface UserStats {
   name: string | null;
   telegram_id: number | null;
   created_at: string | null;
-  payments: number;
-  tax_5_percent: number;
+  payments_rub: number;
+  tax_rub: number;
   generations_count: number;
-  cost: number;
-  revenue: number;
-  profit: number;
+  cost_usd: number;
+  cost_rub: number;
+  profit_rub: number;
   credits_balance: number;
 }
 
@@ -55,9 +55,9 @@ interface Generation {
   status: string;
   tokens_input: number | null;
   tokens_output: number | null;
-  cost: number;
-  revenue: number;
-  profit: number;
+  credits_spent: number;
+  cost_usd: number;
+  cost_rub: number;
   prompt: string | null;
 }
 
@@ -66,12 +66,12 @@ interface PeriodStats {
   name: string;
   new_users: number;
   generations: number;
-  payments: number;
-  cost: number;
-  revenue: number;
-  profit: number;
-  tax: number;
-  net_profit: number;
+  payments_rub: number;
+  tax_rub: number;
+  net_income_rub: number;
+  cost_usd: number;
+  cost_rub: number;
+  profit_rub: number;
 }
 
 interface ChartDataPoint {
@@ -79,10 +79,9 @@ interface ChartDataPoint {
   new_users: number;
   total_users: number;
   generations: number;
-  cost: number;
-  revenue: number;
-  profit: number;
-  payments: number;
+  payments_rub: number;
+  cost_rub: number;
+  profit_rub: number;
 }
 
 interface ChartResponse {
@@ -93,10 +92,9 @@ interface ChartResponse {
   totals: {
     new_users: number;
     generations: number;
-    cost: number;
-    revenue: number;
-    profit: number;
-    payments: number;
+    payments_rub: number;
+    cost_rub: number;
+    profit_rub: number;
   };
 }
 
@@ -117,8 +115,11 @@ const formatShortDate = (dateStr: string) => {
   return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
 };
 
-const formatMoney = (value: number, decimals = 2) => {
-  if (Math.abs(value) < 0.01) return '$0.00';
+const formatRub = (value: number) => {
+  return value.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ₽';
+};
+
+const formatUsd = (value: number, decimals = 4) => {
   return '$' + value.toFixed(decimals);
 };
 
@@ -190,8 +191,8 @@ function UsersTab() {
               <th className="pb-3 pr-4 text-right">Платежи</th>
               <th className="pb-3 pr-4 text-right">Налог 5%</th>
               <th className="pb-3 pr-4 text-right">Генерации</th>
-              <th className="pb-3 pr-4 text-right">Себест.</th>
-              <th className="pb-3 pr-4 text-right">Доход</th>
+              <th className="pb-3 pr-4 text-right">Себест. (USD)</th>
+              <th className="pb-3 pr-4 text-right">Себест. (₽)</th>
               <th className="pb-3 pr-4 text-right">Прибыль</th>
               <th className="pb-3 text-right">Баланс</th>
             </tr>
@@ -218,15 +219,15 @@ function UsersTab() {
                     )}
                   </td>
                   <td className="py-3 pr-4 text-gray-300">{formatDate(user.created_at)?.split(',')[0]}</td>
-                  <td className="py-3 pr-4 text-right text-white">{formatMoney(user.payments)}</td>
-                  <td className="py-3 pr-4 text-right text-red-400">{formatMoney(user.tax_5_percent)}</td>
+                  <td className="py-3 pr-4 text-right text-green-400">{formatRub(user.payments_rub)}</td>
+                  <td className="py-3 pr-4 text-right text-red-400">-{formatRub(user.tax_rub)}</td>
                   <td className="py-3 pr-4 text-right text-white">{formatNumber(user.generations_count)}</td>
-                  <td className="py-3 pr-4 text-right text-orange-400">{formatMoney(user.cost, 4)}</td>
-                  <td className="py-3 pr-4 text-right text-blue-400">{formatMoney(user.revenue, 2)}</td>
-                  <td className={`py-3 pr-4 text-right ${user.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {formatMoney(user.profit, 2)}
+                  <td className="py-3 pr-4 text-right text-orange-400">{formatUsd(user.cost_usd, 4)}</td>
+                  <td className="py-3 pr-4 text-right text-orange-400">{formatRub(user.cost_rub)}</td>
+                  <td className={`py-3 pr-4 text-right font-semibold ${user.profit_rub >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {formatRub(user.profit_rub)}
                   </td>
-                  <td className="py-3 text-right text-white">{user.credits_balance.toFixed(2)}</td>
+                  <td className="py-3 text-right text-white">{user.credits_balance.toFixed(0)}</td>
                 </tr>
                 {expandedUser === user.id && (
                   <tr key={`${user.id}-expanded`}>
@@ -247,9 +248,9 @@ function UsersTab() {
                               <th className="pb-2 pr-3">Тип</th>
                               <th className="pb-2 pr-3">Статус</th>
                               <th className="pb-2 pr-3 text-right">Токены</th>
-                              <th className="pb-2 pr-3 text-right">Себест.</th>
-                              <th className="pb-2 pr-3 text-right">Доход</th>
-                              <th className="pb-2 text-right">Прибыль</th>
+                              <th className="pb-2 pr-3 text-right">Кредиты</th>
+                              <th className="pb-2 pr-3 text-right">Себест. ($)</th>
+                              <th className="pb-2 text-right">Себест. (₽)</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -273,11 +274,9 @@ function UsersTab() {
                                     ? `${gen.tokens_input || 0}/${gen.tokens_output || 0}` 
                                     : '—'}
                                 </td>
-                                <td className="py-2 pr-3 text-right text-orange-400">{formatMoney(gen.cost, 4)}</td>
-                                <td className="py-2 pr-3 text-right text-blue-400">{formatMoney(gen.revenue, 2)}</td>
-                                <td className={`py-2 text-right ${gen.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                  {formatMoney(gen.profit, 2)}
-                                </td>
+                                <td className="py-2 pr-3 text-right text-blue-400">{gen.credits_spent.toFixed(0)}</td>
+                                <td className="py-2 pr-3 text-right text-orange-400">{formatUsd(gen.cost_usd, 4)}</td>
+                                <td className="py-2 text-right text-orange-400">{formatRub(gen.cost_rub)}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -363,44 +362,44 @@ function PeriodsTab() {
               </span>
               <span className="text-white">{formatNumber(period.generations)}</span>
             </div>
+
+            <div className="border-t border-gray-700 my-2"></div>
             
             <div className="flex justify-between">
               <span className="text-gray-400 flex items-center gap-1">
                 <DollarSign className="w-3 h-3" /> Платежи
               </span>
-              <span className="text-green-400">{formatMoney(period.payments)}</span>
+              <span className="text-green-400">{formatRub(period.payments_rub)}</span>
             </div>
-
-            <div className="border-t border-gray-700 my-2"></div>
-            
-            <div className="flex justify-between">
-              <span className="text-gray-400">Себестоимость</span>
-              <span className="text-orange-400">{formatMoney(period.cost, 4)}</span>
-            </div>
-            
-            <div className="flex justify-between">
-              <span className="text-gray-400">Доход</span>
-              <span className="text-blue-400">{formatMoney(period.revenue)}</span>
-            </div>
-            
-            <div className="flex justify-between">
-              <span className="text-gray-400">Прибыль</span>
-              <span className={period.profit >= 0 ? 'text-green-400' : 'text-red-400'}>
-                {formatMoney(period.profit)}
-              </span>
-            </div>
-
-            <div className="border-t border-gray-700 my-2"></div>
             
             <div className="flex justify-between">
               <span className="text-gray-400">Налог 5%</span>
-              <span className="text-red-400">-{formatMoney(period.tax)}</span>
+              <span className="text-red-400">-{formatRub(period.tax_rub)}</span>
             </div>
             
+            <div className="flex justify-between">
+              <span className="text-gray-400">Чистый доход</span>
+              <span className="text-blue-400">{formatRub(period.net_income_rub)}</span>
+            </div>
+
+            <div className="border-t border-gray-700 my-2"></div>
+            
+            <div className="flex justify-between">
+              <span className="text-gray-400">Себестоимость ($)</span>
+              <span className="text-orange-400">{formatUsd(period.cost_usd, 2)}</span>
+            </div>
+            
+            <div className="flex justify-between">
+              <span className="text-gray-400">Себестоимость (₽)</span>
+              <span className="text-orange-400">{formatRub(period.cost_rub)}</span>
+            </div>
+
+            <div className="border-t border-gray-700 my-2"></div>
+            
             <div className="flex justify-between font-semibold">
-              <span className="text-gray-300">Чистая прибыль</span>
-              <span className={period.net_profit >= 0 ? 'text-green-400' : 'text-red-400'}>
-                {formatMoney(period.net_profit)}
+              <span className="text-gray-300">Прибыль</span>
+              <span className={period.profit_rub >= 0 ? 'text-green-400' : 'text-red-400'}>
+                {formatRub(period.profit_rub)}
               </span>
             </div>
           </div>
@@ -483,17 +482,17 @@ function ChartsTab() {
           <div className="text-xl font-bold text-white">{formatNumber(chartData.totals.generations)}</div>
         </div>
         <div className="bg-[#252525] rounded-lg p-3">
-          <div className="text-gray-400 text-xs">Себестоимость</div>
-          <div className="text-xl font-bold text-orange-400">{formatMoney(chartData.totals.cost, 2)}</div>
+          <div className="text-gray-400 text-xs">Платежи</div>
+          <div className="text-xl font-bold text-green-400">{formatRub(chartData.totals.payments_rub)}</div>
         </div>
         <div className="bg-[#252525] rounded-lg p-3">
-          <div className="text-gray-400 text-xs">Доход</div>
-          <div className="text-xl font-bold text-blue-400">{formatMoney(chartData.totals.revenue)}</div>
+          <div className="text-gray-400 text-xs">Себестоимость</div>
+          <div className="text-xl font-bold text-orange-400">{formatRub(chartData.totals.cost_rub)}</div>
         </div>
         <div className="bg-[#252525] rounded-lg p-3">
           <div className="text-gray-400 text-xs">Прибыль</div>
-          <div className={`text-xl font-bold ${chartData.totals.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-            {formatMoney(chartData.totals.profit)}
+          <div className={`text-xl font-bold ${chartData.totals.profit_rub >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            {formatRub(chartData.totals.profit_rub)}
           </div>
         </div>
       </div>
@@ -559,7 +558,7 @@ function ChartsTab() {
 
       <div className="bg-[#252525] rounded-lg p-4">
         <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
-          <DollarSign className="w-4 h-4" /> Финансы
+          <DollarSign className="w-4 h-4" /> Финансы (₽)
         </h3>
         <ResponsiveContainer width="100%" height={250}>
           <AreaChart data={data}>
@@ -569,20 +568,20 @@ function ChartsTab() {
             <Tooltip 
               contentStyle={{ backgroundColor: '#2f2f2f', border: 'none', borderRadius: '8px' }}
               labelStyle={{ color: '#fff' }}
-              formatter={(value: number) => formatMoney(value)}
+              formatter={(value: number) => formatRub(value)}
             />
             <Legend />
             <Area 
               type="monotone" 
-              dataKey="revenue" 
-              name="Доход" 
+              dataKey="payments_rub" 
+              name="Платежи" 
               stroke="#3b82f6" 
               fill="#3b82f6" 
               fillOpacity={0.3}
             />
             <Area 
               type="monotone" 
-              dataKey="profit" 
+              dataKey="profit_rub" 
               name="Прибыль" 
               stroke="#22c55e" 
               fill="#22c55e" 
@@ -590,7 +589,7 @@ function ChartsTab() {
             />
             <Area 
               type="monotone" 
-              dataKey="cost" 
+              dataKey="cost_rub" 
               name="Себестоимость" 
               stroke="#f97316" 
               fill="#f97316" 
@@ -616,6 +615,9 @@ export default function Stats() {
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-white">Статистика</h1>
+        <div className="text-sm text-gray-400">
+          Курс: 1 USD = 79 ₽ | Налог: 5%
+        </div>
       </div>
 
       <div className="flex gap-2 mb-6">

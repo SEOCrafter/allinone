@@ -1,8 +1,7 @@
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select, func, and_, case
+from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime, timedelta, date
-from typing import Optional
+from datetime import datetime, timedelta
 from decimal import Decimal
 from app.database import get_db
 from app.api.deps import get_admin_user
@@ -14,6 +13,7 @@ from app.models.provider import Provider
 router = APIRouter()
 
 TAX_RATE = Decimal("0.05")
+USD_RUB_RATE = Decimal("79")
 
 
 def get_period_dates(period: str) -> tuple[datetime, datetime]:
@@ -153,7 +153,7 @@ async def get_users_details(
             and_(
                 Transaction.user_id.in_(user_ids),
                 Transaction.status == "completed",
-                Transaction.type == "deposit"
+                Transaction.type.in_(["deposit", "topup"])
             )
         )
         .group_by(Transaction.user_id)
@@ -164,8 +164,7 @@ async def get_users_details(
         select(
             Request.user_id,
             func.count(Request.id).label("generations_count"),
-            func.sum(Request.provider_cost).label("total_cost"),
-            func.sum(Request.credits_spent).label("total_revenue")
+            func.sum(Request.provider_cost).label("total_cost_usd")
         )
         .where(Request.user_id.in_(user_ids))
         .group_by(Request.user_id)
@@ -174,16 +173,18 @@ async def get_users_details(
     for row in requests_query.fetchall():
         requests_map[row[0]] = {
             "generations": row[1] or 0,
-            "cost": float(row[2] or 0),
-            "revenue": float(row[3] or 0),
+            "cost_usd": float(row[2] or 0),
         }
     
     result = []
     for user in users:
-        payments = payments_map.get(user.id, 0)
-        tax = payments * float(TAX_RATE)
-        req_data = requests_map.get(user.id, {"generations": 0, "cost": 0, "revenue": 0})
-        profit = req_data["revenue"] - req_data["cost"]
+        payments_rub = payments_map.get(user.id, 0)
+        tax_rub = payments_rub * float(TAX_RATE)
+        net_income_rub = payments_rub - tax_rub
+        
+        req_data = requests_map.get(user.id, {"generations": 0, "cost_usd": 0})
+        cost_rub = req_data["cost_usd"] * float(USD_RUB_RATE)
+        profit_rub = net_income_rub - cost_rub
         
         result.append({
             "id": str(user.id),
@@ -191,12 +192,12 @@ async def get_users_details(
             "name": user.name,
             "telegram_id": user.telegram_id,
             "created_at": user.created_at.isoformat() if user.created_at else None,
-            "payments": payments,
-            "tax_5_percent": round(tax, 2),
+            "payments_rub": round(payments_rub, 2),
+            "tax_rub": round(tax_rub, 2),
             "generations_count": req_data["generations"],
-            "cost": round(req_data["cost"], 6),
-            "revenue": round(req_data["revenue"], 4),
-            "profit": round(profit, 4),
+            "cost_usd": round(req_data["cost_usd"], 6),
+            "cost_rub": round(cost_rub, 2),
+            "profit_rub": round(profit_rub, 2),
             "credits_balance": float(user.credits_balance or 0),
         })
     
@@ -208,6 +209,10 @@ async def get_users_details(
             "limit": limit,
             "total": total,
             "pages": (total + limit - 1) // limit,
+        },
+        "rates": {
+            "usd_rub": float(USD_RUB_RATE),
+            "tax_percent": float(TAX_RATE) * 100,
         }
     }
 
@@ -244,9 +249,8 @@ async def get_user_generations(
     
     result = []
     for req in requests:
-        revenue = float(req.credits_spent or 0)
-        cost = float(req.provider_cost or 0)
-        profit = revenue - cost
+        cost_usd = float(req.provider_cost or 0)
+        cost_rub = cost_usd * float(USD_RUB_RATE)
         
         result.append({
             "id": str(req.id),
@@ -257,9 +261,9 @@ async def get_user_generations(
             "status": req.status,
             "tokens_input": req.tokens_input,
             "tokens_output": req.tokens_output,
-            "cost": round(cost, 6),
-            "revenue": round(revenue, 4),
-            "profit": round(profit, 4),
+            "credits_spent": float(req.credits_spent or 0),
+            "cost_usd": round(cost_usd, 6),
+            "cost_rub": round(cost_rub, 2),
             "prompt": req.prompt[:100] + "..." if req.prompt and len(req.prompt) > 100 else req.prompt,
         })
     
@@ -301,11 +305,13 @@ async def get_stats_by_periods(
             users_count = await db.execute(select(func.count(User.id)))
             requests_query = select(
                 func.count(Request.id),
-                func.sum(Request.provider_cost),
-                func.sum(Request.credits_spent)
+                func.sum(Request.provider_cost)
             )
             payments_query = select(func.sum(Transaction.amount_currency)).where(
-                and_(Transaction.status == "completed", Transaction.type == "deposit")
+                and_(
+                    Transaction.status == "completed",
+                    Transaction.type.in_(["deposit", "topup"])
+                )
             )
         else:
             users_count = await db.execute(
@@ -315,15 +321,14 @@ async def get_stats_by_periods(
             )
             requests_query = select(
                 func.count(Request.id),
-                func.sum(Request.provider_cost),
-                func.sum(Request.credits_spent)
+                func.sum(Request.provider_cost)
             ).where(
                 and_(Request.created_at >= start_date, Request.created_at <= end_date)
             )
             payments_query = select(func.sum(Transaction.amount_currency)).where(
                 and_(
                     Transaction.status == "completed",
-                    Transaction.type == "deposit",
+                    Transaction.type.in_(["deposit", "topup"]),
                     Transaction.created_at >= start_date,
                     Transaction.created_at <= end_date
                 )
@@ -333,31 +338,38 @@ async def get_stats_by_periods(
         
         requests_result = await db.execute(requests_query)
         req_row = requests_result.fetchone()
-        requests_count = req_row[0] or 0
-        total_cost = float(req_row[1] or 0)
-        total_revenue = float(req_row[2] or 0)
+        generations_count = req_row[0] or 0
+        total_cost_usd = float(req_row[1] or 0)
         
         payments_result = await db.execute(payments_query)
-        total_payments = float(payments_result.scalar() or 0)
+        payments_rub = float(payments_result.scalar() or 0)
         
-        profit = total_revenue - total_cost
-        tax = total_payments * float(TAX_RATE)
-        net_profit = profit - tax
+        tax_rub = payments_rub * float(TAX_RATE)
+        net_income_rub = payments_rub - tax_rub
+        cost_rub = total_cost_usd * float(USD_RUB_RATE)
+        profit_rub = net_income_rub - cost_rub
         
         result.append({
             "period": period,
             "name": period_names[period],
             "new_users": users_count,
-            "generations": requests_count,
-            "payments": round(total_payments, 2),
-            "cost": round(total_cost, 6),
-            "revenue": round(total_revenue, 4),
-            "profit": round(profit, 4),
-            "tax": round(tax, 2),
-            "net_profit": round(net_profit, 4),
+            "generations": generations_count,
+            "payments_rub": round(payments_rub, 2),
+            "tax_rub": round(tax_rub, 2),
+            "net_income_rub": round(net_income_rub, 2),
+            "cost_usd": round(total_cost_usd, 4),
+            "cost_rub": round(cost_rub, 2),
+            "profit_rub": round(profit_rub, 2),
         })
     
-    return {"ok": True, "periods": result}
+    return {
+        "ok": True, 
+        "periods": result,
+        "rates": {
+            "usd_rub": float(USD_RUB_RATE),
+            "tax_percent": float(TAX_RATE) * 100,
+        }
+    }
 
 
 @router.get("/charts")
@@ -389,8 +401,7 @@ async def get_charts_data(
         select(
             func.date(Request.created_at).label("day"),
             func.count(Request.id).label("count"),
-            func.sum(Request.provider_cost).label("cost"),
-            func.sum(Request.credits_spent).label("revenue")
+            func.sum(Request.provider_cost).label("cost_usd")
         )
         .where(Request.created_at >= datetime.combine(start_date, datetime.min.time()))
         .group_by(func.date(Request.created_at))
@@ -399,8 +410,7 @@ async def get_charts_data(
     for row in requests_by_day.fetchall():
         requests_map[row[0]] = {
             "count": row[1] or 0,
-            "cost": float(row[2] or 0),
-            "revenue": float(row[3] or 0),
+            "cost_usd": float(row[2] or 0),
         }
     
     payments_by_day = await db.execute(
@@ -411,7 +421,7 @@ async def get_charts_data(
         .where(
             and_(
                 Transaction.status == "completed",
-                Transaction.type == "deposit",
+                Transaction.type.in_(["deposit", "topup"]),
                 Transaction.created_at >= datetime.combine(start_date, datetime.min.time())
             )
         )
@@ -432,28 +442,30 @@ async def get_charts_data(
     for d in all_dates:
         new_users = users_map.get(d, 0)
         cumulative_users += new_users
-        req_data = requests_map.get(d, {"count": 0, "cost": 0, "revenue": 0})
-        payments = payments_map.get(d, 0)
-        profit = req_data["revenue"] - req_data["cost"]
+        req_data = requests_map.get(d, {"count": 0, "cost_usd": 0})
+        payments_rub = payments_map.get(d, 0)
+        
+        tax_rub = payments_rub * float(TAX_RATE)
+        net_income_rub = payments_rub - tax_rub
+        cost_rub = req_data["cost_usd"] * float(USD_RUB_RATE)
+        profit_rub = net_income_rub - cost_rub
         
         chart_data.append({
             "date": d.isoformat(),
             "new_users": new_users,
             "total_users": cumulative_users,
             "generations": req_data["count"],
-            "cost": round(req_data["cost"], 6),
-            "revenue": round(req_data["revenue"], 4),
-            "profit": round(profit, 4),
-            "payments": round(payments, 2),
+            "payments_rub": round(payments_rub, 2),
+            "cost_rub": round(cost_rub, 2),
+            "profit_rub": round(profit_rub, 2),
         })
     
     totals = {
         "new_users": sum(d["new_users"] for d in chart_data),
         "generations": sum(d["generations"] for d in chart_data),
-        "cost": round(sum(d["cost"] for d in chart_data), 6),
-        "revenue": round(sum(d["revenue"] for d in chart_data), 4),
-        "profit": round(sum(d["profit"] for d in chart_data), 4),
-        "payments": round(sum(d["payments"] for d in chart_data), 2),
+        "payments_rub": round(sum(d["payments_rub"] for d in chart_data), 2),
+        "cost_rub": round(sum(d["cost_rub"] for d in chart_data), 2),
+        "profit_rub": round(sum(d["profit_rub"] for d in chart_data), 2),
     }
     
     return {
@@ -463,6 +475,10 @@ async def get_charts_data(
         "end_date": end_date.isoformat(),
         "data": chart_data,
         "totals": totals,
+        "rates": {
+            "usd_rub": float(USD_RUB_RATE),
+            "tax_percent": float(TAX_RATE) * 100,
+        }
     }
 
 
