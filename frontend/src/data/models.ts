@@ -20,6 +20,7 @@ export interface Model {
   supportsImageInput?: boolean
   supportsNegativePrompt?: boolean
   supportsOutputFormat?: boolean
+  requiresTwoImages?: boolean
   requiresVideo?: boolean
   aspectRatios?: string[]
   resolutions?: string[]

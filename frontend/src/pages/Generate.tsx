@@ -23,6 +23,7 @@ export default function Generate({ selectedModel }: Props) {
   const { user, updateCredits } = useAuth()
   const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const swapInputRef = useRef<HTMLInputElement>(null)
   const videoInputRef = useRef<HTMLInputElement>(null)
 
   const [prompt, setPrompt] = useState('')
@@ -31,6 +32,7 @@ export default function Generate({ selectedModel }: Props) {
   const [result, setResult] = useState<string | null>(null)
 
   const [uploadedImage, setUploadedImage] = useState<{ file: File; preview: string; url?: string } | null>(null)
+  const [swapImage, setSwapImage] = useState<{ file: File; preview: string; url?: string } | null>(null)
   const [uploadedVideo, setUploadedVideo] = useState<{ file: File; preview: string; url?: string } | null>(null)
   const [isUploading, setIsUploading] = useState(false)
 
@@ -51,7 +53,8 @@ export default function Generate({ selectedModel }: Props) {
   const requiresImage = selectedModel?.requiresImage
   const supportsImageInput = selectedModel?.supportsImageInput
   const requiresVideo = selectedModel?.requiresVideo
-  const showImageUpload = requiresImage || supportsImageInput
+  const requiresTwoImages = selectedModel?.requiresTwoImages
+  const showImageUpload = requiresImage || supportsImageInput || requiresTwoImages
 
   const currentCost = (() => {
     if (selectedModel?.variants && settings.speed) {
@@ -73,6 +76,23 @@ export default function Generate({ selectedModel }: Props) {
       const uploadResult = await uploadFile(file, 'images')
       const urlResult = await getFileUrl(uploadResult.id)
       setUploadedImage({ file, preview, url: urlResult.url })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ошибка загрузки файла')
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  const handleSwapImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const preview = URL.createObjectURL(file)
+    setSwapImage({ file, preview })
+    setIsUploading(true)
+    try {
+      const uploadResult = await uploadFile(file, 'images')
+      const urlResult = await getFileUrl(uploadResult.id)
+      setSwapImage({ file, preview, url: urlResult.url })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка загрузки файла')
     } finally {
@@ -111,6 +131,10 @@ export default function Generate({ selectedModel }: Props) {
     }
     if (requiresImage && !uploadedImage?.url) {
       setError('Загрузите изображение')
+      return
+    }
+    if (requiresTwoImages && (!uploadedImage?.url || !swapImage?.url)) {
+      setError('Загрузите оба изображения')
       return
     }
     if (requiresVideo && !uploadedVideo?.url) {
@@ -153,6 +177,16 @@ export default function Generate({ selectedModel }: Props) {
       }
     }
 
+    const getImageInput = () => {
+      if (requiresTwoImages && uploadedImage?.url && swapImage?.url) {
+        return [uploadedImage.url, swapImage.url]
+      }
+      if (uploadedImage?.url) {
+        return [uploadedImage.url]
+      }
+      return undefined
+    }
+
     try {
       let response
 
@@ -172,7 +206,8 @@ export default function Generate({ selectedModel }: Props) {
               setResult(localUrl)
             }
           }
-        response = await imageToImage({
+        } else if (selectedModel.taskType === 'i2i') {
+          response = await imageToImage({
             prompt: prompt.trim(),
             provider: 'midjourney',
             image_url: uploadedImage!.url!,
@@ -240,13 +275,13 @@ export default function Generate({ selectedModel }: Props) {
           setResult(localUrl)
         }
       } else if (selectedModel.provider === 'flux') {
-          response = await generateImageAsync({
+        response = await generateImageAsync({
           prompt: prompt.trim(),
           provider: 'flux',
           model: selectedModel.backendModel,
           aspect_ratio: settings.aspectRatio,
           resolution: settings.resolution,
-          image_input: uploadedImage?.url ? [uploadedImage.url] : undefined,
+          image_input: getImageInput(),
         })
         if (response.ok) {
           if (response.image_url) {
@@ -265,7 +300,7 @@ export default function Generate({ selectedModel }: Props) {
           model: selectedModel.backendModel,
           aspect_ratio: settings.aspectRatio,
           resolution: settings.resolution,
-          image_input: uploadedImage?.url ? [uploadedImage.url] : undefined,
+          image_input: getImageInput(),
           ...(selectedModel.backendModel?.includes('imagen') ? {
             safety_filter_level: settings.safetyFilter,
             output_format: settings.outputFormat,
@@ -351,19 +386,21 @@ export default function Generate({ selectedModel }: Props) {
               disabled={isLoading}
             />
           </div>
+
           {selectedModel.supportsNegativePrompt && (
-          <div className="form-group">
-            <label className="form-label">Негативный промпт</label>
-            <textarea
-              className="form-textarea"
-              placeholder="Что не должно быть на изображении..."
-              rows={2}
-              value={settings.negativePrompt || ''}
-              onChange={(e) => setSettings({...settings, negativePrompt: e.target.value})}
-              disabled={isLoading}
-            />
-          </div>
+            <div className="form-group">
+              <label className="form-label">Негативный промпт</label>
+              <textarea
+                className="form-textarea"
+                placeholder="Что не должно быть на изображении..."
+                rows={2}
+                value={settings.negativePrompt || ''}
+                onChange={(e) => setSettings({...settings, negativePrompt: e.target.value})}
+                disabled={isLoading}
+              />
+            </div>
           )}
+
           <div className="form-section">
             <label className="form-label">Настройки</label>
             <div className="settings-grid">
@@ -437,7 +474,8 @@ export default function Generate({ selectedModel }: Props) {
                     />
                   </div>
                 </>
-                            )}
+              )}
+
               {selectedModel.backendModel?.includes('imagen') && (
                 <div className="setting-item">
                   <span>Фильтр контента</span>
@@ -452,6 +490,7 @@ export default function Generate({ selectedModel }: Props) {
                   </select>
                 </div>
               )}
+
               {(selectedModel.backendModel?.includes('imagen') || selectedModel.provider === 'nano_banana' || selectedModel.supportsOutputFormat) && (
                 <div className="setting-item">
                   <span>Формат</span>
@@ -466,6 +505,7 @@ export default function Generate({ selectedModel }: Props) {
                   </select>
                 </div>
               )}
+
               {selectedModel.durations && (
                 <div className="setting-item">
                   <span>Длительность (сек)</span>
@@ -500,7 +540,10 @@ export default function Generate({ selectedModel }: Props) {
 
           {showImageUpload && (
             <div className="form-section">
-              <label className="form-label">{requiresImage ? 'Исходное изображение' : 'Референсные изображения (до 8)'} {requiresImage && <span className="required">*</span>}</label>
+              <label className="form-label">
+                {requiresTwoImages ? 'Целевое изображение' : requiresImage ? 'Исходное изображение' : 'Референсные изображения (до 8)'} 
+                {(requiresImage || requiresTwoImages) && <span className="required">*</span>}
+              </label>
               <div 
                 className={`upload-area ${uploadedImage ? 'has-file' : ''} ${isUploading ? 'uploading' : ''}`}
                 onClick={() => fileInputRef.current?.click()}
@@ -518,7 +561,7 @@ export default function Generate({ selectedModel }: Props) {
                       <polyline points="17,8 12,3 7,8"/>
                       <line x1="12" y1="3" x2="12" y2="15"/>
                     </svg>
-                    <p>Перетащите изображение или кликните для выбора</p>
+                    <p>{requiresTwoImages ? 'Изображение, на котором заменить лицо' : 'Перетащите изображение или кликните для выбора'}</p>
                   </>
                 )}
                 <input 
@@ -545,9 +588,56 @@ export default function Generate({ selectedModel }: Props) {
             </div>
           )}
 
+          {requiresTwoImages && (
+            <div className="form-section">
+              <label className="form-label">Лицо для замены <span className="required">*</span></label>
+              <div 
+                className={`upload-area ${swapImage ? 'has-file' : ''} ${isUploading ? 'uploading' : ''}`}
+                onClick={() => swapInputRef.current?.click()}
+              >
+                {swapImage ? (
+                  <div className="upload-preview">
+                    <img src={swapImage.preview} alt="Swap Preview" />
+                    {isUploading && <div className="upload-overlay">Загрузка...</div>}
+                    {swapImage.url && <div className="upload-success">✓</div>}
+                  </div>
+                ) : (
+                  <>
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="17,8 12,3 7,8"/>
+                      <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    <p>Изображение с лицом для замены</p>
+                  </>
+                )}
+                <input 
+                  ref={swapInputRef}
+                  type="file" 
+                  accept="image/*" 
+                  onChange={handleSwapImageUpload}
+                  disabled={isLoading || isUploading} 
+                  style={{ display: 'none' }}
+                />
+              </div>
+              {swapImage && (
+                <button 
+                  className="btn btn-secondary btn-sm"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setSwapImage(null)
+                  }}
+                  disabled={isLoading}
+                >
+                  Удалить
+                </button>
+              )}
+            </div>
+          )}
+
           {requiresVideo && (
             <div className="form-section">
-              <label className="form-label">Видео с движением {requiresVideo && <span className="required">*</span>}</label>
+              <label className="form-label">Видео с движением <span className="required">*</span></label>
               <div 
                 className={`upload-area ${uploadedVideo ? 'has-file' : ''} ${isUploading ? 'uploading' : ''}`}
                 onClick={() => videoInputRef.current?.click()}
@@ -604,7 +694,7 @@ export default function Generate({ selectedModel }: Props) {
           <button
             className="btn btn-primary btn-generate"
             onClick={handleGenerate}
-            disabled={!prompt.trim() || isLoading || !user || isUploading || (requiresImage && !uploadedImage?.url)}
+            disabled={!prompt.trim() || isLoading || !user || isUploading || (requiresImage && !uploadedImage?.url) || (requiresTwoImages && (!uploadedImage?.url || !swapImage?.url))}
           >
             {isLoading ? (
               <>
