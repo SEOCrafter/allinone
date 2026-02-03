@@ -46,6 +46,11 @@ class ReplicateAdapter(BaseAdapter):
         "minimax/hailuo-02": {"type": "video", "price_type": "per_request", "price": 0.34},
         "minimax/hailuo-02-fast": {"type": "video", "price_type": "per_request", "price": 0.25},
         "minimax/hailuo-2.3": {"type": "video", "price_type": "per_request", "price": 0.59},
+        "hailuo/02-text-to-video-standard": {"type": "video", "price_type": "per_generation", "price": 0.035},
+        "hailuo/02-text-to-video-pro": {"type": "video", "price_type": "per_generation", "price": 0.035},
+        "hailuo/02-image-to-video-standard": {"type": "video", "price_type": "per_generation", "price": 0.035},
+        "hailuo/02-image-to-video-pro": {"type": "video", "price_type": "per_generation", "price": 0.035},
+        "hailuo/02-text-to-video-fast": {"type": "video", "price_type": "per_generation", "price": 0.105},
         "openai/sora-2": {"type": "video", "price_type": "per_second", "price": 0.10},
         "openai/sora-2-pro": {"type": "video", "price_type": "per_second", "price": 0.50},
         "bytedance/seedance-1-pro": {"type": "video", "price_type": "per_second", "price": 0.15},
@@ -464,6 +469,8 @@ class ReplicateAdapter(BaseAdapter):
                 input_data["seed"] = params["seed"]
             if image_urls:
                 input_data["first_frame_image"] = image_urls[0]
+            if params.get("prompt_optimizer") is not None:
+                input_data["prompt_optimizer"] = params["prompt_optimizer"]
 
         elif "sora" in model.lower():
             input_data["seconds"] = duration
@@ -617,6 +624,8 @@ class ReplicateAdapter(BaseAdapter):
         elif price_type == "per_request":
             return price
         elif price_type == "per_image":
+            return price
+        elif price_type == "per_generation":
             return price
         return price
 

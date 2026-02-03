@@ -34,6 +34,7 @@ class VideoGenerateRequest(BaseModel):
     mode: str = "std"
     character_orientation: str = "image"
     wait_for_result: bool = True
+    prompt_optimizer: Optional[bool] = None
 
 
 class VideoGenerateResponse(BaseModel):
@@ -170,6 +171,8 @@ async def generate_video(
         "mode": data.mode,
         "character_orientation": data.character_orientation,
     }
+    if data.prompt_optimizer is not None:
+        request_params["prompt_optimizer"] = data.prompt_optimizer
 
     request_record = Request(
         id=request_id,
@@ -205,6 +208,8 @@ async def generate_video(
             params["image_urls"] = data.image_urls
         if data.video_urls:
             params["video_urls"] = data.video_urls
+        if data.prompt_optimizer is not None:
+            params["prompt_optimizer"] = data.prompt_optimizer
 
         result = await adapter.generate(data.prompt, **params)
 
@@ -348,6 +353,8 @@ async def generate_video_async(
         "mode": data.mode,
         "character_orientation": data.character_orientation,
     }
+    if data.prompt_optimizer is not None:
+        request_params["prompt_optimizer"] = data.prompt_optimizer
 
     request_record = Request(
         id=request_id,
@@ -384,6 +391,8 @@ async def generate_video_async(
             params["image_urls"] = data.image_urls
         if data.video_urls:
             params["video_urls"] = data.video_urls
+        if data.prompt_optimizer is not None:
+            params["prompt_optimizer"] = data.prompt_optimizer
         
         result = await adapter.generate(data.prompt, **params)
 

@@ -80,6 +80,7 @@ export interface VideoGenerateRequest {
   duration?: string
   aspect_ratio?: string
   sound?: boolean
+  prompt_optimizer?: boolean
 }
 
 export interface MidjourneyVideoRequest {

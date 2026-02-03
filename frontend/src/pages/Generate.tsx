@@ -57,6 +57,7 @@ export default function Generate({ selectedModel }: Props) {
     safetyFilter: 'block_only_high',
     outputFormat: 'jpg',
     negativePrompt: '',
+    promptOptimizer: true,
   })
 
   const isVideo = selectedModel?.category === 'video'
@@ -306,6 +307,7 @@ export default function Generate({ selectedModel }: Props) {
           image_urls: uploadedImage?.url ? [uploadedImage.url] : undefined,
           duration: settings.duration,
           aspect_ratio: settings.aspectRatio,
+          prompt_optimizer: selectedModel.supportsPromptOptimizer ? settings.promptOptimizer : undefined,
         })
         if (response.ok && response.video_url) {
           const localUrl = await saveAndGetLocalUrl(response.video_url, true)
@@ -566,6 +568,21 @@ export default function Generate({ selectedModel }: Props) {
                       type="checkbox" 
                       checked={settings.sound}
                       onChange={(e) => setSettings({...settings, sound: e.target.checked})}
+                      disabled={isLoading}
+                    />
+                    <span className="toggle-slider"></span>
+                  </label>
+                </div>
+              )}
+
+              {selectedModel.supportsPromptOptimizer && (
+                <div className="setting-item">
+                  <span>Оптимизация промпта</span>
+                  <label className="toggle">
+                    <input 
+                      type="checkbox" 
+                      checked={settings.promptOptimizer}
+                      onChange={(e) => setSettings({...settings, promptOptimizer: e.target.checked})}
                       disabled={isLoading}
                     />
                     <span className="toggle-slider"></span>
