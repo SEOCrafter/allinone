@@ -188,6 +188,8 @@ def _get_kie_adapter_name(model_name: str) -> str:
         return "sora"
     elif "seedance" in model_lower:
         return "seedance"
+    elif "runway-gen4-image" in model_lower or "runwayml/gen4-image" in model_lower:
+        return "replicate"
     elif "runway" in model_lower:
         return "runway"
     elif "luma-ray" in model_lower:
