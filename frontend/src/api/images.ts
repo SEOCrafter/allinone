@@ -131,7 +131,7 @@ export async function imageToImage(request: ImageToImageRequest): Promise<Genera
 }
 
 export async function generateVideo(request: VideoGenerateRequest): Promise<GenerateResponse> {
-  return api.request<GenerateResponse>('/api/v1/video/generate', {
+  return api.request<GenerateResponse>('/api/v1/video/generate-async', {
     method: 'POST',
     body: request,
   })
@@ -160,9 +160,9 @@ export async function uploadFile(file: File, category: string = 'images'): Promi
   formData.append('file', file)
 
   const token = api.getToken()
-  const API_URL = import.meta.env.VITE_API_URL || 
-  (typeof window !== 'undefined' && window.location.hostname === 'localhost' 
-    ? 'http://localhost:8100' 
+  const API_URL = import.meta.env.VITE_API_URL ||
+  (typeof window !== 'undefined' && window.location.hostname === 'localhost'
+    ? 'http://localhost:8100'
     : '')
 
   const response = await fetch(`${API_URL}/api/v1/files/upload?category=${category}`, {
