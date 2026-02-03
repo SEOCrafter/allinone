@@ -46,7 +46,7 @@ MODEL_NAME_ALIASES = {
     "minimax/image-01": "minimax-image",
     "luma/photon-flash": "luma-photon-flash",
     "runwayml/gen4-image": "runway-gen4-image",
-    "runwayml/gen4-image-turbo": "runway-gen4-image-turbo",
+    "runwayml/gen4-image-turbo": "runway-gen4-turbo",
     "cdingram/face-swap": "face-swap",
     "stability-ai/stable-diffusion-3.5-large": "sd-3.5-large",
     "stability-ai/stable-diffusion-3.5-large-turbo": "sd-3.5-large-turbo",
