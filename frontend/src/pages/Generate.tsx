@@ -393,8 +393,7 @@ export default function Generate({ selectedModel }: Props) {
     }
   }
 
-  const credits = user?.credits_balance ?? 0
-
+  
   if (!selectedModel || selectedModel.category === 'text') {
     return (
       <div className="generate-page">
