@@ -317,7 +317,7 @@ export default function Generate({ selectedModel }: Props) {
           prompt: prompt.trim(),
           provider: selectedModel.provider,
           model: selectedModel.backendModel,
-          image_urls: uploadedImage?.url ? [uploadedImage.url] : undefined,
+          image_urls: getImageInput(),
           duration: settings.duration,
           aspect_ratio: settings.aspectRatio,
           prompt_optimizer: selectedModel.supportsPromptOptimizer ? settings.promptOptimizer : undefined,
