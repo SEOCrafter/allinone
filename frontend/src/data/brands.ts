@@ -52,7 +52,6 @@ const OWNER_TO_BRAND: Record<string, string> = {
   'kwaivgi': 'kling',
   'cdingram': 'face-swap',
   'bytedance': 'seedance',
-  'minimax': 'hailuo',
   'openai': 'sora',
   'google': 'imagen',
 }
