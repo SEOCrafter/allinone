@@ -10,7 +10,6 @@ from app.adapters.midjourney import MidjourneyAdapter
 from app.adapters.veo import VeoAdapter
 from app.adapters.sora import SoraAdapter
 from app.adapters.hailuo import HailuoAdapter
-from app.adapters.runway import RunwayAdapter
 from app.adapters.seedance import SeedanceAdapter
 from app.adapters.flux import FluxAdapter
 from app.adapters.replicate import ReplicateAdapter
@@ -95,7 +94,6 @@ AdapterRegistry.register(MidjourneyAdapter)
 AdapterRegistry.register(VeoAdapter)
 AdapterRegistry.register(SoraAdapter)
 AdapterRegistry.register(HailuoAdapter)
-AdapterRegistry.register(RunwayAdapter)
 AdapterRegistry.register(SeedanceAdapter)
 AdapterRegistry.register(FluxAdapter)
 AdapterRegistry.register(ReplicateAdapter)
