@@ -49,6 +49,7 @@ interface ModelMeta {
   durations?: string[]
   supportsImageInput?: boolean
   requiresImage?: boolean
+  requiresVideo?: boolean
   supportsNegativePrompt?: boolean
   supportsOutputFormat?: boolean
   supportsPromptOptimizer?: boolean
@@ -88,6 +89,10 @@ const MODEL_METADATA: Record<string, ModelMeta> = {
   'hailuo/02-image-to-video-standard': { aspectRatios: ['16:9', '9:16', '1:1'], durations: ['6', '10'], requiresImage: true, supportsPromptOptimizer: true },
   'hailuo/02-image-to-video-pro': { aspectRatios: ['16:9', '9:16', '1:1'], durations: ['6', '10'], requiresImage: true, supportsPromptOptimizer: true },
   'minimax/hailuo-02-fast': { aspectRatios: ['16:9', '9:16', '1:1'], durations: ['6', '10'], supportsPromptOptimizer: true },
+  'kling-2.6/text-to-video': { aspectRatios: ['1:1', '16:9', '9:16'], durations: ['5', '10'] },
+  'kling-2.6/image-to-video': { aspectRatios: ['1:1', '16:9', '9:16'], durations: ['5', '10'], requiresImage: true },
+  'kling-2.6/motion-control': { aspectRatios: ['1:1', '16:9', '9:16'], durations: ['5', '10'], requiresImage: true, requiresVideo: true },
+  'kwaivgi/kling-v2.6-motion-control': { aspectRatios: ['1:1', '16:9', '9:16'], durations: ['5', '10'], requiresImage: true, requiresVideo: true },
 }
 
 let cachedBrands: Brand[] | null = null
