@@ -75,15 +75,10 @@ MODEL_TO_KIE_MODEL = {
 def normalize_model_name(model: str) -> str:
     if model in MODEL_NAME_ALIASES:
         return MODEL_NAME_ALIASES[model]
-    
     normalized = model.lower().replace("/", "-").replace("_", "-")
-    
-    suffixes_to_remove = ["-text-to-video", "-image-to-video", "-t2v", "-i2v"]
-    for suffix in suffixes_to_remove:
-        if normalized.endswith(suffix) and normalized not in MODEL_NAME_ALIASES.values():
-            pass
-    
-    return model
+    if normalized in MODEL_NAME_ALIASES:
+        return MODEL_NAME_ALIASES[normalized]
+    return normalized
 
 
 def get_api_key_for_provider(provider: str) -> Optional[str]:
