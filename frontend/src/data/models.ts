@@ -337,7 +337,7 @@ export const MODELS: Model[] = [
     color: '#3b82f6',
     backendModel: 'hailuo/t2v',
     aspectRatios: ['16:9', '9:16'],
-    durations: ['5'],
+    durations: ['6', '10'],
   },
   {
     id: 'hailuo-02-t2v-standard',
@@ -355,7 +355,7 @@ export const MODELS: Model[] = [
     backendModel: 'hailuo/02-text-to-video-standard',
     supportsPromptOptimizer: true,
     aspectRatios: ['16:9', '9:16', '1:1'],
-    durations: ['5'],
+    durations: ['6', '10'],
   },
   {
     id: 'hailuo-02-t2v-pro',
@@ -373,7 +373,7 @@ export const MODELS: Model[] = [
     backendModel: 'hailuo/02-text-to-video-pro',
     supportsPromptOptimizer: true,
     aspectRatios: ['16:9', '9:16', '1:1'],
-    durations: ['5'],
+    durations: ['6', '10'],
   },
   {
     id: 'hailuo-02-i2v-standard',
@@ -392,7 +392,7 @@ export const MODELS: Model[] = [
     requiresImage: true,
     supportsPromptOptimizer: true,
     aspectRatios: ['16:9', '9:16', '1:1'],
-    durations: ['5'],
+    durations: ['6', '10'],
   },
   {
     id: 'hailuo-02-i2v-pro',
@@ -411,7 +411,7 @@ export const MODELS: Model[] = [
     requiresImage: true,
     supportsPromptOptimizer: true,
     aspectRatios: ['16:9', '9:16', '1:1'],
-    durations: ['5'],
+    durations: ['6', '10'],
   },
   {
     id: 'hailuo-02-fast',
@@ -429,7 +429,7 @@ export const MODELS: Model[] = [
     backendModel: 'hailuo/02-text-to-video-fast',
     supportsPromptOptimizer: true,
     aspectRatios: ['16:9', '9:16', '1:1'],
-    durations: ['5'],
+    durations: ['6', '10'],
   },
   {
     id: 'runway-t2v',
