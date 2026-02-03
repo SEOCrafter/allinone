@@ -93,6 +93,8 @@ const MODEL_METADATA: Record<string, ModelMeta> = {
   'kling-2.6/image-to-video': { aspectRatios: ['1:1', '16:9', '9:16'], durations: ['5', '10'], requiresImage: true },
   'kling-2.6/motion-control': { aspectRatios: ['1:1', '16:9', '9:16'], durations: ['5', '10'], requiresImage: true, requiresVideo: true },
   'kwaivgi/kling-v2.6-motion-control': { aspectRatios: ['1:1', '16:9', '9:16'], durations: ['5', '10'], requiresImage: true, requiresVideo: true },
+  'openai/sora-2': { aspectRatios: ['portrait', 'landscape'], durations: ['10', '15'], supportsImageInput: true },
+  'openai/sora-2-pro': { aspectRatios: ['portrait', 'landscape'], durations: ['10', '15'], supportsImageInput: true },
 }
 
 let cachedBrands: Brand[] | null = null
