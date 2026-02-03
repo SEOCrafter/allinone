@@ -15,12 +15,24 @@ class SoraAdapter(BaseAdapter, KieBaseAdapter):
         "sora-2-image-to-video": {"per_video": 0.50, "display_name": "Sora 2 I2V"},
     }
 
+    MODEL_MAP = {
+        "openai/sora-2": {"t2v": "sora-2-text-to-video", "i2v": "sora-2-image-to-video"},
+        "openai/sora-2-pro": {"t2v": "sora-2-pro-text-to-video", "i2v": "sora-2-pro-image-to-video"},
+        "sora-2": {"t2v": "sora-2-text-to-video", "i2v": "sora-2-image-to-video"},
+        "sora-2-pro": {"t2v": "sora-2-pro-text-to-video", "i2v": "sora-2-pro-image-to-video"},
+    }
+
     def __init__(self, api_key: str, default_model: str = "sora-2-pro-text-to-video", **kwargs):
         BaseAdapter.__init__(self, api_key, **kwargs)
         KieBaseAdapter.__init__(self, api_key, **kwargs)
         self.default_model = default_model
         self.max_poll_attempts = kwargs.get("max_poll_attempts", 180)
         self.poll_interval = kwargs.get("poll_interval", 10)
+
+    def _resolve_model(self, model: str, has_image: bool) -> str:
+        if model in self.MODEL_MAP:
+            return self.MODEL_MAP[model]["i2v" if has_image else "t2v"]
+        return model
 
     async def generate(
         self,
@@ -34,6 +46,8 @@ class SoraAdapter(BaseAdapter, KieBaseAdapter):
         **params
     ) -> GenerationResult:
         model = model or self.default_model
+        has_image = bool(image_urls)
+        kie_model = self._resolve_model(model, has_image)
 
         n_frames = "10" if duration <= 10 else "15"
         size = "high" if mode == "pro" else "standard"
@@ -52,10 +66,10 @@ class SoraAdapter(BaseAdapter, KieBaseAdapter):
         }
 
         if image_urls:
-            input_data["image_url"] = image_urls[0]
+            input_data["image_urls"] = [image_urls[0]]
 
         if wait_for_result:
-            result = await self.generate_and_wait(model, input_data)
+            result = await self.generate_and_wait(kie_model, input_data)
 
             if not result.success:
                 return GenerationResult(
@@ -72,7 +86,7 @@ class SoraAdapter(BaseAdapter, KieBaseAdapter):
                 raw_response=result.raw_response,
             )
         else:
-            result = await self.create_task(model, input_data)
+            result = await self.create_task(kie_model, input_data)
 
             if not result.success:
                 return GenerationResult(
@@ -95,7 +109,7 @@ class SoraAdapter(BaseAdapter, KieBaseAdapter):
         try:
             result = await self.create_task(
                 "sora-2-text-to-video",
-                {"prompt": "test", "aspect_ratio": "landscape", "n_frames": "10s", "size": "standard"},
+                {"prompt": "test", "aspect_ratio": "landscape", "n_frames": "10", "size": "standard"},
             )
             latency = int((time.time() - start) * 1000)
             if result.success and result.task_id:
