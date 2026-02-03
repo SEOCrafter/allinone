@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import api from '../api/client'
@@ -22,8 +22,12 @@ export default function Verify() {
   const { login } = useAuth()
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [error, setError] = useState('')
+  const calledRef = useRef(false)
 
   useEffect(() => {
+    if (calledRef.current) return
+    calledRef.current = true
+
     const token = searchParams.get('token')
     if (!token) {
       setStatus('error')
@@ -42,7 +46,7 @@ export default function Verify() {
         setStatus('error')
         setError(err?.message || 'Ошибка верификации')
       })
-  }, [searchParams, login, navigate])
+  }, [])
 
   return (
     <div className="auth-page">
