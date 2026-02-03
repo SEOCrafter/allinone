@@ -161,7 +161,8 @@ export default function Generate({ selectedModel }: Props) {
   }
 
   const handleGenerate = async () => {
-    if (!prompt.trim() || isLoading) return
+    const needsPrompt = !selectedModel?.requiresVideo
+    if ((!prompt.trim() && needsPrompt) || isLoading) return
     if (!selectedModel) {
       setError('Выберите нейросеть')
       return
@@ -809,7 +810,7 @@ export default function Generate({ selectedModel }: Props) {
           <button
             className="btn btn-primary btn-generate"
             onClick={handleGenerate}
-            disabled={!prompt.trim() || isLoading || !user || isUploading || (requiresImage && !uploadedImage?.url) || (requiresTwoImages && (!uploadedImage?.url || !swapImage?.url))}
+            disabled={(!prompt.trim() && !requiresVideo) || isLoading || !user || isUploading || (requiresImage && !uploadedImage?.url) || (requiresTwoImages && (!uploadedImage?.url || !swapImage?.url)) || (requiresVideo && !uploadedVideo?.url)}
           >
             {isLoading ? (
               <>
