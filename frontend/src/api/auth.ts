@@ -27,14 +27,13 @@ export async function login(email: string, password: string): Promise<User> {
   return response.user
 }
 
-export async function register(email: string, password: string, name: string): Promise<User> {
-  const response = await api.request<LoginResponse>('/api/v1/auth/register', {
+export async function register(email: string, password: string, name: string): Promise<{ ok: boolean; email: string }> {
+  const response = await api.request<{ ok: boolean; message: string; email: string }>('/api/v1/auth/register', {
     method: 'POST',
     body: { email, password, name },
     skipAuth: true,
   })
-  api.setTokens(response.access_token, response.refresh_token)
-  return response.user
+  return { ok: response.ok, email: response.email }
 }
 
 export async function telegramLogin(authData: {

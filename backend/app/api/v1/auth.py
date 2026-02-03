@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.services.auth import AuthService
+from app.services.email import generate_verification_token, send_verification_email
 from app.api.deps import get_current_user
 from app.models.user import User
 
@@ -67,20 +68,34 @@ def user_to_dict(user) -> dict:
     }
 
 
-@router.post("/register", response_model=TokenResponse)
+@router.post("/register")
 async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
     existing = await auth_service.get_user_by_email(db, data.email)
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
+    
+    token = generate_verification_token()
+    user = await auth_service.create_user(db, data.email, data.password, verification_token=token)
+    
+    await send_verification_email(data.email, token)
+    
+    return {"ok": True, "message": "Verification email sent", "email": data.email}
 
-    user = await auth_service.create_user(db, data.email, data.password)
-
+@router.get("/verify")
+async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
+    user = await auth_service.get_user_by_verification_token(db, token)
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid or expired token")
+    
+    user.email_verified = True
+    user.verification_token = None
+    await db.commit()
+    
     return TokenResponse(
         access_token=auth_service.create_access_token(user.id),
         refresh_token=auth_service.create_refresh_token(user.id),
-        user=user_to_dict(user),
+        user=user_to_dict(user)
     )
-
 
 @router.post("/login", response_model=TokenResponse)
 async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):

@@ -33,9 +33,10 @@ export default function Register() {
 
     setLoading(true)
     try {
-      const user = await apiRegister(email, password, '')
-      login(user)
-      navigate('/')
+      const result = await apiRegister(email, password, '')
+      if (result.ok) {
+        navigate(`/verify-pending?email=${encodeURIComponent(email)}`)
+      }
     } catch (err: any) {
       setError(err instanceof Error ? err.message : 'Ошибка регистрации')
     } finally {

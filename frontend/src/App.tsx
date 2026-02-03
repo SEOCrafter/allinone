@@ -17,6 +17,8 @@ import type { Model } from './data/models'
 import { useAuth } from './context/AuthContext'
 import ToastContainer from './components/Toast'
 import TelegramLinkCallback from './pages/TelegramLinkCallback'
+import Verify from './pages/Verify'
+import VerifyPending from './pages/VerifyPending'
 
 export default function App() {
   const [selectedModel, setSelectedModel] = useState<Model | null>(null)
@@ -52,6 +54,8 @@ export default function App() {
           <Route path="/payment/success" element={<PaymentSuccess />} />
           <Route path="/auth/telegram-callback" element={<TelegramCallback />} />
           <Route path="/auth/telegram-link-callback" element={<TelegramLinkCallback />} />
+          <Route path="/verify" element={<Verify />} />
+          <Route path="/verify-pending" element={<VerifyPending />} />
         </Routes>
       </div>
       <ToastContainer />

@@ -55,11 +55,13 @@ class AuthService:
         return result.scalar_one_or_none()
 
     @staticmethod
-    async def create_user(db: AsyncSession, email: str, password: str) -> User:
+    async def create_user(db: AsyncSession, email: str, password: str, verification_token: str = None) -> User:
         user = User(
             email=email,
             password_hash=AuthService.hash_password(password),
             credits_balance=10.0,
+            email_verified=False,
+            verification_token=verification_token,
         )
         db.add(user)
         await db.flush()
@@ -78,5 +80,10 @@ class AuthService:
         await db.flush()
         await db.refresh(user)
         return user
+    
+    @staticmethod
+    async def get_user_by_verification_token(db: AsyncSession, token: str) -> Optional[User]:
+        result = await db.execute(select(User).where(User.verification_token == token))
+        return result.scalar_one_or_none()
 
 auth_service = AuthService()

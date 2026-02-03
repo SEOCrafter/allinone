@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     TELEGRAM_BOT_TOKEN: str = ""
     TELEGRAM_CHANNEL: str = "@umnik_ai"
 
+    # SendGrid
+    SENDGRID_API_KEY: str = ""
+    SENDGRID_FROM_EMAIL: str = "noreply@umnik.ai"
+    FRONTEND_URL: str = "https://umnik.ai"
+
 @lru_cache
 def get_settings() -> Settings:
     return Settings()

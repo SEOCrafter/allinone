@@ -22,6 +22,8 @@ class User(Base, UUIDMixin, TimestampMixin):
     timezone: Mapped[str] = mapped_column(String(50), default="Europe/Moscow")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_blocked: Mapped[bool] = mapped_column(Boolean, default=False)
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    verification_token: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     blocked_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     blocked_until: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     rate_limit_rpm: Mapped[Optional[int]] = mapped_column(nullable=True)
