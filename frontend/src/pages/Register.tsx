@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
 import { register as apiRegister } from '../api/auth'
 
 const TG_BOT_ID = '8464718685'
