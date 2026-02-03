@@ -420,11 +420,11 @@ export default function Generate({ selectedModel }: Props) {
           <div>
             <h1 className="generate-model-name">{selectedModel.name}</h1>
             <p className="generate-model-desc">{selectedModel.description}</p>
+            <div className="generate-model-cost">
+              <img src="/icons/token.svg" alt="" width="18" height="18" />
+              <span>{currentCost} токенов / генерация</span>
+            </div>
           </div>
-        </div>
-        <div className="generate-model-cost">
-          <img src="/icons/token.svg" alt="" width="18" height="18" />
-          <span>{currentCost} токенов / генерация</span>
         </div>
       </div>
 
@@ -830,9 +830,6 @@ export default function Generate({ selectedModel }: Props) {
             )}
           </button>
 
-          {user && (
-            <p className="generate-balance">Ваш баланс: {credits.toFixed(0)} кредитов</p>
-          )}
           {!user && (
             <p className="generate-login-hint">
               <a href="/login">Войдите</a> для генерации
