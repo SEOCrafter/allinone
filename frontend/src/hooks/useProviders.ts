@@ -79,8 +79,7 @@ const MODEL_METADATA: Record<string, ModelMeta> = {
   'google/imagen-4-ultra': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'] },
   'stability-ai/stable-diffusion-3.5-large': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'], supportsImageInput: true, supportsNegativePrompt: true, supportsOutputFormat: true },
   'stability-ai/stable-diffusion-3.5-large-turbo': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'], supportsImageInput: true, supportsNegativePrompt: true, supportsOutputFormat: true },
-  'minimax/image-01': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4'], supportsImageInput: true },
-  'luma/photon-flash': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'], resolutions: ['1K', '2K'], supportsImageInput: true },
+  'minimax/image-01': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4'], supportsImageInput: true },  
   'runwayml/gen4-image': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'], resolutions: ['720p', '1080p'], supportsImageInput: true },
   'runwayml/gen4-image-turbo': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'], resolutions: ['720p', '1080p'], requiresImage: true },
   'cdingram/face-swap': { requiresImage: true, requiresTwoImages: true },
@@ -98,6 +97,9 @@ const MODEL_METADATA: Record<string, ModelMeta> = {
   'bytedance/seedance-1.5-pro': { aspectRatios: ['16:9', '9:16', '1:1', '4:3', '3:4', '21:9'], durations: ['4', '8', '12'], resolutions: ['480p', '720p', '1080p'] },
   'gen4-turbo': { aspectRatios: ['16:9', '9:16', '1:1', '4:3', '3:4'], durations: ['5', '10'], supportsImageInput: true },
   'runwayml/gen4-turbo': { aspectRatios: ['16:9', '9:16', '1:1', '4:3', '3:4'], durations: ['5', '10'], supportsImageInput: true },
+  'luma/ray': { aspectRatios: ['16:9', '9:16', '1:1', '4:3', '3:4', '3:2', '2:3', '21:9', '9:21'], durations: ['5', '9'], supportsImageInput: true },
+  'luma/ray-flash-2-540p': { aspectRatios: ['16:9', '9:16', '1:1', '4:3', '3:4', '3:2', '2:3', '21:9', '9:21'], durations: ['5', '9'], supportsImageInput: true },
+  'luma/photon-flash': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'], resolutions: ['1K', '2K'], supportsImageInput: true },
 }
 
 let cachedBrands: Brand[] | null = null
