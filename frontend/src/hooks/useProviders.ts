@@ -96,6 +96,8 @@ const MODEL_METADATA: Record<string, ModelMeta> = {
   'openai/sora-2': { aspectRatios: ['portrait', 'landscape'], durations: ['10', '15'], supportsImageInput: true },
   'openai/sora-2-pro': { aspectRatios: ['portrait', 'landscape'], durations: ['10', '15'], supportsImageInput: true },
   'bytedance/seedance-1.5-pro': { aspectRatios: ['16:9', '9:16', '1:1', '4:3', '3:4', '21:9'], durations: ['4', '8', '12'], resolutions: ['480p', '720p', '1080p'] },
+  'gen4-turbo': { aspectRatios: ['16:9', '9:16', '1:1', '4:3', '3:4'], durations: ['5', '10'], supportsImageInput: true },
+  'runwayml/gen4-turbo': { aspectRatios: ['16:9', '9:16', '1:1', '4:3', '3:4'], durations: ['5', '10'], supportsImageInput: true },
 }
 
 let cachedBrands: Brand[] | null = null
