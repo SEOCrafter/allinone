@@ -39,6 +39,9 @@ services:
       FREEKASSA_API_KEY: ${FREEKASSA_API_KEY}      
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHANNEL: "@umnik_ai"
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY}
+      SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL}
+      FRONTEND_URL: ${FRONTEND_URL}
       GOOGLE_APPLICATION_CREDENTIALS: /app/google-credentials.json
     volumes:
       - ./backend/google-credentials.json:/app/google-credentials.json:ro
