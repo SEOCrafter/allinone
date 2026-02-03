@@ -46,15 +46,17 @@ export interface Brand extends BrandDef {
 interface ModelMeta {
   aspectRatios?: string[]
   resolutions?: string[]
+  durations?: string[]
   supportsImageInput?: boolean
   requiresImage?: boolean
   supportsNegativePrompt?: boolean
   supportsOutputFormat?: boolean
+  supportsPromptOptimizer?: boolean
   requiresTwoImages?: boolean
 }
 
 const MODEL_METADATA: Record<string, ModelMeta> = {
-    'flux-2/pro-text-to-image': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'], resolutions: ['1K', '2K'], supportsImageInput: true },
+  'flux-2/pro-text-to-image': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'], resolutions: ['1K', '2K'], supportsImageInput: true },
   'flux-2/pro-image-to-image': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'], resolutions: ['1K', '2K'], requiresImage: true },
   'flux-2/flex-text-to-image': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'], resolutions: ['1K', '2K'], supportsImageInput: true },
   'flux-2/flex-image-to-image': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'], resolutions: ['1K', '2K'], requiresImage: true },
@@ -81,6 +83,11 @@ const MODEL_METADATA: Record<string, ModelMeta> = {
   'runwayml/gen4-image': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'], resolutions: ['720p', '1080p'], supportsImageInput: true },
   'runwayml/gen4-image-turbo': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'], resolutions: ['720p', '1080p'], requiresImage: true },
   'cdingram/face-swap': { requiresImage: true, requiresTwoImages: true },
+  'hailuo/02-text-to-video-standard': { aspectRatios: ['16:9', '9:16', '1:1'], durations: ['6', '10'], supportsPromptOptimizer: true },
+  'hailuo/02-text-to-video-pro': { aspectRatios: ['16:9', '9:16', '1:1'], durations: ['6', '10'], supportsPromptOptimizer: true },
+  'hailuo/02-image-to-video-standard': { aspectRatios: ['16:9', '9:16', '1:1'], durations: ['6', '10'], requiresImage: true, supportsPromptOptimizer: true },
+  'hailuo/02-image-to-video-pro': { aspectRatios: ['16:9', '9:16', '1:1'], durations: ['6', '10'], requiresImage: true, supportsPromptOptimizer: true },
+  'minimax/hailuo-02-fast': { aspectRatios: ['16:9', '9:16', '1:1'], durations: ['6', '10'], supportsPromptOptimizer: true },
 }
 
 let cachedBrands: Brand[] | null = null
