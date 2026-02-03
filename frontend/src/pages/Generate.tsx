@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Model } from '../data/models'
 import { useAuth } from '../context/AuthContext'
@@ -36,6 +36,15 @@ export default function Generate({ selectedModel }: Props) {
   const [swapImage, setSwapImage] = useState<{ file: File; preview: string; url?: string } | null>(null)
   const [uploadedVideo, setUploadedVideo] = useState<{ file: File; preview: string; url?: string } | null>(null)
   const [isUploading, setIsUploading] = useState(false)
+
+  useEffect(() => {
+    setUploadedImage(null)
+    setReferenceImages([])
+    setSwapImage(null)
+    setUploadedVideo(null)
+    setResult(null)
+    setError(null)
+  }, [selectedModel?.id])
 
   const [settings, setSettings] = useState({
     aspectRatio: '1:1',
