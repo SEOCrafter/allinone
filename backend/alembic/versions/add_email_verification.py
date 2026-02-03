@@ -8,7 +8,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = 'add_email_verification'
-down_revision = None
+down_revision = 'add_task_events'
 branch_labels = None
 depends_on = None
 
