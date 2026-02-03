@@ -301,9 +301,15 @@ export default function Generate({ selectedModel }: Props) {
           aspect_ratio: settings.aspectRatio,
           sound: settings.sound,
         })
-        if (response.ok && response.video_url) {
-          const localUrl = await saveAndGetLocalUrl(response.video_url, true)
-          setResult(localUrl)
+        if (response.ok) {
+          if (response.video_url) {
+            const localUrl = await saveAndGetLocalUrl(response.video_url, true)
+            setResult(localUrl)
+          } else if (response.request_id) {
+            const resultUrl = await pollForResult(response.request_id)
+            const localUrl = await saveAndGetLocalUrl(resultUrl, true)
+            setResult(localUrl)
+          }
         }
       } else if (selectedModel.category === 'video') {
         response = await generateVideo({
@@ -315,9 +321,15 @@ export default function Generate({ selectedModel }: Props) {
           aspect_ratio: settings.aspectRatio,
           prompt_optimizer: selectedModel.supportsPromptOptimizer ? settings.promptOptimizer : undefined,
         })
-        if (response.ok && response.video_url) {
-          const localUrl = await saveAndGetLocalUrl(response.video_url, true)
-          setResult(localUrl)
+        if (response.ok) {
+          if (response.video_url) {
+            const localUrl = await saveAndGetLocalUrl(response.video_url, true)
+            setResult(localUrl)
+          } else if (response.request_id) {
+            const resultUrl = await pollForResult(response.request_id)
+            const localUrl = await saveAndGetLocalUrl(resultUrl, true)
+            setResult(localUrl)
+          }
         }
       } else if (selectedModel.provider === 'flux') {
         response = await generateImageAsync({
