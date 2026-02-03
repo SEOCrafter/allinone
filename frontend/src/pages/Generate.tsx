@@ -541,7 +541,7 @@ export default function Generate({ selectedModel }: Props) {
           {showImageUpload && (
             <div className="form-section">
               <label className="form-label">
-                {requiresTwoImages ? 'Целевое изображение' : requiresImage ? 'Исходное изображение' : 'Референсные изображения (до 8)'} 
+                {requiresTwoImages ? 'Целевое изображение' : requiresImage ? 'Исходное изображение' : selectedModel?.backendModel?.includes('runway') ? 'Референсные изображения (до 3)' : 'Референсные изображения (до 8)'}
                 {(requiresImage || requiresTwoImages) && <span className="required">*</span>}
               </label>
               <div 
