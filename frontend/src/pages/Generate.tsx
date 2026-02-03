@@ -32,6 +32,7 @@ export default function Generate({ selectedModel }: Props) {
   const [result, setResult] = useState<string | null>(null)
 
   const [uploadedImage, setUploadedImage] = useState<{ file: File; preview: string; url?: string } | null>(null)
+  const [referenceImages, setReferenceImages] = useState<{ file: File; preview: string; url?: string }[]>([])
   const [swapImage, setSwapImage] = useState<{ file: File; preview: string; url?: string } | null>(null)
   const [uploadedVideo, setUploadedVideo] = useState<{ file: File; preview: string; url?: string } | null>(null)
   const [isUploading, setIsUploading] = useState(false)
@@ -54,7 +55,9 @@ export default function Generate({ selectedModel }: Props) {
   const supportsImageInput = selectedModel?.supportsImageInput
   const requiresVideo = selectedModel?.requiresVideo
   const requiresTwoImages = selectedModel?.requiresTwoImages
-  const showImageUpload = requiresImage || supportsImageInput || requiresTwoImages
+  const supportsMultipleImages = selectedModel?.backendModel?.includes('runway') || selectedModel?.backendModel?.includes('flux')
+  const maxImages = selectedModel?.backendModel?.includes('runway') ? 3 : 8
+  const showImageUpload = requiresImage || supportsImageInput || requiresTwoImages || supportsMultipleImages
 
   const currentCost = (() => {
     if (selectedModel?.variants && settings.speed) {
@@ -69,17 +72,39 @@ export default function Generate({ selectedModel }: Props) {
     if (!file) return
 
     const preview = URL.createObjectURL(file)
-    setUploadedImage({ file, preview })
-    setIsUploading(true)
-
-    try {
-      const uploadResult = await uploadFile(file, 'images')
-      const urlResult = await getFileUrl(uploadResult.id)
-      setUploadedImage({ file, preview, url: urlResult.url })
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка загрузки файла')
-    } finally {
-      setIsUploading(false)
+    
+    if (supportsMultipleImages && !requiresImage && !requiresTwoImages) {
+      if (referenceImages.length >= maxImages) {
+        setError(`Максимум ${maxImages} изображений`)
+        return
+      }
+      const newImage = { file, preview }
+      setReferenceImages(prev => [...prev, newImage])
+      setIsUploading(true)
+      try {
+        const uploadResult = await uploadFile(file, 'images')
+        const urlResult = await getFileUrl(uploadResult.id)
+        setReferenceImages(prev => 
+          prev.map(img => img.preview === preview ? { ...img, url: urlResult.url } : img)
+        )
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Ошибка загрузки файла')
+        setReferenceImages(prev => prev.filter(img => img.preview !== preview))
+      } finally {
+        setIsUploading(false)
+      }
+    } else {
+      setUploadedImage({ file, preview })
+      setIsUploading(true)
+      try {
+        const uploadResult = await uploadFile(file, 'images')
+        const urlResult = await getFileUrl(uploadResult.id)
+        setUploadedImage({ file, preview, url: urlResult.url })
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Ошибка загрузки файла')
+      } finally {
+        setIsUploading(false)
+      }
     }
   }
 
@@ -180,6 +205,9 @@ export default function Generate({ selectedModel }: Props) {
     const getImageInput = () => {
       if (requiresTwoImages && uploadedImage?.url && swapImage?.url) {
         return [uploadedImage.url, swapImage.url]
+      }
+      if (supportsMultipleImages && referenceImages.length > 0) {
+        return referenceImages.filter(img => img.url).map(img => img.url!)
       }
       if (uploadedImage?.url) {
         return [uploadedImage.url]
@@ -541,49 +569,92 @@ export default function Generate({ selectedModel }: Props) {
           {showImageUpload && (
             <div className="form-section">
               <label className="form-label">
-                {requiresTwoImages ? 'Целевое изображение' : requiresImage ? 'Исходное изображение' : selectedModel?.backendModel?.includes('runway') ? 'Референсные изображения (до 3)' : 'Референсные изображения (до 8)'}
+                {requiresTwoImages ? 'Целевое изображение' : requiresImage ? 'Исходное изображение' : `Референсные изображения (до ${maxImages})`} 
                 {(requiresImage || requiresTwoImages) && <span className="required">*</span>}
               </label>
-              <div 
-                className={`upload-area ${uploadedImage ? 'has-file' : ''} ${isUploading ? 'uploading' : ''}`}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                {uploadedImage ? (
-                  <div className="upload-preview">
-                    <img src={uploadedImage.preview} alt="Preview" />
-                    {isUploading && <div className="upload-overlay">Загрузка...</div>}
-                    {uploadedImage.url && <div className="upload-success">✓</div>}
+              
+              {supportsMultipleImages && !requiresImage && !requiresTwoImages ? (
+                <>
+                  <div className="reference-images-grid">
+                    {referenceImages.map((img, idx) => (
+                      <div key={img.preview} className="reference-image-item">
+                        <img src={img.preview} alt={`Reference ${idx + 1}`} />
+                        {!img.url && <div className="upload-overlay">Загрузка...</div>}
+                        {img.url && <div className="upload-success">✓</div>}
+                        <button 
+                          className="remove-image-btn"
+                          onClick={() => setReferenceImages(prev => prev.filter((_, i) => i !== idx))}
+                          disabled={isLoading}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                    {referenceImages.length < maxImages && (
+                      <div 
+                        className={`upload-area upload-area-small ${isUploading ? 'uploading' : ''}`}
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                          <path d="M12 5v14M5 12h14"/>
+                        </svg>
+                        <p>Добавить</p>
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <>
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                      <polyline points="17,8 12,3 7,8"/>
-                      <line x1="12" y1="3" x2="12" y2="15"/>
-                    </svg>
-                    <p>{requiresTwoImages ? 'Изображение, на котором заменить лицо' : 'Перетащите изображение или кликните для выбора'}</p>
-                  </>
-                )}
-                <input 
-                  ref={fileInputRef}
-                  type="file" 
-                  accept="image/*" 
-                  onChange={handleImageUpload}
-                  disabled={isLoading || isUploading} 
-                  style={{ display: 'none' }}
-                />
-              </div>
-              {uploadedImage && (
-                <button 
-                  className="btn btn-secondary btn-sm"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setUploadedImage(null)
-                  }}
-                  disabled={isLoading}
-                >
-                  Удалить
-                </button>
+                  <input 
+                    ref={fileInputRef}
+                    type="file" 
+                    accept="image/*" 
+                    onChange={handleImageUpload}
+                    disabled={isLoading || isUploading} 
+                    style={{ display: 'none' }}
+                  />
+                </>
+              ) : (
+                <>
+                  <div 
+                    className={`upload-area ${uploadedImage ? 'has-file' : ''} ${isUploading ? 'uploading' : ''}`}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {uploadedImage ? (
+                      <div className="upload-preview">
+                        <img src={uploadedImage.preview} alt="Preview" />
+                        {isUploading && <div className="upload-overlay">Загрузка...</div>}
+                        {uploadedImage.url && <div className="upload-success">✓</div>}
+                      </div>
+                    ) : (
+                      <>
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                          <polyline points="17,8 12,3 7,8"/>
+                          <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        <p>{requiresTwoImages ? 'Изображение, на котором заменить лицо' : 'Перетащите изображение или кликните для выбора'}</p>
+                      </>
+                    )}
+                    <input 
+                      ref={fileInputRef}
+                      type="file" 
+                      accept="image/*" 
+                      onChange={handleImageUpload}
+                      disabled={isLoading || isUploading} 
+                      style={{ display: 'none' }}
+                    />
+                  </div>
+                  {uploadedImage && (
+                    <button 
+                      className="btn btn-secondary btn-sm"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setUploadedImage(null)
+                      }}
+                      disabled={isLoading}
+                    >
+                      Удалить
+                    </button>
+                  )}
+                </>
               )}
             </div>
           )}
