@@ -79,7 +79,7 @@ const MODEL_METADATA: Record<string, ModelMeta> = {
   'minimax/image-01': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4'], supportsImageInput: true },
   'luma/photon-flash': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'], supportsImageInput: true },
   'runwayml/gen4-image': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'], resolutions: ['720p', '1080p'], supportsImageInput: true },
-  'runwayml/gen4-image-turbo': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'], resolutions: ['720p', '1080p'], supportsImageInput: true },
+  'runwayml/gen4-image-turbo': { aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'], resolutions: ['720p', '1080p'], requiresImage: true },
   'cdingram/face-swap': { requiresImage: true, requiresTwoImages: true },
 }
 
