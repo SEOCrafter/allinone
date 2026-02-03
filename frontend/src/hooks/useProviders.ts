@@ -95,7 +95,7 @@ const MODEL_METADATA: Record<string, ModelMeta> = {
   'kwaivgi/kling-v2.6-motion-control': { aspectRatios: ['1:1', '16:9', '9:16'], durations: ['5', '10'], requiresImage: true, requiresVideo: true },
   'openai/sora-2': { aspectRatios: ['portrait', 'landscape'], durations: ['10', '15'], supportsImageInput: true },
   'openai/sora-2-pro': { aspectRatios: ['portrait', 'landscape'], durations: ['10', '15'], supportsImageInput: true },
-  'bytedance/seedance-1.5-pro': { aspectRatios: ['16:9', '9:16', '1:1'], durations: ['5', '10'] },
+  'bytedance/seedance-1.5-pro': { aspectRatios: ['16:9', '9:16', '1:1', '4:3', '3:4', '21:9'], durations: ['4', '8', '12'], resolutions: ['480p', '720p', '1080p'] },
 }
 
 let cachedBrands: Brand[] | null = null
