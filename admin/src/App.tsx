@@ -10,6 +10,7 @@ import Stats from './pages/Stats';
 import UnitEconomics from './pages/UnitEconomics';
 import Providers from './pages/Providers';
 import Tariffs from './pages/Tariffs';
+import Support from './pages/Support';
 
 const queryClient = new QueryClient();
 
@@ -40,6 +41,7 @@ function App() {
             <Route path="stats" element={<Stats />} />
             <Route path="unit-economics" element={<UnitEconomics />} />
             <Route path="tariffs" element={<Tariffs />} />
+            <Route path="support" element={<Support />} />
           </Route>
         </Routes>
       </BrowserRouter>

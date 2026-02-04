@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Activity, MessageSquare, Users, BarChart3, LogOut, Calculator, ArrowRightLeft, CreditCard } from 'lucide-react';
+import { LayoutDashboard, Activity, MessageSquare, Users, BarChart3, LogOut, Calculator, ArrowRightLeft, CreditCard, Headphones } from 'lucide-react';
 
 export default function Layout() {
   const navigate = useNavigate();
@@ -20,11 +20,11 @@ export default function Layout() {
     { to: '/users', icon: Users, label: 'Пользователи' },
     { to: '/stats', icon: BarChart3, label: 'Статистика' },
     { to: '/unit-economics', icon: Calculator, label: 'Unit-экономика' },
+    { to: '/support', icon: Headphones, label: 'Техподдержка' },
   ];
 
   return (
     <div className="flex h-screen bg-[#0a0a0a]">
-      {/* Sidebar */}
       <div className="w-64 bg-[#1a1a1a] flex flex-col">
         <div className="p-4 border-b border-gray-800">
           <h1 className="text-xl font-bold text-white">UmnikAI</h1>
@@ -68,7 +68,6 @@ export default function Layout() {
         </div>
       </div>
 
-      {/* Main content */}
       <div className="flex-1 overflow-auto p-8">
         <Outlet />
       </div>
