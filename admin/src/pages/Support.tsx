@@ -6,7 +6,6 @@ interface Ticket {
   title: string;
   description: string;
   user: string;
-  email: string;
   priority: 'low' | 'medium' | 'high' | 'urgent';
   source: 'telegram' | 'web' | 'email';
   createdAt: string;
@@ -31,8 +30,7 @@ const INITIAL_TICKETS: Ticket[] = [
     id: '1',
     title: 'Не работает генерация изображений',
     description: 'При попытке сгенерировать изображение через Midjourney получаю ошибку 500',
-    user: 'Александр Петров',
-    email: 'alex@example.com',
+    user: '@alex_petrov',
     priority: 'high',
     source: 'telegram',
     createdAt: '2026-02-04T10:30:00',
@@ -42,8 +40,7 @@ const INITIAL_TICKETS: Ticket[] = [
     id: '2',
     title: 'Вопрос по тарифам',
     description: 'Хочу узнать подробнее про тариф Pro и что в него входит',
-    user: 'Мария Иванова',
-    email: 'maria@example.com',
+    user: 'maria.ivanova@gmail.com',
     priority: 'low',
     source: 'web',
     createdAt: '2026-02-04T09:15:00',
@@ -53,8 +50,7 @@ const INITIAL_TICKETS: Ticket[] = [
     id: '3',
     title: 'Ошибка при оплате',
     description: 'Не могу пополнить баланс, платёж отклоняется',
-    user: 'Дмитрий Сидоров',
-    email: 'dmitry@example.com',
+    user: '@dmitry_sid',
     priority: 'urgent',
     source: 'telegram',
     createdAt: '2026-02-04T08:45:00',
@@ -64,8 +60,7 @@ const INITIAL_TICKETS: Ticket[] = [
     id: '4',
     title: 'Claude отвечает на английском',
     description: 'Несмотря на русский промпт, Claude иногда отвечает на английском языке',
-    user: 'Елена Козлова',
-    email: 'elena@example.com',
+    user: 'elena.kozlova@yandex.ru',
     priority: 'medium',
     source: 'email',
     createdAt: '2026-02-03T16:20:00',
@@ -75,8 +70,7 @@ const INITIAL_TICKETS: Ticket[] = [
     id: '5',
     title: 'Запрос на API доступ',
     description: 'Хотим интегрировать ваш сервис в наше приложение, нужен API ключ',
-    user: 'ООО "ТехСофт"',
-    email: 'dev@techsoft.ru',
+    user: 'dev@techsoft.ru',
     priority: 'medium',
     source: 'web',
     createdAt: '2026-02-03T14:00:00',
@@ -86,8 +80,7 @@ const INITIAL_TICKETS: Ticket[] = [
     id: '6',
     title: 'Спасибо за быструю помощь!',
     description: 'Проблема с генерацией видео решена, всё работает отлично',
-    user: 'Игорь Новиков',
-    email: 'igor@example.com',
+    user: '@igor_novikov',
     priority: 'low',
     source: 'telegram',
     createdAt: '2026-02-02T11:30:00',
@@ -97,8 +90,7 @@ const INITIAL_TICKETS: Ticket[] = [
     id: '7',
     title: 'Долгая генерация видео',
     description: 'Kling генерирует видео уже 20 минут, это нормально?',
-    user: 'Анна Белова',
-    email: 'anna@example.com',
+    user: '@anna_belova',
     priority: 'medium',
     source: 'telegram',
     createdAt: '2026-02-04T11:00:00',
@@ -175,8 +167,7 @@ export default function Support() {
       .filter(t => 
         searchQuery === '' || 
         t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        t.user.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        t.email.toLowerCase().includes(searchQuery.toLowerCase())
+        t.user.toLowerCase().includes(searchQuery.toLowerCase())
       );
   };
 
