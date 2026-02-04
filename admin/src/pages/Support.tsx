@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MessageSquare, Clock, User, Calendar, GripVertical, Plus, Search, Filter } from 'lucide-react';
+import { MessageSquare, Clock, User, GripVertical, Plus, Search, Filter } from 'lucide-react';
 
 interface Ticket {
   id: string;
